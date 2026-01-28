@@ -83,7 +83,7 @@ class TeamCalendarView(generics.GenericAPIView):
             user_id__in=member_id_list,
             status='APPROVED'
         ).filter(
-            Q(start_date__lt=end_date) & Q(end_date__gte=start_date)
+            Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).select_related('leave_category', 'user')
 
         leaves_data = []
@@ -298,9 +298,13 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         my_only = request.query_params.get('my', 'true').lower() == 'true'
         status_filter = request.query_params.get('status')
         year_filter = request.query_params.get('year')
+        history_only = request.query_params.get('history', 'false').lower() == 'true'
 
+        # Check if this is a history request for managers
+        if history_only:
+            queryset = LeaveApprovalService.get_approval_history_for_manager(user)
         # Check if this is a pending approvals request for managers
-        if status_filter == 'pending' and not my_only:
+        elif status_filter == 'pending' and not my_only:
             queryset = LeaveApprovalService.get_pending_requests_for_manager(user)
         elif my_only:
             # Get user's own requests

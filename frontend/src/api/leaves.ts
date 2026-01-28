@@ -44,6 +44,18 @@ export const leavesApi = {
     return response.data;
   },
 
+  // Get pending requests for manager approval
+  getPendingApprovals: async () => {
+    const response = await api.get<{ results: LeaveRequest[] }>('/leaves/requests/', { params: { status: 'pending', my: 'false' } });
+    return response.data.results;
+  },
+
+  // Get approval history for manager
+  getApprovalHistory: async () => {
+    const response = await api.get<{ results: LeaveRequest[] }>('/leaves/requests/', { params: { history: 'true' } });
+    return response.data.results;
+  },
+
   getLeaveRequest: async (id: string) => {
     const response = await api.get<LeaveRequest>(`/leaves/requests/${id}/`);
     return response.data;

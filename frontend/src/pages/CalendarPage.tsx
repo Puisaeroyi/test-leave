@@ -50,6 +50,20 @@ function getShortName(name: string) {
   return parts[parts.length - 1].substring(0, 3).toUpperCase();
 }
 
+// Parse date string as local date (no timezone conversion)
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+// Format Date to local date string (no timezone conversion)
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Get Tailwind color classes from hex
 function getColorClasses(hexColor: string) {
   const colorMap: { [key: string]: { bg: string; dot: string; text: string } } = {
@@ -173,7 +187,7 @@ export default function CalendarPage() {
   // Get partial day leaves for a specific date
   const getPartialDayLeaves = (date: Date) => {
     if (!calendarData) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     return calendarData.leaves.filter(leave => {
       if (!selectedMembers.includes(leave.member_id)) return false;
       if (leave.is_full_day) return false;
@@ -193,16 +207,16 @@ export default function CalendarPage() {
     return calendarData.leaves.filter(leave => {
       if (!selectedMembers.includes(leave.member_id)) return false;
       if (!leave.is_full_day) return false;
-      const leaveStart = new Date(leave.start_date);
-      const leaveEnd = new Date(leave.end_date);
+      const leaveStart = parseLocalDate(leave.start_date);
+      const leaveEnd = parseLocalDate(leave.end_date);
       return leaveStart <= weekEnd && leaveEnd >= weekStart;
     });
   };
 
   // Calculate bar position for multi-day leave
   const getLeaveBarStyle = (leave: Leave, week: (Date | null)[]) => {
-    const leaveStart = new Date(leave.start_date);
-    const leaveEnd = new Date(leave.end_date);
+    const leaveStart = parseLocalDate(leave.start_date);
+    const leaveEnd = parseLocalDate(leave.end_date);
 
     let startCol = 0;
     let endCol = 6;

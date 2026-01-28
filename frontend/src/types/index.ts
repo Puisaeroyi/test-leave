@@ -73,6 +73,10 @@ export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export interface LeaveRequest {
   id: string;
   user: string;
+  user_name?: string;
+  user_email?: string;
+  user_timezone?: string; // GMT offset label e.g., "GMT+9"
+  user_location_name?: string;
   leave_category?: LeaveCategory | string;
   category?: LeaveCategory; // Populated by serializer
   start_date: string;

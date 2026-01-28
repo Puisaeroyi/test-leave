@@ -49,6 +49,25 @@ class LeaveApprovalService:
         return queryset.select_related('user', 'leave_category').order_by('created_at')
 
     @staticmethod
+    def get_approval_history_for_manager(user):
+        """
+        Get approval history (approved/rejected requests) for a manager.
+
+        Args:
+            user: Manager user instance
+
+        Returns:
+            QuerySet of approved/rejected LeaveRequest objects
+        """
+        # Get all requests that this user has approved or rejected
+        queryset = LeaveRequest.objects.filter(
+            approved_by=user,
+            status__in=['APPROVED', 'REJECTED']
+        )
+
+        return queryset.select_related('user', 'leave_category').order_by('-approved_at')
+
+    @staticmethod
     def can_manager_approve_request(manager, leave_request):
         """
         Check if a manager can approve a specific leave request.

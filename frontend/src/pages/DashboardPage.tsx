@@ -4,6 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { leavesApi } from '../api/leaves';
 import type { LeaveRequest, LeaveBalance, PublicHoliday } from '../types';
 
+// Parse date string as local date to avoid timezone shift
+function parseLocalDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
 export default function DashboardPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -20,16 +26,23 @@ export default function DashboardPage() {
     holidays: Array<{ date: string; name: string }>;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [weekRange, setWeekRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
 
-  // Calculate current week range
-  useEffect(() => {
+  // Calculate week range based on offset
+  const getWeekRange = (offset: number = 0) => {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - dayOfWeek);
+    startOfWeek.setDate(now.getDate() - dayOfWeek + (offset * 7));
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
+    return { start: startOfWeek, end: endOfWeek };
+  };
+
+  // Update week range display when offset changes
+  useEffect(() => {
+    const { start: startOfWeek, end: endOfWeek } = getWeekRange(weekOffset);
 
     const formatDate = (date: Date) => {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -40,7 +53,11 @@ export default function DashboardPage() {
       start: formatDate(startOfWeek),
       end: formatDate(endOfWeek),
     });
-  }, []);
+  }, [weekOffset]);
+
+  const goToPreviousWeek = () => setWeekOffset(prev => prev - 1);
+  const goToNextWeek = () => setWeekOffset(prev => prev + 1);
+  const goToCurrentWeek = () => setWeekOffset(0);
 
   // Fetch data on mount
   useEffect(() => {
@@ -65,12 +82,8 @@ export default function DashboardPage() {
         });
         setPublicHolidays(holidays);
 
-        // Fetch team calendar for current month
-        const calendarData = await leavesApi.getTeamCalendar({
-          month: currentMonth,
-          year: currentYear,
-        });
-        setTeamCalendarData(calendarData);
+        // Fetch team calendar for selected week's month
+        fetchTeamCalendarForWeek(weekOffset);
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
       } finally {
@@ -80,6 +93,30 @@ export default function DashboardPage() {
 
     fetchData();
   }, [user]);
+
+  // Fetch team calendar when week changes
+  useEffect(() => {
+    if (user) {
+      fetchTeamCalendarForWeek(weekOffset);
+    }
+  }, [weekOffset, user]);
+
+  // Helper to fetch team calendar for a specific week's month
+  const fetchTeamCalendarForWeek = async (offset: number) => {
+    try {
+      const { start: startOfWeek } = getWeekRange(offset);
+      const monthForWeek = startOfWeek.getMonth() + 1;
+      const yearForWeek = startOfWeek.getFullYear();
+
+      const calendarData = await leavesApi.getTeamCalendar({
+        month: monthForWeek,
+        year: yearForWeek,
+      });
+      setTeamCalendarData(calendarData);
+    } catch (error) {
+      console.error('Failed to fetch team calendar:', error);
+    }
+  };
 
   const getWeekNumber = (date: Date) => {
     const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
@@ -398,12 +435,12 @@ export default function DashboardPage() {
                                     : 'Leave'}
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                  {new Date(request.start_date).toLocaleDateString('en-US', {
+                                  {parseLocalDate(request.start_date).toLocaleDateString('en-US', {
                                     month: 'short',
                                     day: 'numeric',
                                   })}
                                   {request.start_date !== request.end_date && (
-                                    <> - {new Date(request.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
+                                    <> - {parseLocalDate(request.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</>
                                   )}
                                 </p>
                               </div>
@@ -469,85 +506,182 @@ export default function DashboardPage() {
               {/* Upcoming Events */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                 <div className="p-6 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900">Upcoming Events</h2>
-                  <p className="text-xs text-gray-500">
-                    Week-{currentWeek.toString().padStart(2, '0')} ({weekRange.start} - {weekRange.end})
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-900">Upcoming Events</h2>
+                      <p className="text-xs text-gray-500">
+                        Week-{getWeekNumber(getWeekRange(weekOffset).start).toString().padStart(2, '0')} ({weekRange.start} - {weekRange.end})
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={goToPreviousWeek}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Previous week"
+                      >
+                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={goToCurrentWeek}
+                        className="px-3 py-1 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Go to current week"
+                      >
+                        Today
+                      </button>
+                      <button
+                        onClick={goToNextWeek}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Next week"
+                      >
+                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="p-6">
                   <div className="space-y-3">
-                    {/* Public Holidays */}
-                    {publicHolidays
-                      .filter(holiday => {
-                        const holidayDate = new Date(holiday.date);
-                        const now = new Date();
-                        const dayOfWeek = now.getDay();
-                        const startOfWeek = new Date(now);
-                        startOfWeek.setDate(now.getDate() - dayOfWeek);
-                        const endOfWeek = new Date(startOfWeek);
-                        endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    {(() => {
+                      // Get selected week range
+                      const { start: startOfWeek, end: endOfWeek } = getWeekRange(weekOffset);
+
+                      // Filter events for selected week
+                      const filteredHolidays = publicHolidays.filter(holiday => {
+                        const holidayDate = parseLocalDate(holiday.date);
                         return holidayDate >= startOfWeek && holidayDate <= endOfWeek;
-                      })
-                      .map(holiday => (
-                        <div key={holiday.id} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                          <div className="mt-0.5">
-                            <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">{holiday.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(holiday.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                            </p>
-                          </div>
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Holiday</span>
-                        </div>
-                      ))}
+                      });
 
-                    {/* My Approved Leaves */}
-                    {leaveRequests
-                      .filter(req => req.status === 'APPROVED')
-                      .filter(req => {
-                        const reqDate = new Date(req.start_date);
-                        const now = new Date();
-                        const dayOfWeek = now.getDay();
-                        const startOfWeek = new Date(now);
-                        startOfWeek.setDate(now.getDate() - dayOfWeek);
-                        const endOfWeek = new Date(startOfWeek);
-                        endOfWeek.setDate(startOfWeek.getDate() + 6);
-                        return reqDate >= startOfWeek && reqDate <= endOfWeek;
-                      })
-                      .map(req => (
-                        <div key={req.id} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
-                          <div className="mt-0.5">
-                            <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">My Leave</p>
-                            <p className="text-xs text-gray-500">
-                              {req.category && typeof req.category === 'object' ? req.category.name : 'Leave'}
-                            </p>
-                          </div>
-                          <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">Approved</span>
-                        </div>
-                      ))}
+                      const filteredMyLeaves = leaveRequests
+                        .filter(req => req.status === 'APPROVED')
+                        .filter(req => {
+                          const reqDate = parseLocalDate(req.start_date);
+                          return reqDate >= startOfWeek && reqDate <= endOfWeek;
+                        });
 
-                    {/* Team Member Leaves */}
-                    {teamCalendarData?.leaves
-                      .filter(leave => {
-                        const member = teamCalendarData.team_members.find(m => m.id === leave.member_id);
-                        return member && member.id !== user?.id;
-                      })
-                      .slice(0, 3)
-                      .map((leave) => {
-                        const member = teamCalendarData.team_members.find(m => m.id === leave.member_id);
-                        if (!member) return null;
+                      const filteredTeamLeaves = (teamCalendarData?.leaves || [])
+                        .filter(leave => {
+                          const member = teamCalendarData?.team_members.find(m => m.id === leave.member_id);
+                          if (!member || member.id === user?.id) return false;
+                          const leaveStart = parseLocalDate(leave.start_date);
+                          return leaveStart >= startOfWeek && leaveStart <= endOfWeek;
+                        });
+
+                      const allEvents = [
+                        ...filteredHolidays.map(h => ({ type: 'holiday', data: h })),
+                        ...filteredMyLeaves.map(l => ({ type: 'myleave', data: l })),
+                        ...filteredTeamLeaves.map(l => ({ type: 'teamleave', data: l }))
+                      ].sort((a, b) => {
+                        const aDate = a.type === 'holiday' ? parseLocalDate(a.data.date) : parseLocalDate(a.data.start_date);
+                        const bDate = b.type === 'holiday' ? parseLocalDate(b.data.date) : parseLocalDate(b.data.start_date);
+                        return aDate.getTime() - bDate.getTime();
+                      });
+
+                      if (allEvents.length === 0) {
                         return (
-                          <div key={leave.id} className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
+                          <p className="text-gray-500 text-center py-4 text-sm">
+                            {`No events for Week-${getWeekNumber(getWeekRange(weekOffset).start).toString().padStart(2, '0')} (${weekRange.start} - ${weekRange.end})`}
+                          </p>
+                        );
+                      }
+
+                      return allEvents.map((event) => {
+                        if (event.type === 'holiday') {
+                          const holiday = event.data;
+                          return (
+                            <div key={`holiday-${holiday.id}`} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+                              <div className="mt-0.5">
+                                <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">{holiday.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  {parseLocalDate(holiday.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                </p>
+                              </div>
+                              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full">Holiday</span>
+                            </div>
+                          );
+                        }
+
+                        if (event.type === 'myleave') {
+                          const req = event.data;
+                          const startDate = parseLocalDate(req.start_date);
+                          const endDate = parseLocalDate(req.end_date);
+                          const isSameDay = req.start_date === req.end_date;
+
+                          let dateRange: string;
+                          if (isSameDay && req.start_time && req.end_time) {
+                            // Same day with time range - add weekday
+                            const weekday = startDate.toLocaleDateString('en-US', { weekday: 'short' });
+                            const [startH, startM] = req.start_time.split(':').map(Number);
+                            const [endH, endM] = req.end_time.split(':').map(Number);
+                            const startTime = `${startH % 12 || 12}:${startM.toString().padStart(2, '0')} ${startH >= 12 ? 'PM' : 'AM'}`;
+                            const endTime = `${endH % 12 || 12}:${endM.toString().padStart(2, '0')} ${endH >= 12 ? 'PM' : 'AM'}`;
+                            dateRange = `${weekday} ${startTime} - ${endTime}`;
+                          } else if (isSameDay) {
+                            // Same day, full day - add weekday
+                            dateRange = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                          } else {
+                            // Date range - add weekday to start date
+                            const startStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            const endStr = endDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                            dateRange = `${startStr} - ${endStr}`;
+                          }
+
+                          return (
+                            <div key={`myleave-${req.id}`} className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
+                              <div className="mt-0.5">
+                                <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900">My Leave</p>
+                                <p className="text-xs text-gray-500">
+                                  {req.category && typeof req.category === 'object' ? req.category.name : 'Leave'}
+                                </p>
+                              </div>
+                              <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">{dateRange}</span>
+                            </div>
+                          );
+                        }
+
+                        // teamleave
+                        const leave = event.data;
+                        const member = teamCalendarData?.team_members.find(m => m.id === leave.member_id);
+                        if (!member) return null;
+
+                        const startDate = parseLocalDate(leave.start_date);
+                        const endDate = parseLocalDate(leave.end_date);
+                        const isSameDay = leave.start_date === leave.end_date;
+
+                        let dateRange: string;
+                        if (isSameDay && leave.start_time && leave.end_time) {
+                          // Same day with time range - add weekday
+                          const weekday = startDate.toLocaleDateString('en-US', { weekday: 'short' });
+                          const [startH, startM] = leave.start_time.split(':').map(Number);
+                          const [endH, endM] = leave.end_time.split(':').map(Number);
+                          const startTime = `${startH % 12 || 12}:${startM.toString().padStart(2, '0')} ${startH >= 12 ? 'PM' : 'AM'}`;
+                          const endTime = `${endH % 12 || 12}:${endM.toString().padStart(2, '0')} ${endH >= 12 ? 'PM' : 'AM'}`;
+                          dateRange = `${weekday} ${startTime} - ${endTime}`;
+                        } else if (isSameDay) {
+                          // Same day, full day - weekday already included
+                          dateRange = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                        } else {
+                          // Date range - add weekday to start and end
+                          const startStr = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                          const endStr = endDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                          dateRange = `${startStr} - ${endStr}`;
+                        }
+
+                        return (
+                          <div key={`teamleave-${leave.id}`} className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
                             <div className="mt-0.5">
                               <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
@@ -558,39 +692,12 @@ export default function DashboardPage() {
                               <p className="text-xs text-gray-500">{leave.category}</p>
                             </div>
                             <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded-full">
-                              {new Date(leave.start_date).toLocaleDateString('en-US', { weekday: 'short' })}
+                              {dateRange}
                             </span>
                           </div>
                         );
-                      })}
-
-                    {/* No events message */}
-                    {publicHolidays.filter(holiday => {
-                      const holidayDate = new Date(holiday.date);
-                      const now = new Date();
-                      const dayOfWeek = now.getDay();
-                      const startOfWeek = new Date(now);
-                      startOfWeek.setDate(now.getDate() - dayOfWeek);
-                      const endOfWeek = new Date(startOfWeek);
-                      endOfWeek.setDate(startOfWeek.getDate() + 6);
-                      return holidayDate >= startOfWeek && holidayDate <= endOfWeek;
-                    }).length === 0 &&
-                      leaveRequests.filter(req => req.status === 'APPROVED').filter(req => {
-                        const reqDate = new Date(req.start_date);
-                        const now = new Date();
-                        const dayOfWeek = now.getDay();
-                        const startOfWeek = new Date(now);
-                        startOfWeek.setDate(now.getDate() - dayOfWeek);
-                        const endOfWeek = new Date(startOfWeek);
-                        endOfWeek.setDate(startOfWeek.getDate() + 6);
-                        return reqDate >= startOfWeek && reqDate <= endOfWeek;
-                      }).length === 0 &&
-                      (!teamCalendarData?.leaves || teamCalendarData.leaves.filter(leave => {
-                        const member = teamCalendarData.team_members.find(m => m.id === leave.member_id);
-                        return member && member.id !== user?.id;
-                      }).length === 0) && (
-                      <p className="text-gray-500 text-center py-4 text-sm">No upcoming events this week</p>
-                    )}
+                      });
+                    })()}
                   </div>
                 </div>
               </div>

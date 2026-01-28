@@ -43,14 +43,16 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     category = serializers.SerializerMethodField()
     user_name = serializers.SerializerMethodField()
     user_email = serializers.SerializerMethodField()
+    user_timezone = serializers.SerializerMethodField()
+    user_location_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaveRequest
         fields = [
-            'id', 'user', 'user_name', 'user_email', 'leave_category',
-            'category', 'start_date', 'end_date', 'shift_type',
+            'id', 'user', 'user_name', 'user_email', 'user_timezone', 'user_location_name',
+            'leave_category', 'category', 'start_date', 'end_date', 'shift_type',
             'start_time', 'end_time', 'total_hours', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',
@@ -80,6 +82,30 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     def get_user_email(self, obj):
         """Get user email"""
         return obj.user.email
+
+    def get_user_timezone(self, obj):
+        """Get user's location timezone as GMT offset label (e.g., GMT+9)"""
+        if obj.user.location and obj.user.location.timezone:
+            from datetime import datetime
+            import zoneinfo
+            try:
+                tz = zoneinfo.ZoneInfo(obj.user.location.timezone)
+                # Get current offset
+                offset = datetime.now(tz).strftime('%z')  # e.g., +0900
+                hours = int(offset[:3])
+                mins = int(offset[0] + offset[3:5]) if offset[3:5] != '00' else 0
+                if mins:
+                    return f"GMT{hours:+d}:{abs(mins):02d}"
+                return f"GMT{hours:+d}"
+            except Exception:
+                return None
+        return None
+
+    def get_user_location_name(self, obj):
+        """Get user's location name"""
+        if obj.user.location:
+            return obj.user.location.name
+        return None
 
     def get_approved_by_name(self, obj):
         """Get approver name"""

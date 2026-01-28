@@ -13,24 +13,17 @@ import DashboardPage from './pages/DashboardPage';
 
 // Leave Request
 import LeaveRequestPage from './pages/LeaveRequestPage';
+import LeaveListPage from './pages/LeaveListPage';
 
 // Calendar
 import CalendarPage from './pages/CalendarPage';
 
+// Approvals
+import ApprovalsPage from './pages/ApprovalsPage';
+
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ReportsPage from './pages/admin/ReportsPage';
-
-function ApprovalsPage() {
-  return (
-    <Layout title="Approvals">
-      <div className="bg-white rounded-lg shadow-md p-8">
-        <h2 className="text-xl font-semibold mb-4">Pending Approvals</h2>
-        <p className="text-gray-600">Approvals page coming soon...</p>
-      </div>
-    </Layout>
-  );
-}
 
 function AdminPage() {
   return (
@@ -73,7 +66,7 @@ function App() {
             path="/leaves"
             element={
               <ProtectedRoute requireOnboarding={true}>
-                <Navigate to="/" replace />
+                <LeaveListPage />
               </ProtectedRoute>
             }
           />
