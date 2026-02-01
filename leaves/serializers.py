@@ -11,7 +11,7 @@ class LeaveCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LeaveCategory
-        fields = ['id', 'name', 'code', 'color', 'requires_document', 'sort_order', 'is_active']
+        fields = ['id', 'category_name', 'code', 'requires_document', 'sort_order', 'is_active']
         read_only_fields = ['id']
 
 
@@ -45,6 +45,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     user_email = serializers.SerializerMethodField()
     user_timezone = serializers.SerializerMethodField()
     user_location_name = serializers.SerializerMethodField()
+    department_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
 
@@ -52,7 +53,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         model = LeaveRequest
         fields = [
             'id', 'user', 'user_name', 'user_email', 'user_timezone', 'user_location_name',
-            'leave_category', 'category', 'start_date', 'end_date', 'shift_type',
+            'department_name', 'leave_category', 'category', 'start_date', 'end_date', 'shift_type',
             'start_time', 'end_time', 'total_hours', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',
@@ -69,9 +70,8 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         if obj.leave_category:
             return {
                 'id': str(obj.leave_category.id),
-                'name': obj.leave_category.name,
-                'code': obj.leave_category.code,
-                'color': obj.leave_category.color
+                'name': obj.leave_category.category_name,
+                'code': obj.leave_category.code
             }
         return None
 
@@ -104,7 +104,13 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     def get_user_location_name(self, obj):
         """Get user's location name"""
         if obj.user.location:
-            return obj.user.location.name
+            return obj.user.location.location_name
+        return None
+
+    def get_department_name(self, obj):
+        """Get user's department name"""
+        if obj.user.department:
+            return obj.user.department.department_name
         return None
 
     def get_approved_by_name(self, obj):
@@ -128,7 +134,7 @@ class LeaveRequestCreateSerializer(serializers.ModelSerializer):
     def get_category_name(self, obj):
         """Get category name"""
         if obj.leave_category:
-            return obj.leave_category.name
+            return obj.leave_category.category_name
         return None
 
 
@@ -152,18 +158,18 @@ class PublicHolidaySerializer(serializers.ModelSerializer):
         model = PublicHoliday
         fields = [
             'id', 'entity', 'entity_name', 'location', 'location_name',
-            'name', 'date', 'is_recurring', 'year', 'is_active',
+            'holiday_name', 'date', 'is_recurring', 'year', 'is_active',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_entity_name(self, obj):
         """Get entity name"""
-        return obj.entity.name if obj.entity else None
+        return obj.entity.entity_name if obj.entity else None
 
     def get_location_name(self, obj):
         """Get location name"""
-        return obj.location.name if obj.location else None
+        return obj.location.location_name if obj.location else None
 
 
 class LeaveRequestApproveSerializer(serializers.Serializer):
@@ -178,4 +184,39 @@ class LeaveRequestRejectSerializer(serializers.Serializer):
         min_length=10,
         max_length=1000,
         error_messages={'min_length': 'Rejection reason must be at least 10 characters'}
+    )
+
+
+class BusinessTripSerializer(serializers.ModelSerializer):
+    """Serializer for BusinessTrip (read)"""
+    user_name = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LeaveRequest
+        fields = [
+            'id', 'user', 'user_name', 'user_email', 'start_date', 'end_date',
+            'total_hours', 'reason', 'status', 'approved_at',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'status', 'approved_at', 'created_at', 'updated_at']
+
+    def get_user_name(self, obj):
+        """Get user full name"""
+        return f"{obj.user.first_name or ''} {obj.user.last_name or ''}".strip() or obj.user.email
+
+    def get_user_email(self, obj):
+        """Get user email"""
+        return obj.user.email
+
+
+class BusinessTripCreateSerializer(serializers.Serializer):
+    """Serializer for creating business trip - reason is REQUIRED"""
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    reason = serializers.CharField(
+        required=True,
+        min_length=3,
+        max_length=500,
+        error_messages={'required': 'Please provide a reason/destination for the business trip'}
     )

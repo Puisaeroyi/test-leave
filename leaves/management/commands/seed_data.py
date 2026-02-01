@@ -20,64 +20,72 @@ class Command(BaseCommand):
         # Create Entity
         entity, _ = Entity.objects.get_or_create(
             code='MAIN',
-            defaults={'name': 'Main Company', 'is_active': True}
+            defaults={'entity_name': 'Main Company', 'is_active': True}
         )
-        self.stdout.write(f'  Entity: {entity.name}')
+        self.stdout.write(f'  Entity: {entity.entity_name}')
 
         # Create Locations
         locations = [
-            {'name': 'Headquarters', 'city': 'New York', 'country': 'USA', 'timezone': 'America/New_York'},
-            {'name': 'Remote', 'city': 'Global', 'country': 'Global', 'timezone': 'UTC'},
+            {'location_name': 'Headquarters', 'city': 'New York', 'country': 'USA', 'timezone': 'America/New_York', 'departments': ['Engineering', 'HR', 'Finance']},
+            {'location_name': 'Remote', 'city': 'Global', 'country': 'Global', 'timezone': 'UTC', 'departments': ['Operations', 'Marketing']},
         ]
         created_locations = []
         for loc_data in locations:
+            dept_names = loc_data.pop('departments', [])
             loc, _ = Location.objects.get_or_create(
                 entity=entity,
-                name=loc_data['name'],
-                defaults=loc_data
+                location_name=loc_data['location_name'],
+                defaults={**loc_data, 'is_active': True}
             )
-            created_locations.append(loc)
-            self.stdout.write(f'  Location: {loc.name}')
+            created_locations.append({'location': loc, 'departments': dept_names})
+            self.stdout.write(f'  Location: {loc.location_name}')
 
-        # Create Departments
-        departments = ['Engineering', 'HR', 'Finance', 'Marketing', 'Operations']
+        # Create Departments with location assignments
+        departments_map = {
+            'Engineering': 'ENG',
+            'HR': 'HR',
+            'Finance': 'FIN',
+            'Marketing': 'MKT',
+            'Operations': 'OPS'
+        }
         created_departments = []
-        for dept_name in departments:
-            dept, _ = Department.objects.get_or_create(
-                entity=entity,
-                name=dept_name,
-                defaults={'is_active': True}
-            )
-            created_departments.append(dept)
-            self.stdout.write(f'  Department: {dept.name}')
+
+        for loc_data in created_locations:
+            for dept_name in loc_data['departments']:
+                code = departments_map.get(dept_name, dept_name[:3].upper())
+                dept, created = Department.objects.get_or_create(
+                    entity=entity,
+                    location=loc_data['location'],
+                    code=code,
+                    defaults={'department_name': dept_name, 'is_active': True}
+                )
+                if created:
+                    self.stdout.write(f'  Department: {dept.department_name} @ {loc_data["location"].location_name}')
+                created_departments.append(dept)
 
         # Create Leave Categories
         categories = [
-            {'name': 'Annual Leave', 'code': 'AL', 'color': '#10B981', 'sort_order': 1},
-            {'name': 'Sick Leave', 'code': 'SL', 'color': '#EF4444', 'sort_order': 2},
-            {'name': 'Personal Leave', 'code': 'PL', 'color': '#3B82F6', 'sort_order': 3},
-            {'name': 'Unpaid Leave', 'code': 'UL', 'color': '#6B7280', 'sort_order': 4},
-            {'name': 'Maternity Leave', 'code': 'ML', 'color': '#EC4899', 'sort_order': 5, 'requires_document': True},
-            {'name': 'Paternity Leave', 'code': 'PAT', 'color': '#8B5CF6', 'sort_order': 6},
+            {'category_name': 'PTO', 'code': 'PTO', 'sort_order': 1},
+            {'category_name': 'Unpaid Leave', 'code': 'UL', 'sort_order': 2},
         ]
         for cat_data in categories:
             cat, _ = LeaveCategory.objects.get_or_create(
                 code=cat_data['code'],
                 defaults=cat_data
             )
-            self.stdout.write(f'  Category: {cat.name}')
+            self.stdout.write(f'  Category: {cat.category_name}')
 
         # Create Public Holidays for 2026
         holidays = [
-            {'name': "New Year's Day", 'date': date(2026, 1, 1), 'is_recurring': True},
-            {'name': 'Independence Day', 'date': date(2026, 7, 4), 'is_recurring': True},
-            {'name': 'Labor Day', 'date': date(2026, 9, 7), 'is_recurring': False},
-            {'name': 'Thanksgiving', 'date': date(2026, 11, 26), 'is_recurring': False},
-            {'name': 'Christmas Day', 'date': date(2026, 12, 25), 'is_recurring': True},
+            {'holiday_name': "New Year's Day", 'date': date(2026, 1, 1), 'is_recurring': True},
+            {'holiday_name': 'Independence Day', 'date': date(2026, 7, 4), 'is_recurring': True},
+            {'holiday_name': 'Labor Day', 'date': date(2026, 9, 7), 'is_recurring': False},
+            {'holiday_name': 'Thanksgiving', 'date': date(2026, 11, 26), 'is_recurring': False},
+            {'holiday_name': 'Christmas Day', 'date': date(2026, 12, 25), 'is_recurring': True},
         ]
         for hol_data in holidays:
             hol, _ = PublicHoliday.objects.get_or_create(
-                name=hol_data['name'],
+                holiday_name=hol_data['holiday_name'],
                 date=hol_data['date'],
                 defaults={
                     'year': hol_data['date'].year,
@@ -85,9 +93,10 @@ class Command(BaseCommand):
                     'is_active': True
                 }
             )
-            self.stdout.write(f'  Holiday: {hol.name}')
+            self.stdout.write(f'  Holiday: {hol.holiday_name}')
 
         # Create Admin User
+        hq_location = created_locations[0]['location']
         admin, created = User.objects.get_or_create(
             email='admin@example.com',
             defaults={
@@ -98,8 +107,8 @@ class Command(BaseCommand):
                 'is_staff': True,
                 'is_superuser': True,
                 'entity': entity,
-                'location': created_locations[0],
-                'department': created_departments[1],  # HR
+                'location': hq_location,
+                'department': Department.objects.get(entity=entity, location=hq_location, code='HR'),  # HR @ HQ
             }
         )
         if created:
@@ -118,8 +127,8 @@ class Command(BaseCommand):
                 'last_name': 'Manager',
                 'role': 'HR',
                 'entity': entity,
-                'location': created_locations[0],
-                'department': created_departments[1],  # HR
+                'location': hq_location,
+                'department': Department.objects.get(entity=entity, location=hq_location, code='HR'),  # HR @ HQ
             }
         )
         if created:
@@ -143,8 +152,8 @@ class Command(BaseCommand):
                 'last_name': 'Manager',
                 'role': 'MANAGER',
                 'entity': entity,
-                'location': created_locations[0],
-                'department': created_departments[0],  # Engineering
+                'location': hq_location,
+                'department': Department.objects.get(entity=entity, location=hq_location, code='ENG'),  # Engineering @ HQ
             }
         )
         if created:
@@ -168,8 +177,8 @@ class Command(BaseCommand):
                 'last_name': 'Employee',
                 'role': 'EMPLOYEE',
                 'entity': entity,
-                'location': created_locations[0],
-                'department': created_departments[0],  # Engineering
+                'location': hq_location,
+                'department': Department.objects.get(entity=entity, location=hq_location, code='ENG'),  # Engineering @ HQ
             }
         )
         if created:

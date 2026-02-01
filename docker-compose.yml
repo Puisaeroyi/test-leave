@@ -27,7 +27,7 @@ services:
       sh -c "
         python manage.py migrate --noinput &&
         python manage.py seed_data &&
-        gunicorn --bind 0.0.0.0:8000 --workers 4 --threads 4 --timeout 60 --access-logfile - --error-logfile - core.wsgi:application
+        gunicorn --bind 0.0.0.0:8000 --workers 4 --threads 4 --timeout 60 --access-logfile - --error-logfile - backend.wsgi:application
       "
     volumes:
       - .:/app
@@ -40,7 +40,7 @@ services:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/leave_management
-      - DJANGO_SETTINGS_MODULE=core.settings
+      - DJANGO_SETTINGS_MODULE=backend.settings
 
   frontend:
     build:

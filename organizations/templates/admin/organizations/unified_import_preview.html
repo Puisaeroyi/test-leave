@@ -1,0 +1,109 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='organizations' %}">Organizations</a>
+    &rsaquo; <a href="../unified-import/">Import</a>
+    &rsaquo; {% translate 'Preview' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Import Preview</h1>
+
+{% if total_errors > 0 %}
+<div class="module" style="background: #fff3cd; padding: 15px; margin-bottom: 20px;">
+    <h2 style="color: #856404;">⚠️ Errors Found ({{ total_errors }})</h2>
+    <ul>
+    {% for model_type, data in results.items %}
+        {% for error in data.errors %}
+            <li>{{ model_type|title }}: {{ error }}</li>
+        {% endfor %}
+    {% endfor %}
+    </ul>
+    <p><strong>Please fix the errors in your file and try again.</strong></p>
+    <a href="../unified-import/" class="button">Go Back</a>
+</div>
+{% else %}
+<div class="module" style="background: #d4edda; padding: 15px; margin-bottom: 20px;">
+    <h2 style="color: #155724;">✓ Ready to Import</h2>
+    <p>Review the summary below, then confirm to proceed with the import.</p>
+</div>
+
+<div class="module">
+    <h2>Summary</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Count</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Entities</strong></td>
+                <td>{{ entity_rows }}</td>
+            </tr>
+            <tr>
+                <td><strong>Locations</strong></td>
+                <td>{{ location_rows }}</td>
+            </tr>
+            <tr>
+                <td><strong>Departments</strong></td>
+                <td>{{ department_rows }}</td>
+            </tr>
+            <tr style="background: #f0f0f0; font-weight: bold;">
+                <td>Total Rows</td>
+                <td>{{ total_rows }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3 style="margin-top: 20px;">What will happen:</h3>
+    <ul style="list-style: none; padding-left: 0;">
+        <li style="color: #28a745;">✓ {{ total_created }} new records will be created</li>
+        <li style="color: #ffc107;">✓ {{ total_updated }} existing records will be updated</li>
+    </ul>
+</div>
+
+<div class="module">
+    <h2>First {{ preview_rows|length }} Rows Preview</h2>
+    <table style="font-size: 12px; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f0f0f0;">
+                <th style="border: 1px solid #ddd; padding: 8px;">Entity</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Code</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Location</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">City</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Department</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Dept Code</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in preview_rows %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Entity_Name|default:"-" }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Entity_Code|default:"-" }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Location_Name|default:"-" }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Location_City|default:"-" }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Department_Name|default:"-" }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ row.Department_Code|default:"-" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if total_rows > 10 %}
+    <p style="margin-top: 10px; color: #666;">... and {{ total_rows|add:"-10" }} more rows</p>
+    {% endif %}
+</div>
+
+<form method="post" action="../confirm/" style="margin-top: 20px;">
+    {% csrf_token %}
+    <input type="submit" name="confirm" value="Confirm Import" class="button" style="background: #28a745;">
+    <a href="../unified-import/" class="button" style="display:inline-block; margin-left:10px;">Cancel</a>
+</form>
+{% endif %}
+
+{% endblock %}

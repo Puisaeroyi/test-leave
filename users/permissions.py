@@ -29,6 +29,11 @@ class IsManagerOrAbove(permissions.BasePermission):
         )
 
 
+# Aliases for backward compatibility
+IsHROrAdmin = IsHRAdmin
+IsManagerOrHROrAdmin = IsManagerOrAbove
+
+
 class IsOwnerOrHRAdmin(permissions.BasePermission):
     """
     Permission check: User can view/edit own profile, HR/Admin can view/edit all

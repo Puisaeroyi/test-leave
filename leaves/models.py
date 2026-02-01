@@ -10,9 +10,8 @@ from django.conf import settings
 class LeaveCategory(models.Model):
     """Leave category for reporting purposes (all draw from unified balance)"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, unique=True)
+    category_name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True)
-    color = models.CharField(max_length=7)  # Hex color for calendar
     requires_document = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -24,7 +23,7 @@ class LeaveCategory(models.Model):
         ordering = ['sort_order']
 
     def __str__(self):
-        return self.name
+        return self.category_name
 
 
 class LeaveBalance(models.Model):
@@ -52,7 +51,11 @@ class LeaveBalance(models.Model):
 
 
 class LeaveRequest(models.Model):
-    """Leave request with status tracking"""
+    """Leave request with status tracking (supports both leaves and business trips)"""
+    class RequestType(models.TextChoices):
+        LEAVE = 'LEAVE', 'Leave'
+        BUSINESS_TRIP = 'BUSINESS_TRIP', 'Business Trip'
+
     class ShiftType(models.TextChoices):
         FULL_DAY = 'FULL_DAY', 'Full Day'
         CUSTOM_HOURS = 'CUSTOM_HOURS', 'Custom Hours'
@@ -64,6 +67,11 @@ class LeaveRequest(models.Model):
         CANCELLED = 'CANCELLED', 'Cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    request_type = models.CharField(
+        max_length=20,
+        choices=RequestType.choices,
+        default=RequestType.LEAVE
+    )
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_requests')
     leave_category = models.ForeignKey(LeaveCategory, on_delete=models.SET_NULL, null=True, blank=True)
     start_date = models.DateField()
@@ -94,6 +102,7 @@ class LeaveRequest(models.Model):
             models.Index(fields=['user', 'status']),
             models.Index(fields=['start_date', 'end_date']),
             models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['request_type', 'status']),
         ]
 
     def __str__(self):
@@ -117,7 +126,7 @@ class PublicHoliday(models.Model):
         blank=True,
         related_name='public_holidays'
     )
-    name = models.CharField(max_length=100)
+    holiday_name = models.CharField(max_length=100)
     date = models.DateField()
     is_recurring = models.BooleanField(default=False)
     year = models.IntegerField()
@@ -130,4 +139,4 @@ class PublicHoliday(models.Model):
         unique_together = ['entity', 'location', 'date']
 
     def __str__(self):
-        return f"{self.name} - {self.date}"
+        return f"{self.holiday_name} - {self.date}"

@@ -6,11 +6,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from organizations.models import Entity, Location, Department
 
+from .utils import validate_active_relationship
+
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.Serializer):
-    """Serializer for user registration"""
+    """Serializer for user registration with onboarding data"""
     email = serializers.EmailField(required=True)
     password = serializers.CharField(
         write_only=True,
@@ -24,6 +26,10 @@ class RegisterSerializer(serializers.Serializer):
     )
     first_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
     last_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    # Onboarding fields
+    entity = serializers.UUIDField(required=True)
+    location = serializers.UUIDField(required=True)
+    department = serializers.UUIDField(required=True)
 
     def validate_email(self, value):
         """Check if email already exists"""
@@ -31,8 +37,20 @@ class RegisterSerializer(serializers.Serializer):
             raise serializers.ValidationError("A user with this email already exists.")
         return value
 
+    def validate_entity(self, value):
+        """Validate entity exists and is active"""
+        return validate_active_relationship(Entity, value, 'entity')
+
+    def validate_location(self, value):
+        """Validate location exists and is active"""
+        return validate_active_relationship(Location, value, 'location')
+
+    def validate_department(self, value):
+        """Validate department exists and is active"""
+        return validate_active_relationship(Department, value, 'department')
+
     def validate(self, attrs):
-        """Validate passwords match"""
+        """Validate passwords match and organization relationships"""
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({
                 "password_confirm": "Password fields didn't match."
@@ -40,21 +58,46 @@ class RegisterSerializer(serializers.Serializer):
 
         # Validate password using Django's password validators
         validate_password(attrs['password'])
+
+        # Validate entity/location/department relationships
+        entity = attrs.get('entity')
+        location = attrs.get('location')
+        department = attrs.get('department')
+
+        if location and entity and location.entity != entity:
+            raise serializers.ValidationError({
+                "location": "Selected location does not belong to the selected entity."
+            })
+
+        if department and entity and department.entity != entity:
+            raise serializers.ValidationError({
+                "department": "Selected department does not belong to the selected entity."
+            })
+
         return attrs
 
     def create(self, validated_data):
-        """Create new user"""
+        """Create new user with onboarding data"""
+        from datetime import date
+
         validated_data.pop('password_confirm')
 
-        # Extract optional fields
+        # Extract fields
         first_name = validated_data.pop('first_name', '')
         last_name = validated_data.pop('last_name', '')
+        entity = validated_data.pop('entity')
+        location = validated_data.pop('location')
+        department = validated_data.pop('department')
 
         user = User.objects.create_user(
             email=validated_data['email'],
             password=validated_data['password'],
             first_name=first_name,
             last_name=last_name,
+            entity=entity,
+            location=location,
+            department=department,
+            join_date=date.today(),
         )
         return user
 
@@ -116,71 +159,6 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'email', 'role', 'status', 'join_date']
 
 
-class OnboardingSerializer(serializers.Serializer):
-    """Serializer for user onboarding"""
-    entity = serializers.UUIDField(required=True)
-    location = serializers.UUIDField(required=True)
-    department = serializers.UUIDField(required=True)
-
-    def validate_entity(self, value):
-        """Validate entity exists and is active"""
-        try:
-            entity = Entity.objects.get(id=value, is_active=True)
-            return entity
-        except Entity.DoesNotExist:
-            raise serializers.ValidationError("Invalid or inactive entity selected.")
-
-    def validate_location(self, value):
-        """Validate location exists and is active"""
-        try:
-            location = Location.objects.get(id=value, is_active=True)
-            return location
-        except Location.DoesNotExist:
-            raise serializers.ValidationError("Invalid or inactive location selected.")
-
-    def validate_department(self, value):
-        """Validate department exists and is active"""
-        try:
-            department = Department.objects.get(id=value, is_active=True)
-            return department
-        except Department.DoesNotExist:
-            raise serializers.ValidationError("Invalid or inactive department selected.")
-
-    def validate(self, attrs):
-        """Validate relationships between entity, location, and department"""
-        entity = attrs.get('entity')
-        location = attrs.get('location')
-        department = attrs.get('department')
-
-        # Check if location belongs to entity
-        if location.entity != entity:
-            raise serializers.ValidationError({
-                "location": "Selected location does not belong to the selected entity."
-            })
-
-        # Check if department belongs to entity
-        if department.entity != entity:
-            raise serializers.ValidationError({
-                "department": "Selected department does not belong to the selected entity."
-            })
-
-        return attrs
-
-    def update(self, instance, validated_data):
-        """Update user with onboarding data"""
-        instance.entity = validated_data['entity']
-        instance.location = validated_data['location']
-        instance.department = validated_data['department']
-
-        # Set join date if not already set
-        if not instance.join_date:
-            from datetime import date
-            instance.join_date = date.today()
-
-        instance.save()
-        return instance
-
-
 class UserUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating user information"""
     class Meta:
@@ -198,29 +176,3 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         if request and not request.user.role == User.Role.ADMIN:
             raise serializers.ValidationError("Only admins can change user status.")
         return value
-
-
-class UserListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for user list"""
-    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
-
-    class Meta:
-        model = User
-        fields = ['id', 'email', 'first_name', 'last_name', 'role', 'status', 'department', 'department_name']
-
-
-class UserDetailSerializer(serializers.ModelSerializer):
-    """Detailed serializer for single user"""
-    department_name = serializers.CharField(source='department.name', read_only=True, allow_null=True)
-    entity_name = serializers.CharField(source='entity.name', read_only=True, allow_null=True)
-    location_name = serializers.CharField(source='location.name', read_only=True, allow_null=True)
-    has_completed_onboarding = serializers.ReadOnlyField()
-
-    class Meta:
-        model = User
-        fields = [
-            'id', 'email', 'first_name', 'last_name', 'role', 'status',
-            'department', 'department_name', 'entity', 'entity_name',
-            'location', 'location_name', 'join_date', 'avatar_url',
-            'has_completed_onboarding'
-        ]

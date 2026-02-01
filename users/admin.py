@@ -2,8 +2,11 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django import forms
 from django.utils.safestring import mark_safe
+from import_export.admin import ImportExportModelAdmin
+from import_export.formats import base_formats
 from .models import User
 from organizations.models import Entity, Location, Department
+from .resources import UserResource
 
 
 class UserAdminForm(forms.ModelForm):
@@ -48,12 +51,14 @@ class UserAdminForm(forms.ModelForm):
 
 
 @admin.register(User)
-class UserAdmin(BaseUserAdmin):
+class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
     form = UserAdminForm
-    list_display = ['email', 'role', 'entity', 'location', 'department', 'is_active']
-    list_filter = ['role', 'entity', 'location', 'department', 'is_active']
+    resource_class = UserResource
+    list_display = ['email', 'first_name', 'last_name', 'role', 'status', 'entity', 'location', 'department', 'is_active']
+    list_filter = ['role', 'status', 'entity', 'location', 'department', 'is_active']
     search_fields = ['email', 'first_name', 'last_name']
     ordering = ['-date_joined']
+    formats = [base_formats.CSV, base_formats.XLSX, base_formats.JSON]
 
     fieldsets = (
         (None, {'fields': ('email', 'password')}),

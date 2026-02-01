@@ -1,0 +1,12 @@
+type,name,code,parent_code,address,is_active
+entity,Red Corporation,RED,,,true
+entity,Silver Industries,SIL,,,true
+entity,Blue Holdings,BLU,,,true
+location,Head Office,HQ,RED,"123 Main St, Bangkok",true
+location,Branch Office,BR1,RED,"456 Side Ave, Chiang Mai",true
+location,Silver HQ,SHQ,SIL,"789 Central Rd, Bangkok",true
+department,Engineering,ENG,RED,,true
+department,Human Resources,HR,RED,,true
+department,Finance,FIN,RED,,true
+department,Marketing,MKT,SIL,,true
+department,Operations,OPS,SIL,,true

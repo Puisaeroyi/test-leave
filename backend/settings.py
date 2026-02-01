@@ -10,20 +10,76 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-g&8m*==vbh^sje$2o--^4#$h=20z=_2kdxe-udnet@7sm+q-8_'
+def get_secret_key():
+    """Get SECRET_KEY from environment or generate for development."""
+    key = os.environ.get('DJANGO_SECRET_KEY')
+    if not key:
+        # Check if we're in development mode before checking DEBUG
+        debug = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('true', '1', 't')
+        if debug:
+            # Dev only: generate and warn
+            import secrets
+            key = secrets.token_urlsafe(50)
+            print(f"WARNING: Generated SECRET_KEY for development: {key}")
+            print("WARNING: Set DJANGO_SECRET_KEY environment variable for production!")
+        else:
+            # Prod: fail fast
+            raise ImproperlyConfigured(
+                "DJANGO_SECRET_KEY environment variable must be set in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(50))\""
+            )
+    return key
+
+SECRET_KEY = get_secret_key()
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+def get_debug():
+    """Get DEBUG setting from environment with secure default."""
+    debug_str = os.environ.get('DJANGO_DEBUG', 'False')
+    if debug_str.lower() in ('true', '1', 't'):
+        return True
+    elif debug_str.lower() in ('false', '0', 'f', ''):
+        return False
+    else:
+        raise ImproperlyConfigured(
+            f"DJANGO_DEBUG must be True/False (or 1/0), got: {debug_str}"
+        )
 
-ALLOWED_HOSTS = ['*']
+DEBUG = get_debug()
+
+def get_allowed_hosts():
+    """Get ALLOWED_HOSTS from environment with secure defaults."""
+    hosts_str = os.environ.get('DJANGO_ALLOWED_HOSTS', '')
+    if not hosts_str:
+        if DEBUG:
+            # Dev default: localhost variants
+            return ['localhost', '127.0.0.1', '[::1]']
+        else:
+            # Prod: require explicit configuration
+            raise ImproperlyConfigured(
+                "DJANGO_ALLOWED_HOSTS must be set in production. "
+                "Example: DJANGO_ALLOWED_HOSTS=example.com,api.example.com"
+            )
+    # Parse comma-separated list
+    hosts = [h.strip() for h in hosts_str.split(',')]
+    # Validate no wildcard in production
+    if '*' in hosts and not DEBUG:
+        raise ImproperlyConfigured(
+            "Wildcard (*) not allowed in ALLOWED_HOSTS for production"
+        )
+    return hosts
+
+ALLOWED_HOSTS = get_allowed_hosts()
 
 
 # Application definition
@@ -41,6 +97,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
+    'import_export',
     # Local apps
     'organizations',
     'users',
@@ -89,6 +146,23 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+
+# Security Settings
+# https://docs.djangoproject.com/en/6.0/topics/security/
+
+# Proxy SSL Header (if behind reverse proxy like nginx, AWS ELB, Cloudflare)
+# Uncomment if deploying behind reverse proxy
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# SSL Redirect Exemptions (for health checks)
+if not DEBUG:
+    SECURE_SSL_REDIRECT_EXEMPT = [r'^healthz/?$', r'^api/v1/health/?$']
+
+# Content Security Headers
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 
 
 # Custom User Model
@@ -188,7 +262,49 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
+# Only allow all origins in development mode
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # For development only
+
+# CSRF Trusted Origins
+if DEBUG:
+    # Dev: allow all localhost origins with any port
+    CSRF_TRUSTED_ORIGINS = [
+        'http://localhost:*',
+        'http://127.0.0.1:*',
+        'http://[::1]:*',
+    ]
+else:
+    # Prod: generate from ALLOWED_HOSTS with HTTPS
+    CSRF_TRUSTED_ORIGINS = [
+        f'https://{host}' for host in ALLOWED_HOSTS
+    ]
+
+# Secure Cookie Settings
+if not DEBUG:
+    # Production: HTTPS-only cookies
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    # HSTS Configuration
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+else:
+    # Development: allow HTTP
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+
+# SameSite cookies (prevent CSRF)
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Update CORS for production
+if not DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        f'https://{host}' for host in ALLOWED_HOSTS
+    ]
 
 
 # API Documentation

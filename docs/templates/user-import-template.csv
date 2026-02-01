@@ -1,0 +1,7 @@
+Email,First_Name,Last_Name,Role,Status,Entity_Code,Location_Name,Department_Code,Join_Date
+john.doe@example.com,John,Doe,EMPLOYEE,ACTIVE,RED,Head Office,ENG,2024-01-15
+jane.smith@example.com,Jane,Smith,MANAGER,ACTIVE,RED,Head Office,HR,2023-06-01
+bob.wilson@example.com,Bob,Wilson,EMPLOYEE,ACTIVE,RED,Branch Office,SALE-CM,2024-02-10
+alice.chen@example.com,Alice,Chen,HR,ACTIVE,SIL,Silver HQ,MKT,2023-03-20
+charlie.brown@example.com,Charlie,Brown,EMPLOYEE,ACTIVE,BLU,New York Office,MGM,2024-01-05
+diana.prince@example.com,Diana,Prince,ADMIN,ACTIVE,RED,Head Office,ENG,2022-11-01

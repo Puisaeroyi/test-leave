@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+    &rsaquo; <a href="{% url 'admin:app_list' app_label='organizations' %}">Organizations</a>
+    &rsaquo; {% translate 'Import' %}
+</div>
+{% endblock %}
+
+{% block content %}
+<p>
+    Import organizations from CSV or XLSX file. Use the flat format with Entity + Location + Department in one row.
+</p>
+
+<p><strong>File format:</strong></p>
+<code>Entity_Name, Entity_Code, Location_Name, Location_City, Location_State, Location_Country, Location_Timezone, Department_Name, Department_Code</code>
+
+<p>Download the template: <a href="/docs/templates/organization-import-template.xlsx">organization-import-template.xlsx</a></p>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <p>
+        <label for="id_import_file">Select file (CSV or XLSX):</label>
+        <input type="file" name="import_file" id="id_import_file" accept=".csv,.xlsx" required>
+    </p>
+    <button type="submit" class="button">Preview Import</button>
+    <a href="../" class="button" style="display:inline-block; margin-left:10px;">Cancel</a>
+</form>
+{% endblock %}
