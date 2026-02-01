@@ -6,7 +6,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from ...models import LeaveRequest
-from ...serializers import LeaveRequestApproveSerializer
 from ...services import LeaveApprovalService
 from core.models import Notification
 
@@ -14,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class LeaveRequestApproveView(generics.GenericAPIView):
-    """Approve a leave request."""
+    """Approve a leave request (no comment required)."""
 
     permission_classes = [IsAuthenticated]
 
@@ -33,16 +32,11 @@ class LeaveRequestApproveView(generics.GenericAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Validate request
-        serializer = LeaveRequestApproveSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
         try:
-            # Approve the request
+            # Approve the request (no comment needed)
             approved_request = LeaveApprovalService.approve_leave_request(
                 leave_request,
-                request.user,
-                serializer.validated_data.get('comment', '')
+                request.user
             )
 
             # Create notification

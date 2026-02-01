@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { leavesApi } from '../api/leaves';
-import type { LeaveCategory, LeaveRequest, LeaveBalance } from '../types';
+import type { LeaveCategory, LeaveBalance } from '../types';
 
 export default function LeaveRequestPage() {
   const { user, logout } = useAuth();
@@ -10,7 +10,7 @@ export default function LeaveRequestPage() {
   const [activeNav, setActiveNav] = useState('new-leave');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount] = useState(0);
   const [categories, setCategories] = useState<LeaveCategory[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -135,11 +135,6 @@ export default function LeaveRequestPage() {
 
   const handleLogout = async () => {
     await logout();
-  };
-
-  const getCategoryName = (categoryId: string) => {
-    const cat = categories.find(c => c.id === categoryId);
-    return cat?.name || 'Leave';
   };
 
   return (
@@ -412,7 +407,7 @@ export default function LeaveRequestPage() {
                           name="shiftType"
                           value="FULL_DAY"
                           checked={shiftType === 'FULL_DAY'}
-                          onChange={(e) => {
+                          onChange={(_e) => {
                             setShiftType('FULL_DAY');
                             if (errors.time) setErrors({ ...errors, time: '' });
                           }}
@@ -431,7 +426,7 @@ export default function LeaveRequestPage() {
                           name="shiftType"
                           value="CUSTOM_HOURS"
                           checked={shiftType === 'CUSTOM_HOURS'}
-                          onChange={(e) => {
+                          onChange={(_e) => {
                             setShiftType('CUSTOM_HOURS');
                           }}
                           className="sr-only"

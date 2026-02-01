@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 
-from ..models import LeaveRequest, PublicHoliday
+from ..models import LeaveRequest, PublicHoliday, BusinessTrip
 from ..constants import DEFAULT_MONTH, DEFAULT_YEAR
 
 User = get_user_model()
@@ -70,11 +70,10 @@ class TeamCalendarView(generics.GenericAPIView):
 
         member_id_list = [m['id'] for m in team_data]
 
-        # Get approved leaves (excluding business trips)
+        # Get approved leaves (business trips are now separate)
         leaves_query = LeaveRequest.objects.filter(
             user_id__in=member_id_list,
-            status='APPROVED',
-            request_type='LEAVE'  # Only regular leaves
+            status='APPROVED'
         ).filter(
             Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).select_related('leave_category', 'user')
@@ -94,10 +93,8 @@ class TeamCalendarView(generics.GenericAPIView):
             })
 
         # Get approved business trips for team members in the month
-        trips_query = LeaveRequest.objects.filter(
-            user_id__in=member_id_list,
-            status='APPROVED',
-            request_type='BUSINESS_TRIP'
+        trips_query = BusinessTrip.objects.filter(
+            user_id__in=member_id_list
         ).filter(
             Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).select_related('user')
@@ -109,8 +106,9 @@ class TeamCalendarView(generics.GenericAPIView):
                 'member_id': str(trip.user_id),
                 'start_date': trip.start_date.isoformat(),
                 'end_date': trip.end_date.isoformat(),
-                'total_hours': float(trip.total_hours),
-                'reason': trip.reason or 'Business Trip'
+                'city': trip.city,
+                'country': trip.country,
+                'note': trip.note or 'Business Trip'
             })
 
         # Get holidays for the month

@@ -2,8 +2,8 @@
 
 **Project:** Leave Management System
 **Version:** 1.0.0
-**Last Updated:** 2026-01-27
-**Overall Status:** Active Development - Phase 1 Complete
+**Last Updated:** 2026-02-02
+**Overall Status:** Active Development - Phase 2 In Progress (60%)
 
 ---
 
@@ -40,6 +40,7 @@
 - Dashboard with balance display
 - Notification system (in-app)
 - Audit logging
+- **Business trip tracking (separate from leave, no approval)**
 
 ---
 
@@ -53,6 +54,7 @@
 - [x] Public holiday management
 - [x] Manager assignment system (DepartmentManager)
 - [x] Leave category definitions
+- [x] BusinessTrip model separation (2026-02-02)
 - [ ] Approval page implementation (stub exists)
 - [ ] Admin dashboard full implementation (stub exists)
 - [ ] Calendar event details modal
@@ -138,6 +140,7 @@
 | **Leave Management** | | |
 | Submit request | Complete | All validations in place |
 | View balance | Complete | Dashboard display |
+| Business trip requests | Complete | Separate model, city/country fields |
 | Approval workflow | Partial | Logic done, UI pending |
 | Rejection | Partial | Business logic only |
 | Cancellation | Pending | Delete only, not cancel |

@@ -7,11 +7,9 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  needsOnboarding: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
-  completeOnboarding: (data: { entity: string; location: string; department: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
 
   const isAuthenticated = !!user;
-  const needsOnboarding = isAuthenticated && !user?.entity;
 
   // Check authentication on mount
   useEffect(() => {
@@ -46,16 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (data: LoginRequest) => {
     const response = await authApi.login(data);
-    setUser(response.user);
-    localStorage.setItem('access_token', response.tokens.access);
-    localStorage.setItem('refresh_token', response.tokens.refresh);
+    const { tokens, ...userData } = response.user;
+    setUser(userData as User);
+    localStorage.setItem('access_token', tokens.access);
+    localStorage.setItem('refresh_token', tokens.refresh);
   };
 
   const register = async (data: RegisterRequest) => {
     const response = await authApi.register(data);
-    setUser(response.user);
-    localStorage.setItem('access_token', response.tokens.access);
-    localStorage.setItem('refresh_token', response.tokens.refresh);
+    const { tokens, ...userData } = response.user;
+    setUser(userData as User);
+    localStorage.setItem('access_token', tokens.access);
+    localStorage.setItem('refresh_token', tokens.refresh);
   };
 
   const logout = async () => {
@@ -73,22 +72,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate('/login');
   };
 
-  const completeOnboarding = async (data: { entity: string; location: string; department: string }) => {
-    const updatedUser = await authApi.completeOnboarding(data);
-    setUser(updatedUser);
-  };
-
   return (
     <AuthContext.Provider
       value={{
         user,
         isLoading,
         isAuthenticated,
-        needsOnboarding,
         login,
         register,
         logout,
-        completeOnboarding,
       }}
     >
       {children}

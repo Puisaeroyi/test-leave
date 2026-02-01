@@ -1,17 +1,15 @@
 """
-Business trip views - auto-approved trips that do NOT deduct from leave balance
+Business trip views - separate from leaves, no approval workflow, no balance impact
 """
-from decimal import Decimal
 from django.db import transaction
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from ..models import LeaveRequest
+from ..models import BusinessTrip
 from ..serializers import BusinessTripSerializer, BusinessTripCreateSerializer
-from ..services import BusinessTripService
-from ..constants import DEFAULT_PAGE_SIZE, HOURS_PER_DAY
-from ..utils import check_overlapping_requests, validate_leave_request_dates, calculate_leave_hours
+from ..constants import DEFAULT_PAGE_SIZE
+from ..utils import validate_leave_request_dates
 
 
 class BusinessTripListCreateView(generics.ListCreateAPIView):
@@ -21,9 +19,8 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
     def get(self, request, *args, **kwargs):
         """GET /api/v1/leaves/business-trips/ - List user's business trips"""
         user = request.user
-        queryset = LeaveRequest.objects.filter(
-            user=user,
-            request_type='BUSINESS_TRIP'
+        queryset = BusinessTrip.objects.filter(
+            user=user
         ).order_by('-created_at')
 
         # Pagination
@@ -43,7 +40,7 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
 
     @transaction.atomic
     def post(self, request, *args, **kwargs):
-        """POST /api/v1/leaves/business-trips/ - Create and auto-approve"""
+        """POST /api/v1/leaves/business-trips/ - Create business trip (no approval needed)"""
         user = request.user
         serializer = BusinessTripCreateSerializer(data=request.data)
 
@@ -53,51 +50,22 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
         data = serializer.validated_data
         start_date = data['start_date']
         end_date = data['end_date']
-        reason = data['reason']
 
         # Validate dates
         is_valid, error = validate_leave_request_dates(start_date, end_date)
         if not is_valid:
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check overlapping requests (both leaves and business trips)
-        overlapping = check_overlapping_requests(user, start_date, end_date)
-        if overlapping.exists():
-            return Response(
-                {'error': 'You have an overlapping request for these dates'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Calculate hours (full days only, using existing utility)
-        total_hours = calculate_leave_hours(user, start_date, end_date, 'FULL_DAY')
-
-        if total_hours <= 0:
-            return Response(
-                {'error': 'No working days in selected date range'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Create business trip request (NO balance check - trips don't affect balance)
-        trip = LeaveRequest.objects.create(
+        # Create business trip (no approval workflow, no balance impact)
+        trip = BusinessTrip.objects.create(
             user=user,
-            request_type='BUSINESS_TRIP',
+            city=data['city'],
+            country=data['country'],
             start_date=start_date,
             end_date=end_date,
-            shift_type='FULL_DAY',
-            total_hours=total_hours,
-            reason=reason,
-            status='PENDING'
+            note=data.get('note', ''),
+            attachment_url=data.get('attachment_url', '')
         )
-
-        # Auto-approve (NO balance deduction)
-        try:
-            BusinessTripService.auto_approve_business_trip(trip)
-        except ValueError as e:
-            trip.delete()
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        # Refresh from DB
-        trip.refresh_from_db()
 
         return Response(BusinessTripSerializer(trip).data, status=status.HTTP_201_CREATED)
 
@@ -108,10 +76,7 @@ class BusinessTripDetailView(generics.RetrieveAPIView):
     serializer_class = BusinessTripSerializer
 
     def get_queryset(self):
-        return LeaveRequest.objects.filter(
-            user=self.request.user,
-            request_type='BUSINESS_TRIP'
-        )
+        return BusinessTrip.objects.filter(user=self.request.user)
 
 
 class BusinessTripCancelView(generics.GenericAPIView):
@@ -121,19 +86,14 @@ class BusinessTripCancelView(generics.GenericAPIView):
     def post(self, request, pk):
         """POST /api/v1/leaves/business-trips/<pk>/cancel/"""
         try:
-            trip = LeaveRequest.objects.get(
+            trip = BusinessTrip.objects.get(
                 pk=pk,
-                user=request.user,
-                request_type='BUSINESS_TRIP'
+                user=request.user
             )
-        except LeaveRequest.DoesNotExist:
+        except BusinessTrip.DoesNotExist:
             return Response({'error': 'Business trip not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        if trip.status == 'CANCELLED':
-            return Response({'error': 'Already cancelled'}, status=status.HTTP_400_BAD_REQUEST)
+        # Simply delete - no status field, no balance restoration
+        trip.delete()
 
-        # Simply cancel - no balance restoration needed for business trips
-        trip.status = 'CANCELLED'
-        trip.save()
-
-        return Response(BusinessTripSerializer(trip).data)
+        return Response({'message': 'Business trip cancelled successfully'}, status=status.HTTP_200_OK)

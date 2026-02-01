@@ -77,6 +77,7 @@ export interface LeaveRequest {
   user_email?: string;
   user_timezone?: string; // GMT offset label e.g., "GMT+9"
   user_location_name?: string;
+  department_name?: string;
   leave_category?: LeaveCategory | string;
   category?: LeaveCategory; // Populated by serializer
   start_date: string;
@@ -135,10 +136,43 @@ export interface RegisterRequest {
   password_confirm: string;
   first_name?: string;
   last_name?: string;
-}
-
-export interface OnboardingData {
   entity: string;
   location: string;
   department: string;
+}
+
+// Business Trip types (separate from leaves, no approval workflow, no balance impact)
+export interface BusinessTrip {
+  id: string;
+  user: string;
+  user_name?: string;
+  user_email?: string;
+  city: string;
+  country: string;
+  start_date: string;
+  end_date: string;
+  note: string;
+  attachment_url?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessTripCreate {
+  start_date: string;
+  end_date: string;
+  city: string;     // Required field
+  country: string;  // Required field
+  note?: string;    // Optional note
+  attachment_url?: string;
+}
+
+// Business trip data for calendar
+export interface BusinessTripCalendar {
+  id: string;
+  member_id: string;
+  start_date: string;
+  end_date: string;
+  city: string;
+  country: string;
+  note: string;
 }

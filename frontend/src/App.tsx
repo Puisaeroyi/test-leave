@@ -6,7 +6,6 @@ import { Layout } from './components/layout';
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import OnboardingPage from './pages/OnboardingPage';
 
 // Dashboard
 import DashboardPage from './pages/DashboardPage';
@@ -14,6 +13,7 @@ import DashboardPage from './pages/DashboardPage';
 // Leave Request
 import LeaveRequestPage from './pages/LeaveRequestPage';
 import LeaveListPage from './pages/LeaveListPage';
+import BusinessTripPage from './pages/BusinessTripPage';
 
 // Calendar
 import CalendarPage from './pages/CalendarPage';
@@ -47,17 +47,9 @@ function App() {
 
           {/* Protected routes */}
           <Route
-            path="/onboarding"
-            element={
-              <ProtectedRoute>
-                <OnboardingPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <DashboardPage />
               </ProtectedRoute>
             }
@@ -65,7 +57,7 @@ function App() {
           <Route
             path="/leaves"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <LeaveListPage />
               </ProtectedRoute>
             }
@@ -73,15 +65,23 @@ function App() {
           <Route
             path="/leaves/new"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <LeaveRequestPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/business-trips/new"
+            element={
+              <ProtectedRoute>
+                <BusinessTripPage />
               </ProtectedRoute>
             }
           />
           <Route
             path="/calendar"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <CalendarPage />
               </ProtectedRoute>
             }
@@ -89,7 +89,7 @@ function App() {
           <Route
             path="/approvals"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <ApprovalsPage />
               </ProtectedRoute>
             }
@@ -97,7 +97,7 @@ function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <AdminPage />
               </ProtectedRoute>
             }
@@ -105,7 +105,7 @@ function App() {
           <Route
             path="/admin/users"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <HRProtectedRoute>
                   <Layout title="User Management">
                     <AdminDashboard />
@@ -117,7 +117,7 @@ function App() {
           <Route
             path="/admin/reports"
             element={
-              <ProtectedRoute requireOnboarding={true}>
+              <ProtectedRoute>
                 <HRProtectedRoute>
                   <Layout title="Reports">
                     <ReportsPage />

@@ -4,6 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { leavesApi } from '../api/leaves';
 import type { LeaveRequest, LeaveBalance, PublicHoliday } from '../types';
 
+// Team leave data from API
+type TeamLeave = { id: string; member_id: string; start_date: string; end_date: string; category: string; is_full_day?: boolean; start_time: string | null; end_time: string | null; total_hours?: number };
+
+// Discriminated union for dashboard events
+type DashboardEvent =
+  | { type: 'holiday'; data: PublicHoliday }
+  | { type: 'myleave'; data: LeaveRequest }
+  | { type: 'teamleave'; data: TeamLeave };
+
 // Parse date string as local date to avoid timezone shift
 function parseLocalDate(dateStr: string): Date {
   const [year, month, day] = dateStr.split('-').map(Number);
@@ -16,13 +25,13 @@ export default function DashboardPage() {
   const [activeNav, setActiveNav] = useState('dashboard');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadCount] = useState(0);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [leaveBalance, setLeaveBalance] = useState<LeaveBalance | null>(null);
   const [publicHolidays, setPublicHolidays] = useState<PublicHoliday[]>([]);
   const [teamCalendarData, setTeamCalendarData] = useState<{
     team_members: Array<{ id: string; name: string; color: string; is_current_user: boolean }>;
-    leaves: Array<{ id: string; member_id: string; start_date: string; end_date: string; category: string }>;
+    leaves: TeamLeave[];
     holidays: Array<{ date: string; name: string }>;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,7 +73,6 @@ export default function DashboardPage() {
     const fetchData = async () => {
       try {
         const currentYear = new Date().getFullYear();
-        const currentMonth = new Date().getMonth() + 1;
 
         // Fetch latest 3 leave requests
         const requests = await leavesApi.getLeaveRequests();
@@ -206,8 +214,6 @@ export default function DashboardPage() {
       </div>
     );
   }
-
-  const currentWeek = getWeekNumber(new Date());
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -570,10 +576,10 @@ export default function DashboardPage() {
                           return leaveStart >= startOfWeek && leaveStart <= endOfWeek;
                         });
 
-                      const allEvents = [
-                        ...filteredHolidays.map(h => ({ type: 'holiday', data: h })),
-                        ...filteredMyLeaves.map(l => ({ type: 'myleave', data: l })),
-                        ...filteredTeamLeaves.map(l => ({ type: 'teamleave', data: l }))
+                      const allEvents: DashboardEvent[] = [
+                        ...filteredHolidays.map(h => ({ type: 'holiday' as const, data: h })),
+                        ...filteredMyLeaves.map(l => ({ type: 'myleave' as const, data: l })),
+                        ...filteredTeamLeaves.map(l => ({ type: 'teamleave' as const, data: l }))
                       ].sort((a, b) => {
                         const aDate = a.type === 'holiday' ? parseLocalDate(a.data.date) : parseLocalDate(a.data.start_date);
                         const bDate = b.type === 'holiday' ? parseLocalDate(b.data.date) : parseLocalDate(b.data.start_date);

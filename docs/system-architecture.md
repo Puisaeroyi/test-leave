@@ -99,6 +99,7 @@
     ├── requests/              GET, POST
     ├── categories/            GET
     ├── calendar/              GET
+    ├── business-trips/        GET, POST
     ├── balance/my/            GET
     ├── reports/               GET
     └── notifications/         GET, PUT
@@ -156,6 +157,7 @@
 - Entity, Location, Department
 - DepartmentManager (junction)
 - LeaveCategory, LeaveBalance, LeaveRequest
+- BusinessTrip (separate from leave, no approval)
 - PublicHoliday
 - Notification, AuditLog
 

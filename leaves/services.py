@@ -6,63 +6,6 @@ from django.utils import timezone
 from .models import LeaveRequest, LeaveBalance
 
 
-class BusinessTripService:
-    """Service for handling business trip logic"""
-
-    @staticmethod
-    def get_system_approver():
-        """Get HR/Admin user for auto-approval. Returns first active HR user or admin."""
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        return User.objects.filter(role__in=['HR', 'ADMIN'], is_active=True).first()
-
-    @staticmethod
-    @transaction.atomic
-    def auto_approve_business_trip(business_trip):
-        """
-        Auto-approve a business trip request.
-        Note: Business trips do NOT deduct from leave balance per business requirement.
-
-        Args:
-            business_trip: LeaveRequest instance with request_type='BUSINESS_TRIP'
-
-        Returns:
-            LeaveRequest: Updated business trip
-        """
-        from core.models import AuditLog
-
-        approver = BusinessTripService.get_system_approver()
-        if not approver:
-            raise ValueError("No HR/Admin user available for auto-approval")
-
-        if business_trip.status != 'PENDING':
-            raise ValueError("Only pending requests can be approved")
-
-        # Update business trip status (NO balance deduction for business trips)
-        business_trip.status = 'APPROVED'
-        business_trip.approved_by = approver
-        business_trip.approved_at = timezone.now()
-        business_trip.approver_comment = 'Auto-approved business trip'
-        business_trip.save()
-
-        # Create audit log
-        AuditLog.objects.create(
-            user=approver,
-            action='APPROVE',
-            entity_type='BusinessTrip',
-            entity_id=business_trip.id,
-            old_values={'status': 'PENDING'},
-            new_values={
-                'status': 'APPROVED',
-                'approved_by': str(approver.id),
-                'approved_at': business_trip.approved_at.isoformat(),
-                'comment': 'Auto-approved business trip'
-            }
-        )
-
-        return business_trip
-
-
 class LeaveApprovalService:
     """Service for handling leave approval logic"""
 

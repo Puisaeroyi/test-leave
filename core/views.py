@@ -1,5 +1,5 @@
 """
-Core API Views (Notifications, Audit Logs)
+Core API Views (Notifications)
 """
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -106,70 +106,3 @@ class NotificationUnreadCountView(generics.GenericAPIView):
         return Response({
             'count': count
         }, status=status.HTTP_200_OK)
-
-
-class AuditLogListView(generics.ListAPIView):
-    """List audit logs (Admin only)"""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        """GET /api/v1/notifications/audit-logs/?entity_type=LeaveRequest"""
-        from .models import AuditLog
-
-        # Check Admin permission
-        if request.user.role not in ['HR', 'ADMIN']:
-            return Response(
-                {'error': 'Only HR/Admin can view audit logs'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Get filters
-        entity_type = request.query_params.get('entity_type')
-        entity_id = request.query_params.get('entity_id')
-        user_id = request.query_params.get('user_id')
-        action = request.query_params.get('action')
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 50))
-
-        # Build queryset
-        queryset = AuditLog.objects.all().order_by('-created_at')
-
-        if entity_type:
-            queryset = queryset.filter(entity_type=entity_type)
-        if entity_id:
-            queryset = queryset.filter(entity_id=entity_id)
-        if user_id:
-            queryset = queryset.filter(user_id=user_id)
-        if action:
-            queryset = queryset.filter(action=action)
-
-        queryset = queryset.select_related('user')
-
-        # Paginate
-        total = queryset.count()
-        start = (page - 1) * page_size
-        end = start + page_size
-        items = queryset[start:end]
-
-        results = [
-            {
-                'id': str(log.id),
-                'user_id': str(log.user_id),
-                'user_email': log.user.email,
-                'action': log.action,
-                'entity_type': log.entity_type,
-                'entity_id': str(log.entity_id),
-                'old_values': log.old_values,
-                'new_values': log.new_values,
-                'ip_address': log.ip_address,
-                'created_at': log.created_at.isoformat()
-            }
-            for log in items
-        ]
-
-        return Response({
-            'count': total,
-            'next': page + 1 if end < total else None,
-            'previous': page - 1 if page > 1 else None,
-            'results': results
-        })

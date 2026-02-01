@@ -1,5 +1,5 @@
 import api from './client';
-import type { LeaveRequest, LeaveBalance, LeaveCategory, PublicHoliday } from '../types';
+import type { LeaveRequest, LeaveBalance, LeaveCategory, PublicHoliday, BusinessTrip, BusinessTripCreate } from '../types';
 
 interface TeamCalendarResponse {
   month: number;
@@ -21,17 +21,19 @@ interface TeamCalendarResponse {
     category: string;
     total_hours: number;
   }>;
+  business_trips: Array<{
+    id: string;
+    member_id: string;
+    start_date: string;
+    end_date: string;
+    city: string;
+    country: string;
+    note: string;
+  }>;
   holidays: Array<{
     date: string;
     name: string;
   }>;
-}
-
-interface TeamCalendarEvent {
-  user_name: string;
-  user_id: string;
-  leave_type: string;
-  date: string;
 }
 
 /**
@@ -79,8 +81,8 @@ export const leavesApi = {
     return response.data;
   },
 
-  approveLeaveRequest: async (id: string, data?: { comment?: string }) => {
-    const response = await api.post<LeaveRequest>(`/leaves/requests/${id}/approve/`, data);
+  approveLeaveRequest: async (id: string) => {
+    const response = await api.post<LeaveRequest>(`/leaves/requests/${id}/approve/`);
     return response.data;
   },
 
@@ -102,11 +104,6 @@ export const leavesApi = {
     return response.data;
   },
 
-  adjustLeaveBalance: async (userId: string, data: { adjusted_hours: number; reason?: string }) => {
-    const response = await api.post<LeaveBalance>(`/leaves/balances/${userId}/adjust/`, data);
-    return response.data;
-  },
-
   // Leave Categories
   getLeaveCategories: async () => {
     const response = await api.get<LeaveCategory[]>('/leaves/categories/');
@@ -125,9 +122,19 @@ export const leavesApi = {
     return response.data;
   },
 
-  // Reports (HR/Admin)
-  getReports: async (params?: { entity?: string; location?: string; department?: string; year?: number }) => {
-    const response = await api.get('/leaves/reports/', { params });
+  // Business Trips (auto-approved, no balance deduction)
+  getBusinessTrips: async () => {
+    const response = await api.get<{ count: number; results: BusinessTrip[] }>('/leaves/business-trips/');
+    return response.data;
+  },
+
+  createBusinessTrip: async (data: BusinessTripCreate) => {
+    const response = await api.post<BusinessTrip>('/leaves/business-trips/', data);
+    return response.data;
+  },
+
+  cancelBusinessTrip: async (id: string) => {
+    const response = await api.post<BusinessTrip>(`/leaves/business-trips/${id}/cancel/`);
     return response.data;
   },
 };

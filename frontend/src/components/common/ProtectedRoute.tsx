@@ -3,16 +3,14 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireOnboarding?: boolean;
 }
 
 /**
  * Protected Route Component
  * Redirects to login if not authenticated
- * Redirects to onboarding if not completed
  */
-export default function ProtectedRoute({ children, requireOnboarding = false }: ProtectedRouteProps) {
-  const { isAuthenticated, isLoading, needsOnboarding } = useAuth();
+export default function ProtectedRoute({ children }: ProtectedRouteProps) {
+  const { isAuthenticated, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -29,12 +27,5 @@ export default function ProtectedRoute({ children, requireOnboarding = false }: 
     return <Navigate to="/login" replace />;
   }
 
-  // Routes that require onboarding completed should redirect to /onboarding
-  if (requireOnboarding && needsOnboarding) {
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  // Routes that don't require onboarding completed (like onboarding page itself)
-  // should allow users who need onboarding to proceed
   return <>{children}</>;
 }

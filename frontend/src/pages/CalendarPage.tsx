@@ -27,11 +27,21 @@ interface Holiday {
   name: string;
 }
 
+interface BusinessTripCalendar {
+  id: string;
+  member_id: string;
+  start_date: string;
+  end_date: string;
+  total_hours: number;
+  reason: string;
+}
+
 interface CalendarData {
   month: number;
   year: number;
   team_members: TeamMember[];
   leaves: Leave[];
+  business_trips?: BusinessTripCalendar[];
   holidays: Holiday[];
 }
 
@@ -77,6 +87,9 @@ function getColorClasses(hexColor: string) {
 
   return colorMap[hexColor] || colorMap['#3B82F6'];
 }
+
+// Business trips always use teal color
+const BUSINESS_TRIP_COLOR = { bg: 'bg-teal-500', dot: 'bg-teal-400', text: 'text-teal-400' };
 
 export default function CalendarPage() {
   const { user, logout } = useAuth();
@@ -213,6 +226,23 @@ export default function CalendarPage() {
     });
   };
 
+  // Get business trips that overlap with a week
+  const getBusinessTripsForWeek = (week: (Date | null)[]) => {
+    if (!calendarData?.business_trips) return [];
+    const validDates = week.filter((d): d is Date => d !== null);
+    if (validDates.length === 0) return [];
+
+    const weekStart = validDates[0];
+    const weekEnd = validDates[validDates.length - 1];
+
+    return calendarData.business_trips.filter(trip => {
+      if (!selectedMembers.includes(trip.member_id)) return false;
+      const tripStart = parseLocalDate(trip.start_date);
+      const tripEnd = parseLocalDate(trip.end_date);
+      return tripStart <= weekEnd && tripEnd >= weekStart;
+    });
+  };
+
   // Calculate bar position for multi-day leave
   const getLeaveBarStyle = (leave: Leave, week: (Date | null)[]) => {
     const leaveStart = parseLocalDate(leave.start_date);
@@ -232,6 +262,43 @@ export default function CalendarPage() {
           startCol = i;
         }
         if (dateTime <= leaveEndTime) {
+          endCol = i;
+        }
+      }
+    }
+
+    // Clamp to valid columns with dates
+    const firstValidCol = week.findIndex(d => d !== null);
+    const lastValidCol = week.reduce((last, d, i) => d !== null ? i : last, 0);
+
+    if (startCol < firstValidCol) startCol = firstValidCol;
+    if (endCol > lastValidCol) endCol = lastValidCol;
+
+    const left = `${(startCol / 7) * 100}%`;
+    const width = `${((endCol - startCol + 1) / 7) * 100}%`;
+
+    return { left, width };
+  };
+
+  // Calculate bar position for business trip
+  const getBusinessTripBarStyle = (trip: BusinessTripCalendar, week: (Date | null)[]) => {
+    const tripStart = parseLocalDate(trip.start_date);
+    const tripEnd = parseLocalDate(trip.end_date);
+
+    let startCol = 0;
+    let endCol = 6;
+
+    for (let i = 0; i < 7; i++) {
+      const date = week[i];
+      if (date) {
+        const dateTime = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+        const tripStartTime = new Date(tripStart.getFullYear(), tripStart.getMonth(), tripStart.getDate()).getTime();
+        const tripEndTime = new Date(tripEnd.getFullYear(), tripEnd.getMonth(), tripEnd.getDate()).getTime();
+
+        if (dateTime === tripStartTime) {
+          startCol = i;
+        }
+        if (dateTime <= tripEndTime) {
           endCol = i;
         }
       }
@@ -479,6 +546,7 @@ export default function CalendarPage() {
                   <div className="space-y-1">
                     {weeks.map((week, weekIndex) => {
                       const multiDayLeaves = getMultiDayLeavesForWeek(week);
+                      const businessTrips = getBusinessTripsForWeek(week);
 
                       return (
                         <div key={weekIndex} className="relative">
@@ -546,6 +614,29 @@ export default function CalendarPage() {
                                   </div>
                                 );
                               })}
+                              {/* Business trip bars overlay */}
+                              {businessTrips.map((trip, tripIndex) => {
+                                const { left, width } = getBusinessTripBarStyle(trip, week);
+                                const member = calendarData.team_members.find(m => m.id === trip.member_id);
+                                const barIndex = multiDayLeaves.length + tripIndex;
+
+                                return (
+                                  <div
+                                    key={`${trip.id}-${weekIndex}`}
+                                    className={`absolute h-5 ${BUSINESS_TRIP_COLOR.bg} rounded flex items-center px-2 shadow-sm`}
+                                    style={{
+                                      left,
+                                      width,
+                                      top: `${barIndex * 22}px`,
+                                    }}
+                                    title={`${member?.name} - ${trip.reason}`}
+                                  >
+                                    <span className="text-xs text-white font-medium truncate">
+                                      {member && getShortName(member.name)}'s Trip
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         </div>
@@ -606,6 +697,10 @@ export default function CalendarPage() {
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-4 rounded bg-red-500"></div>
                         <span>Multi-day leave</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-4 rounded bg-teal-500"></div>
+                        <span>Business trip</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-4 h-4 rounded ring-2 ring-red-400"></div>

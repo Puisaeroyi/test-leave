@@ -3,7 +3,7 @@ Leave Management Serializers
 """
 from rest_framework import serializers
 from decimal import Decimal
-from .models import LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday
+from .models import LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday, BusinessTrip
 
 
 class LeaveCategorySerializer(serializers.ModelSerializer):
@@ -193,13 +193,13 @@ class BusinessTripSerializer(serializers.ModelSerializer):
     user_email = serializers.SerializerMethodField()
 
     class Meta:
-        model = LeaveRequest
+        model = BusinessTrip
         fields = [
-            'id', 'user', 'user_name', 'user_email', 'start_date', 'end_date',
-            'total_hours', 'reason', 'status', 'approved_at',
+            'id', 'user', 'user_name', 'user_email', 'city', 'country',
+            'start_date', 'end_date', 'note', 'attachment_url',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'status', 'approved_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_user_name(self, obj):
         """Get user full name"""
@@ -211,12 +211,18 @@ class BusinessTripSerializer(serializers.ModelSerializer):
 
 
 class BusinessTripCreateSerializer(serializers.Serializer):
-    """Serializer for creating business trip - reason is REQUIRED"""
+    """Serializer for creating business trip"""
     start_date = serializers.DateField()
     end_date = serializers.DateField()
-    reason = serializers.CharField(
+    city = serializers.CharField(
         required=True,
-        min_length=3,
-        max_length=500,
-        error_messages={'required': 'Please provide a reason/destination for the business trip'}
+        max_length=100,
+        error_messages={'required': 'City is required'}
     )
+    country = serializers.CharField(
+        required=True,
+        max_length=100,
+        error_messages={'required': 'Country is required'}
+    )
+    note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    attachment_url = serializers.URLField(required=False, allow_blank=True, max_length=500)

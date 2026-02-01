@@ -22,3 +22,9 @@ target
 .git
 coverage
 !venv
+
+# Allow git operations
+!.git/
+!.git/index.lock
+!.git/config
+!.git/HEAD

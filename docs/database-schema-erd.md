@@ -143,6 +143,19 @@ erDiagram
         timestamp created_at
     }
 
+    BUSINESS_TRIP {
+        uuid id PK
+        uuid user_id FK
+        string city "max 100"
+        string country "max 100"
+        date start_date
+        date end_date
+        string note "text, nullable"
+        string attachment_url "max 500, nullable"
+        timestamp created_at
+        timestamp updated_at
+    }
+
     AUDIT_LOG {
         uuid id PK
         uuid user_id FK "actor"
@@ -174,6 +187,7 @@ erDiagram
     USER ||--|| LEAVE_BALANCE : "has one per year"
     USER ||--o{ NOTIFICATION : "receives"
     USER ||--o{ AUDIT_LOG : "performs"
+    USER ||--o{ BUSINESS_TRIP : "takes"
     LEAVE_CATEGORY ||--o{ LEAVE_REQUEST : "categorizes"
 ```
 
@@ -478,6 +492,30 @@ VALUES ('user-uuid', 2026, 96.00, 0.00, 0.00);
 
 ---
 
+### 11. BUSINESS_TRIP
+Business trip records (separate from leave requests, no approval workflow).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | UUID | PK | Primary key |
+| user_id | UUID | FK → users, NOT NULL | Employee on trip |
+| city | VARCHAR(100) | NOT NULL | Destination city |
+| country | VARCHAR(100) | NOT NULL | Destination country |
+| start_date | DATE | NOT NULL | Trip start |
+| end_date | DATE | NOT NULL | Trip end |
+| note | TEXT | NULL | Trip notes |
+| attachment_url | VARCHAR(500) | NULL | Document URL |
+| created_at | TIMESTAMP | NOT NULL | Created |
+| updated_at | TIMESTAMP | NOT NULL | Updated |
+
+**Indexes:**
+- `idx_business_trips_user_start` on (user_id, start_date)
+- `idx_business_trips_dates` on (start_date, end_date)
+
+**Note:** Business trips are separate from leave requests and do NOT require approval or affect leave balance.
+
+---
+
 ## Key Changes from v1
 
 | Aspect | v1 | v2 |
@@ -511,7 +549,8 @@ leaves/
 │   ├── LeaveCategory
 │   ├── LeaveRequest
 │   ├── LeaveBalance
-│   └── PublicHoliday
+│   ├── PublicHoliday
+│   └── BusinessTrip
 
 core/
 ├── models.py

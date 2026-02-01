@@ -1,5 +1,5 @@
 """
-Leave management models: LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday
+Leave management models: LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday, BusinessTrip
 """
 import uuid
 from decimal import Decimal
@@ -51,11 +51,7 @@ class LeaveBalance(models.Model):
 
 
 class LeaveRequest(models.Model):
-    """Leave request with status tracking (supports both leaves and business trips)"""
-    class RequestType(models.TextChoices):
-        LEAVE = 'LEAVE', 'Leave'
-        BUSINESS_TRIP = 'BUSINESS_TRIP', 'Business Trip'
-
+    """Leave request with status tracking"""
     class ShiftType(models.TextChoices):
         FULL_DAY = 'FULL_DAY', 'Full Day'
         CUSTOM_HOURS = 'CUSTOM_HOURS', 'Custom Hours'
@@ -67,11 +63,6 @@ class LeaveRequest(models.Model):
         CANCELLED = 'CANCELLED', 'Cancelled'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    request_type = models.CharField(
-        max_length=20,
-        choices=RequestType.choices,
-        default=RequestType.LEAVE
-    )
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_requests')
     leave_category = models.ForeignKey(LeaveCategory, on_delete=models.SET_NULL, null=True, blank=True)
     start_date = models.DateField()
@@ -102,7 +93,6 @@ class LeaveRequest(models.Model):
             models.Index(fields=['user', 'status']),
             models.Index(fields=['start_date', 'end_date']),
             models.Index(fields=['status', 'created_at']),
-            models.Index(fields=['request_type', 'status']),
         ]
 
     def __str__(self):
@@ -140,3 +130,27 @@ class PublicHoliday(models.Model):
 
     def __str__(self):
         return f"{self.holiday_name} - {self.date}"
+
+
+class BusinessTrip(models.Model):
+    """Business trip - separate from leave requests (no approval, no balance impact)"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='business_trips')
+    city = models.CharField(max_length=100)
+    country = models.CharField(max_length=100)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    note = models.TextField(blank=True)
+    attachment_url = models.URLField(max_length=500, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'business_trips'
+        indexes = [
+            models.Index(fields=['user', 'start_date']),
+            models.Index(fields=['start_date', 'end_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.city}, {self.country} ({self.start_date})"

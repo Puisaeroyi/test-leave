@@ -14,12 +14,13 @@
 3. [Organizations](#3-organizations)
 4. [Leave Balances](#4-leave-balances)
 5. [Leave Requests](#5-leave-requests)
-6. [Leave Categories](#6-leave-categories)
-7. [Public Holidays](#7-public-holidays)
-8. [Notifications](#8-notifications)
-9. [Audit Logs](#9-audit-logs)
-10. [Error Handling](#10-error-handling)
-11. [Rate Limiting](#11-rate-limiting)
+6. [Business Trips](#6-business-trips)
+7. [Leave Categories](#7-leave-categories)
+8. [Public Holidays](#8-public-holidays)
+9. [Notifications](#9-notifications)
+10. [Audit Logs](#10-audit-logs)
+11. [Error Handling](#11-error-handling)
+12. [Rate Limiting](#12-rate-limiting)
 
 ---
 
@@ -675,6 +676,17 @@ GET /api/v1/leaves/calendar/
       "total_hours": 4.00
     }
   ],
+  "business_trips": [
+    {
+      "id": "uuid",
+      "member_id": "uuid",
+      "start_date": "2026-01-28",
+      "end_date": "2026-01-30",
+      "city": "Singapore",
+      "country": "Singapore",
+      "note": "Client meeting"
+    }
+  ],
   "holidays": [
     {
       "date": "2026-01-01",
@@ -687,14 +699,128 @@ GET /api/v1/leaves/calendar/
 **Display Logic:**
 - `is_full_day = true` → Multi-day bar with name
 - `is_full_day = false` → Bullet + "HH:MM AM - HH:MM PM Name"
+- Business trips → Displayed in separate color/style (e.g., blue bars) with city name
 
 **Permissions:** Authenticated
 
 ---
 
-## 6. Leave Categories
+## 6. Business Trips
 
-### 6.1 List Categories
+Business trips are separate from leave requests - they do NOT require approval and do NOT affect leave balance.
+
+### 6.1 List My Business Trips
+
+```
+GET /api/v1/leaves/business-trips/me/
+```
+
+**Query Parameters:**
+| Param | Type | Description |
+|-------|------|-------------|
+| `year` | int | Filter by year of start_date |
+| `page` | int | Page number |
+| `page_size` | int | Items per page |
+
+**Response:**
+```json
+{
+  "count": 5,
+  "results": [
+    {
+      "id": "uuid",
+      "user": "uuid",
+      "user_name": "Minh Nguyen",
+      "user_email": "minh@company.com",
+      "city": "Singapore",
+      "country": "Singapore",
+      "start_date": "2026-02-15",
+      "end_date": "2026-02-18",
+      "note": "Client meeting",
+      "attachment_url": null,
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-01T09:00:00Z"
+    }
+  ]
+}
+```
+
+**Permissions:** Authenticated
+
+---
+
+### 6.2 Create Business Trip
+
+```
+POST /api/v1/leaves/business-trips/
+```
+
+**Request Body:**
+```json
+{
+  "start_date": "2026-02-15",
+  "end_date": "2026-02-18",
+  "city": "Singapore",
+  "country": "Singapore",
+  "note": "Client meeting",
+  "attachment_url": "https://..."
+}
+```
+
+**Validation:**
+- `end_date >= start_date`
+- `city` and `country` are required
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "user": "uuid",
+  "city": "Singapore",
+  "country": "Singapore",
+  "start_date": "2026-02-15",
+  "end_date": "2026-02-18",
+  "note": "Client meeting",
+  "created_at": "2026-02-01T09:00:00Z"
+}
+```
+
+**Permissions:** Authenticated (with dept assigned)
+
+---
+
+### 6.3 Update Business Trip
+
+```
+PATCH /api/v1/leaves/business-trips/{id}/
+```
+
+**Request Body:**
+```json
+{
+  "start_date": "2026-02-16",
+  "end_date": "2026-02-19",
+  "note": "Updated: Client meeting + workshop"
+}
+```
+
+**Permissions:** Owner only
+
+---
+
+### 6.4 Delete Business Trip
+
+```
+DELETE /api/v1/leaves/business-trips/{id}/
+```
+
+**Permissions:** Owner only
+
+---
+
+## 7. Leave Categories
+
+### 7.1 List Categories
 
 ```
 GET /api/v1/leaves/categories/
@@ -735,7 +861,7 @@ GET /api/v1/leaves/categories/
 
 ---
 
-### 6.2 Create Category (Admin)
+### 7.2 Create Category (Admin)
 
 ```
 POST /api/v1/leaves/categories/
@@ -756,7 +882,7 @@ POST /api/v1/leaves/categories/
 
 ---
 
-### 6.3 Update Category (Admin)
+### 7.3 Update Category (Admin)
 
 ```
 PATCH /api/v1/leaves/categories/{id}/
@@ -766,7 +892,7 @@ PATCH /api/v1/leaves/categories/{id}/
 
 ---
 
-### 6.4 Deactivate Category (Admin)
+### 7.4 Deactivate Category (Admin)
 
 ```
 DELETE /api/v1/leaves/categories/{id}/
@@ -778,9 +904,9 @@ DELETE /api/v1/leaves/categories/{id}/
 
 ---
 
-## 7. Public Holidays
+## 8. Public Holidays
 
-### 7.1 List Holidays
+### 8.1 List Holidays
 
 ```
 GET /api/v1/holidays/
@@ -824,7 +950,7 @@ GET /api/v1/holidays/
 
 ---
 
-### 7.2 Create Holiday (Admin)
+### 8.2 Create Holiday (Admin)
 
 ```
 POST /api/v1/holidays/
@@ -845,7 +971,7 @@ POST /api/v1/holidays/
 
 ---
 
-### 7.3 Update Holiday (Admin)
+### 8.3 Update Holiday (Admin)
 
 ```
 PATCH /api/v1/holidays/{id}/
@@ -855,7 +981,7 @@ PATCH /api/v1/holidays/{id}/
 
 ---
 
-### 7.4 Delete Holiday (Admin)
+### 8.4 Delete Holiday (Admin)
 
 ```
 DELETE /api/v1/holidays/{id}/
@@ -865,7 +991,7 @@ DELETE /api/v1/holidays/{id}/
 
 ---
 
-### 7.5 Copy Holidays to Next Year
+### 8.5 Copy Holidays to Next Year
 
 ```
 POST /api/v1/holidays/copy/
@@ -884,9 +1010,9 @@ POST /api/v1/holidays/copy/
 
 ---
 
-## 8. Notifications
+## 9. Notifications
 
-### 8.1 List My Notifications
+### 9.1 List My Notifications
 
 ```
 GET /api/v1/notifications/
@@ -928,7 +1054,7 @@ GET /api/v1/notifications/
 
 ---
 
-### 8.2 Mark as Read
+### 9.2 Mark as Read
 
 ```
 PATCH /api/v1/notifications/{id}/
@@ -945,7 +1071,7 @@ PATCH /api/v1/notifications/{id}/
 
 ---
 
-### 8.3 Mark All as Read
+### 9.3 Mark All as Read
 
 ```
 POST /api/v1/notifications/mark-all-read/
@@ -962,7 +1088,7 @@ POST /api/v1/notifications/mark-all-read/
 
 ---
 
-### 8.4 Get Unread Count
+### 9.4 Get Unread Count
 
 ```
 GET /api/v1/notifications/unread-count/
@@ -979,9 +1105,9 @@ GET /api/v1/notifications/unread-count/
 
 ---
 
-## 9. Audit Logs
+## 10. Audit Logs
 
-### 9.1 List Audit Logs (Admin)
+### 10.1 List Audit Logs (Admin)
 
 ```
 GET /api/v1/audit-logs/
@@ -1019,7 +1145,7 @@ GET /api/v1/audit-logs/
 
 ---
 
-## 10. Error Handling
+## 11. Error Handling
 
 ### Standard Error Response
 
@@ -1050,7 +1176,7 @@ GET /api/v1/audit-logs/
 
 ---
 
-## 11. Rate Limiting
+## 12. Rate Limiting
 
 | Endpoint Type | Limit | Window |
 |---------------|-------|--------|
