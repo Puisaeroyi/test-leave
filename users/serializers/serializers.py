@@ -26,6 +26,7 @@ class RegisterSerializer(serializers.Serializer):
     )
     first_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
     last_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
+    employee_code = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=50)
     # Onboarding fields
     entity = serializers.UUIDField(required=True)
     location = serializers.UUIDField(required=True)
@@ -85,6 +86,7 @@ class RegisterSerializer(serializers.Serializer):
         # Extract fields
         first_name = validated_data.pop('first_name', '')
         last_name = validated_data.pop('last_name', '')
+        employee_code = validated_data.pop('employee_code', None)
         entity = validated_data.pop('entity')
         location = validated_data.pop('location')
         department = validated_data.pop('department')
@@ -94,6 +96,7 @@ class RegisterSerializer(serializers.Serializer):
             password=validated_data['password'],
             first_name=first_name,
             last_name=last_name,
+            employee_code=employee_code,
             entity=entity,
             location=location,
             department=department,

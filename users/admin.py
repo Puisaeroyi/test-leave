@@ -54,18 +54,18 @@ class UserAdminForm(forms.ModelForm):
 class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
     form = UserAdminForm
     resource_class = UserResource
-    list_display = ['email', 'first_name', 'last_name', 'role', 'status', 'entity', 'location', 'department', 'is_active']
-    list_filter = ['role', 'status', 'entity', 'location', 'department', 'is_active']
-    search_fields = ['email', 'first_name', 'last_name']
+    list_display = ['employee_code', 'email', 'first_name', 'last_name', 'role', 'status', 'entity', 'location', 'department']
+    list_filter = ['role', 'status', 'entity', 'location', 'department']
+    search_fields = ['email', 'first_name', 'last_name', 'employee_code']
     ordering = ['-date_joined']
     formats = [base_formats.CSV, base_formats.XLSX, base_formats.JSON]
 
     fieldsets = (
-        (None, {'fields': ('email', 'password')}),
+        (None, {'fields': ('employee_code', 'email', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'avatar_url')}),
         ('Role & Status', {'fields': ('role', 'status')}),
         ('Organization', {'fields': ('entity', 'location', 'department', 'join_date')}),
-        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Permissions', {'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )
 

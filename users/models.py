@@ -50,6 +50,7 @@ class User(AbstractUser):
         INACTIVE = 'INACTIVE', 'Inactive'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    employee_code = models.CharField(max_length=50, unique=True, null=True, blank=True, help_text="Unique employee identifier")
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.EMPLOYEE)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
@@ -82,18 +83,18 @@ class User(AbstractUser):
         if self.entity and self.location:
             if self.location.entity != self.entity:
                 raise ValueError(
-                    f"Location '{self.location.name}' belongs to entity "
-                    f"'{self.location.entity.name}', not '{self.entity.name}'. "
-                    f"Please select a location within {self.entity.name}."
+                    f"Location '{self.location.location_name}' belongs to entity "
+                    f"'{self.location.entity.entity_name}', not '{self.entity.entity_name}'. "
+                    f"Please select a location within {self.entity.entity_name}."
                 )
 
         # Validate entity and department match
         if self.entity and self.department:
             if self.department.entity != self.entity:
                 raise ValueError(
-                    f"Department '{self.department.name}' belongs to entity "
-                    f"'{self.department.entity.name}', not '{self.entity.name}'. "
-                    f"Please select a department within {self.entity.name}."
+                    f"Department '{self.department.department_name}' belongs to entity "
+                    f"'{self.department.entity.entity_name}', not '{self.entity.entity_name}'. "
+                    f"Please select a department within {self.entity.entity_name}."
                 )
 
         super().save(*args, **kwargs)
