@@ -1,0 +1,183 @@
+{
+  "users": [
+    {
+      "id": "1",
+      "name": "TuanHiep",
+      "employeeCode": "EMP001",
+      "email": "sol@teampl.com",
+      "password": "123456",
+      "role": "manager",
+      "department": "IT",
+      "site": "HCM - VN",
+      "company": "Teampl",
+      "avatar": "https://i.pravatar.cc/150?img=12"
+    },
+    {
+      "id": "2",
+      "name": "tuan hiep",
+      "employeeCode": "EMP002",
+      "email": "tuanhiep@teampl.com",
+      "password": "123456",
+      "company": "teampl",
+      "department": "IT",
+      "site": "HCM",
+      "role": "employee",
+      "avatar": "https://i.pravatar.cc/150"
+    },
+    {
+      "id": "3",
+      "name": "test 3h41",
+      "employeeCode": "EMP003",
+      "email": "abc1@teampl.com",
+      "site": "hcm",
+      "password": "123456",
+      "confirmPassword": "123456",
+      "company": "teampl-tech",
+      "department": "Security",
+      "role": "employee",
+      "avatar": "https://i.pravatar.cc/150"
+    },
+    {
+      "id": "91f8",
+      "name": "solcute",
+      "employeeCode": "EMP004",
+      "email": "solcute@teampl.com",
+      "site": "hcm",
+      "password": "123456",
+      "confirmPassword": "123456",
+      "company": "teampl-tech",
+      "department": "Security",
+      "role": "employee",
+      "avatar": "https://i.pravatar.cc/150"
+    },
+    {
+      "id": "89ca",
+      "name": "test 10h34",
+      "employeeCode": "EMP103",
+      "email": "test103@teampl.com",
+      "site": "us",
+      "password": "123456",
+      "confirmPassword": "123456",
+      "company": "teampl-us",
+      "department": "Sales",
+      "role": "employee",
+      "avatar": "https://i.pravatar.cc/150"
+    }
+  ],
+  "sites": [
+    {
+      "id": "hcm",
+      "name": "HCM - VN"
+    },
+    {
+      "id": "hn",
+      "name": "HN - VN"
+    },
+    {
+      "id": "hn",
+      "name": "HN - VN"
+    },
+    {
+      "id": "dn",
+      "name": "DN - VN"
+    },
+    {
+      "id": "us",
+      "name": "US"
+    },
+    {
+      "id": "uk",
+      "name": "UK"
+    },
+    {
+      "id": "in",
+      "name": "IN"
+    },
+    {
+      "id": "sg",
+      "name": "SG"
+    },
+    {
+      "id": "au",
+      "name": "AU"
+    },
+    {
+      "id": "jp",
+      "name": "JP"
+    }
+  ],
+  "companies": [
+    {
+      "id": "teampl",
+      "name": "Teampl",
+      "siteId": "hcm"
+    },
+    {
+      "id": "teampl-tech",
+      "name": "Teampl Tech",
+      "siteId": "hcm"
+    },
+    {
+      "id": "teampl-hn",
+      "name": "Teampl Hanoi",
+      "siteId": "hn"
+    },
+    {
+      "id": "teampl-us",
+      "name": "Teampl US",
+      "siteId": "us"
+    },
+    {
+      "id": "teampl-uk",
+      "name": "Teampl UK",
+      "siteId": "uk"
+    },
+    {
+      "id": "teampl-in",
+      "name": "Teampl India",
+      "siteId": "in"
+    }
+  ],
+  "departments": [
+    {
+      "id": "it",
+      "name": "IT",
+      "companyId": "teampl"
+    },
+    {
+      "id": "hr",
+      "name": "HR",
+      "companyId": "teampl"
+    },
+    {
+      "id": "security",
+      "name": "Security",
+      "companyId": "teampl-tech"
+    },
+    {
+      "id": "finance",
+      "name": "Finance",
+      "companyId": "teampl-tech"
+    },
+    {
+      "id": "marketing",
+      "name": "Marketing",
+      "companyId": "teampl-hn"
+    },
+    {
+      "id": "sales",
+      "name": "Sales",
+      "companyId": "teampl-us"
+    },
+    {
+      "id": "support",
+      "name": "Support",
+      "companyId": "teampl-uk"
+    },
+    {
+      "id": "development",
+      "name": "Development",
+      "companyId": "teampl-in"
+    }
+  ]
+}
