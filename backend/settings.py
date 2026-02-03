@@ -140,11 +140,31 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
+# Parse DATABASE_URL if provided (Docker/Production)
+def parse_database_url():
+    """Parse DATABASE_URL environment variable for PostgreSQL connection."""
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url:
+        # Parse postgresql://user:password@host:port/dbname
+        import re
+        match = re.match(r'postgresql://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)', db_url)
+        if match:
+            return {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': match.group(5),
+                'USER': match.group(1),
+                'PASSWORD': match.group(2),
+                'HOST': match.group(3),
+                'PORT': match.group(4),
+            }
+    # Fallback to SQLite for development
+    return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
+
+DATABASES = {
+    'default': parse_database_url()
 }
 
 

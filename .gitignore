@@ -83,4 +83,4 @@ media/
 
 # Claude Code & OpenCode directories
 .claude/
-.opencode/
+.opencode/docs/
