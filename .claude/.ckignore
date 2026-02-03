@@ -21,8 +21,6 @@ target
 # VCS & Coverage
 .git
 coverage
-!venv
-
 # Allow git operations
 !.git/
 !.git/index.lock
