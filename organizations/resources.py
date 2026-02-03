@@ -28,8 +28,7 @@ class EntityResource(resources.ModelResource):
     class Meta:
         model = Entity
         import_id_fields = ['code']
-        # is_active excluded from import - defaults to True via field definition
-        fields = ('entity_name', 'code')
+        fields = ('entity_name', 'code', 'is_active')
         export_order = ('entity_name', 'code', 'is_active')
         skip_unchanged = True
         report_skipped = True
@@ -57,8 +56,7 @@ class LocationResource(resources.ModelResource):
     class Meta:
         model = Location
         import_id_fields = ['entity', 'location_name']
-        # is_active excluded from import - defaults to True via field definition
-        fields = ('location_name', 'Entity_Code', 'city', 'state', 'country', 'timezone')
+        fields = ('location_name', 'Entity_Code', 'city', 'state', 'country', 'timezone', 'is_active')
         export_order = ('location_name', 'Entity_Code', 'city', 'state', 'country', 'timezone', 'is_active')
         skip_unchanged = True
         report_skipped = True
@@ -91,8 +89,7 @@ class DepartmentResource(resources.ModelResource):
     class Meta:
         model = Department
         import_id_fields = ['entity', 'location', 'code']
-        # is_active excluded from import - defaults to True via field definition
-        fields = ('department_name', 'code', 'Entity_Code', 'Location_Name')
+        fields = ('department_name', 'code', 'Entity_Code', 'Location_Name', 'is_active')
         export_order = ('department_name', 'code', 'Entity_Code', 'Location_Name', 'is_active')
         skip_unchanged = True
         report_skipped = True

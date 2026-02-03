@@ -137,10 +137,9 @@ class UserResource(resources.ModelResource):
         model = User
         import_id_fields = ['email']
         # Use column names (case-sensitive from CSV headers)
-        # is_active excluded from import - defaults to True via field definition
         fields = (
             'Email', 'First_Name', 'Last_Name', 'Entity_Code', 'Location_Name',
-            'Department_Code', 'Role', 'Status', 'Join_Date'
+            'Department_Code', 'Role', 'Status', 'Join_Date', 'is_active'
         )
         export_order = (
             'Email', 'First_Name', 'Last_Name', 'Role', 'Status', 'Entity_Code',
