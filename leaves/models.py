@@ -72,7 +72,7 @@ class LeaveRequest(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     total_hours = models.DecimalField(max_digits=5, decimal_places=2)
     reason = models.TextField(blank=True)
-    attachment_url = models.URLField(max_length=500, blank=True)
+    attachment_url = models.URLField(max_length=500, blank=True, null=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -100,7 +100,7 @@ class LeaveRequest(models.Model):
 
 
 class PublicHoliday(models.Model):
-    """Public holidays scoped by entity/location"""
+    """Public holidays scoped by entity/location (supports multi-day holidays)"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     entity = models.ForeignKey(
         'organizations.Entity',
@@ -117,7 +117,8 @@ class PublicHoliday(models.Model):
         related_name='public_holidays'
     )
     holiday_name = models.CharField(max_length=100)
-    date = models.DateField()
+    start_date = models.DateField()
+    end_date = models.DateField()
     is_recurring = models.BooleanField(default=False)
     year = models.IntegerField()
     is_active = models.BooleanField(default=True)
@@ -126,10 +127,15 @@ class PublicHoliday(models.Model):
 
     class Meta:
         db_table = 'public_holidays'
-        unique_together = ['entity', 'location', 'date']
+        unique_together = ['entity', 'location', 'start_date']
+        indexes = [
+            models.Index(fields=['start_date', 'end_date']),
+        ]
 
     def __str__(self):
-        return f"{self.holiday_name} - {self.date}"
+        if self.start_date == self.end_date:
+            return f"{self.holiday_name} - {self.start_date}"
+        return f"{self.holiday_name} - {self.start_date} to {self.end_date}"
 
 
 class BusinessTrip(models.Model):
@@ -141,7 +147,7 @@ class BusinessTrip(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     note = models.TextField(blank=True)
-    attachment_url = models.URLField(max_length=500, blank=True)
+    attachment_url = models.URLField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -27,7 +27,7 @@ class LeaveRequestAdmin(admin.ModelAdmin):
 
 @admin.register(PublicHoliday)
 class PublicHolidayAdmin(admin.ModelAdmin):
-    list_display = ['holiday_name', 'date', 'year', 'entity', 'location', 'is_recurring', 'is_active']
+    list_display = ['holiday_name', 'start_date', 'end_date', 'year', 'entity', 'location', 'is_recurring', 'is_active']
     list_filter = ['year', 'is_active', 'is_recurring']
     search_fields = ['holiday_name']
 

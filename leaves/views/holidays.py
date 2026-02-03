@@ -28,13 +28,14 @@ class PublicHolidayListView(generics.ListAPIView):
         if year:
             holidays = holidays.filter(year=int(year))
 
-        holidays = holidays.order_by('date')
+        holidays = holidays.order_by('start_date')
 
         data = [
             {
                 'id': str(h.id),
                 'name': h.holiday_name,
-                'date': h.date.isoformat(),
+                'start_date': h.start_date.isoformat(),
+                'end_date': h.end_date.isoformat(),
                 'year': h.year,
                 'is_recurring': h.is_recurring,
                 'entity_id': str(h.entity_id) if h.entity_id else None,

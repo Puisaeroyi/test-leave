@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from ..models import BusinessTrip
 from ..serializers import BusinessTripSerializer, BusinessTripCreateSerializer
 from ..constants import DEFAULT_PAGE_SIZE
-from ..utils import validate_leave_request_dates
+from ..utils import validate_leave_request_dates, check_overlapping_business_trips
 
 
 class BusinessTripListCreateView(generics.ListCreateAPIView):
@@ -55,6 +55,14 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
         is_valid, error = validate_leave_request_dates(start_date, end_date)
         if not is_valid:
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check for overlapping business trips
+        overlapping = check_overlapping_business_trips(user, start_date, end_date)
+        if overlapping.exists():
+            return Response(
+                {'error': 'You have an overlapping business trip for these dates'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Create business trip (no approval workflow, no balance impact)
         trip = BusinessTrip.objects.create(

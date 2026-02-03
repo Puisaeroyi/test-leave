@@ -83,6 +83,7 @@ class TeamCalendarView(generics.GenericAPIView):
             leaves_data.append({
                 'id': str(leave.id),
                 'member_id': str(leave.user_id),
+                'member_name': leave.user.get_full_name() or leave.user.email,
                 'start_date': leave.start_date.isoformat(),
                 'end_date': leave.end_date.isoformat(),
                 'is_full_day': leave.shift_type == 'FULL_DAY',
@@ -104,6 +105,7 @@ class TeamCalendarView(generics.GenericAPIView):
             business_trips_data.append({
                 'id': str(trip.id),
                 'member_id': str(trip.user_id),
+                'member_name': trip.user.get_full_name() or trip.user.email,
                 'start_date': trip.start_date.isoformat(),
                 'end_date': trip.end_date.isoformat(),
                 'city': trip.city,
@@ -111,11 +113,11 @@ class TeamCalendarView(generics.GenericAPIView):
                 'note': trip.note or 'Business Trip'
             })
 
-        # Get holidays for the month
+        # Get holidays for the month (supports multi-day holidays)
         holidays_query = PublicHoliday.objects.filter(
-            date__year=year,
-            date__month=month,
             is_active=True
+        ).filter(
+            Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).filter(
             Q(entity_id=user.entity_id) | Q(entity_id__isnull=True)
         )
@@ -128,7 +130,8 @@ class TeamCalendarView(generics.GenericAPIView):
 
         holidays_data = [
             {
-                'date': holiday.date.isoformat(),
+                'start_date': holiday.start_date.isoformat(),
+                'end_date': holiday.end_date.isoformat(),
                 'name': holiday.holiday_name
             }
             for holiday in holidays_query

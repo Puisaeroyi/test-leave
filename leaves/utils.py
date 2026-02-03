@@ -40,7 +40,13 @@ def calculate_leave_hours(user, start_date, end_date, shift_type, start_time=Non
 
     # FULL_DAY: count working days (excludes weekends and holidays)
     holidays = get_holidays_for_user(user, start_date, end_date)
-    holiday_dates = set(h.date for h in holidays)
+    # Expand multi-day holidays into individual dates
+    holiday_dates = set()
+    for h in holidays:
+        current = h.start_date
+        while current <= h.end_date:
+            holiday_dates.add(current)
+            current += timedelta(days=1)
 
     working_days = 0
     current = start_date
@@ -96,8 +102,8 @@ def get_holidays_for_user(user, start_date, end_date):
 
     return PublicHoliday.objects.filter(
         query,
-        date__gte=start_date,
-        date__lte=end_date,
+        start_date__lte=end_date,
+        end_date__gte=start_date,
         is_active=True
     )
 
@@ -141,6 +147,33 @@ def check_overlapping_requests(user, start_date, end_date, exclude_request_id=No
 
     if exclude_request_id:
         overlapping = overlapping.exclude(id=exclude_request_id)
+
+    return overlapping
+
+
+def check_overlapping_business_trips(user, start_date, end_date, exclude_trip_id=None):
+    """
+    Check for overlapping business trips
+
+    Args:
+        user: User instance
+        start_date: date object
+        end_date: date object
+        exclude_trip_id: UUID of trip to exclude (for updates)
+
+    Returns:
+        QuerySet of overlapping trips
+    """
+    from .models import BusinessTrip
+
+    overlapping = BusinessTrip.objects.filter(
+        user=user,
+        start_date__lte=end_date,
+        end_date__gte=start_date,
+    )
+
+    if exclude_trip_id:
+        overlapping = overlapping.exclude(id=exclude_trip_id)
 
     return overlapping
 

@@ -150,7 +150,7 @@ class LeaveRequestUpdateSerializer(serializers.ModelSerializer):
 
 
 class PublicHolidaySerializer(serializers.ModelSerializer):
-    """Serializer for PublicHoliday"""
+    """Serializer for PublicHoliday (supports multi-day holidays)"""
     entity_name = serializers.SerializerMethodField()
     location_name = serializers.SerializerMethodField()
 
@@ -158,7 +158,7 @@ class PublicHolidaySerializer(serializers.ModelSerializer):
         model = PublicHoliday
         fields = [
             'id', 'entity', 'entity_name', 'location', 'location_name',
-            'holiday_name', 'date', 'is_recurring', 'year', 'is_active',
+            'holiday_name', 'start_date', 'end_date', 'is_recurring', 'year', 'is_active',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

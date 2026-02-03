@@ -9,6 +9,7 @@ from .business_trips import (
     BusinessTripDetailView,
     BusinessTripCancelView,
 )
+from .file_upload import FileUploadView
 
 from .requests import (
     LeaveRequestListView,
@@ -33,4 +34,5 @@ __all__ = [
     'BusinessTripListCreateView',
     'BusinessTripDetailView',
     'BusinessTripCancelView',
+    'FileUploadView',
 ]
