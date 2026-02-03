@@ -86,7 +86,8 @@ class Command(BaseCommand):
         for hol_data in holidays:
             hol, _ = PublicHoliday.objects.get_or_create(
                 holiday_name=hol_data['holiday_name'],
-                date=hol_data['date'],
+                start_date=hol_data['date'],
+                end_date=hol_data['date'],
                 defaults={
                     'year': hol_data['date'].year,
                     'is_recurring': hol_data['is_recurring'],
