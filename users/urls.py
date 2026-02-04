@@ -8,6 +8,7 @@ from .views import (
     LoginView,
     LogoutView,
     UserMeView,
+    UserBalanceAdjustView,
 )
 
 urlpatterns = [
@@ -16,4 +17,7 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', UserMeView.as_view(), name='user_me'),
+
+    # User management (HR/Admin)
+    path('<uuid:pk>/balance/adjust/', UserBalanceAdjustView.as_view(), name='user_balance_adjust'),
 ]

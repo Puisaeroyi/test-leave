@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from ...models import LeaveRequest
 from ...serializers import LeaveRequestRejectSerializer
 from ...services import LeaveApprovalService
-from core.models import Notification
+from core.services.notification_service import create_leave_rejected_notification
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +45,8 @@ class LeaveRequestRejectView(generics.GenericAPIView):
                 serializer.validated_data['reason']
             )
 
-            # Create notification
-            Notification.objects.create(
-                user=leave_request.user,
-                type='LEAVE_REJECTED',
-                title='Leave Request Rejected',
-                message=f'Your leave request for {leave_request.start_date} was rejected.',
-                link=f'/leaves/{leave_request.id}'
-            )
+            # Create notification for employee
+            create_leave_rejected_notification(rejected_request)
 
             return Response({
                 'id': str(rejected_request.id),

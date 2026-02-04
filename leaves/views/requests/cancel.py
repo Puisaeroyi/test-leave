@@ -6,6 +6,7 @@ from rest_framework.response import Response
 
 from ...models import LeaveRequest
 from ...utils import can_modify_request
+from core.services.notification_service import create_leave_cancelled_notification
 
 
 class LeaveRequestCancelView(generics.GenericAPIView):
@@ -41,6 +42,9 @@ class LeaveRequestCancelView(generics.GenericAPIView):
         # Cancel the request
         leave_request.status = 'CANCELLED'
         leave_request.save()
+
+        # Create notification (handles both employee and manager notification internally)
+        create_leave_cancelled_notification(leave_request)
 
         return Response({
             'id': str(leave_request.id),

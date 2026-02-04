@@ -10,6 +10,7 @@ export default defineConfig({
       '@assets': path.resolve(__dirname, './src/assets'),
       '@auth': path.resolve(__dirname, './src/auth'),
       '@api': path.resolve(__dirname, './src/api'),
+      '@hooks': path.resolve(__dirname, './src/hooks'),
       '@router': path.resolve(__dirname, './src/router'),
       '@routes': path.resolve(__dirname, './src/routes'),
       '@layouts': path.resolve(__dirname, './src/layouts'),

@@ -16,6 +16,8 @@ from ...utils import (
     calculate_leave_hours,
     validate_leave_request_dates
 )
+from core.services.notification_service import create_leave_pending_notification
+from organizations.models import DepartmentManager
 
 
 class LeaveRequestListView(generics.ListCreateAPIView):
@@ -149,6 +151,29 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             attachment_url=data.get('attachment_url', ''),
             status='PENDING'
         )
+
+        # Notify managers who can approve this request
+        # Get all active managers assigned to this user's department+location
+        managers = DepartmentManager.objects.filter(
+            department=user.department,
+            location=user.location,
+            is_active=True
+        ).values_list('manager', flat=True)
+
+        # Also include HR and Admin
+        from users.models import User
+        hr_admin_users = User.objects.filter(role__in=['HR', 'ADMIN']).values_list('id', flat=True)
+
+        # Combine and deduplicate manager IDs
+        manager_ids = set(managers) | set(hr_admin_users)
+
+        # Create notifications for each manager
+        for manager_id in manager_ids:
+            try:
+                manager = User.objects.get(id=manager_id)
+                create_leave_pending_notification(manager, leave_request)
+            except User.DoesNotExist:
+                pass
 
         serializer = LeaveRequestSerializer(leave_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

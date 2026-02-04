@@ -7,113 +7,131 @@ import {
   List,
   Typography,
   Divider,
+  Button,
+  Empty,
 } from "antd";
 import {
   UserOutlined,
   LogoutOutlined,
   BellOutlined,
+  CheckOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from "@hooks/use-notifications";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(relativeTime);
 
 const { Header } = Layout;
 
-/* ================= MOCK NOTIFICATION DATA ================= */
-const notifications = [
-  {
-    id: 1,
-    title: "Leave request approved",
-    description: "Your PTO request (Feb 20 → Feb 21) was approved",
-    time: "2 hours ago",
-    read: false,
-  },
-  {
-    id: 2,
-    title: "New company announcement",
-    description: "Company meeting on Friday at 3PM",
-    time: "Yesterday",
-    read: true,
-  },
-  {
-    id: 3,
-    title: "Leave request pending",
-    description: "Your sick leave request is pending approval",
-    time: "2 days ago",
-    read: true,
-  },
-];
-
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = () => (
-  <div
-    style={{
-      width: 340,
-      background: "#fff",
-      borderRadius: 8,
-      boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
-      padding: 12,
-    }}
-  >
-    <Typography.Text strong>Notifications</Typography.Text>
-    <Divider style={{ margin: "8px 0" }} />
+const NotificationPopup = ({ notifications, markAsRead, markAllAsRead }) => {
+  const hasUnread = notifications.some((n) => !n.is_read);
 
-    <List
-      itemLayout="horizontal"
-      dataSource={notifications}
-      locale={{ emptyText: "No notifications" }}
-      renderItem={(item) => (
-        <List.Item
-          style={{
-            padding: "8px",
-            cursor: "pointer",
-            borderRadius: 6,
-            background: item.read ? "#fff" : "#f0f7ff",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.background = "#f5f5f5")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.background = item.read
-              ? "#fff"
-              : "#f0f7ff")
-          }
-        >
-          <List.Item.Meta
-            avatar={
-              <Badge dot={!item.read}>
-                <Avatar
-                  size={36}
-                  icon={<BellOutlined />}
-                  style={{ backgroundColor: "#1677ff" }}
-                />
-              </Badge>
-            }
-            title={
-              <Typography.Text strong={!item.read}>
-                {item.title}
-              </Typography.Text>
-            }
-            description={
-              <>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {item.description}
-                </Typography.Text>
-                <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
-                  {item.time}
-                </div>
-              </>
-            }
-          />
-        </List.Item>
+  return (
+    <div
+      style={{
+        width: 380,
+        background: "#fff",
+        borderRadius: 8,
+        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+        padding: 12,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
+        }}
+      >
+        <Typography.Text strong>Notifications</Typography.Text>
+        {hasUnread && (
+          <Button
+            type="link"
+            size="small"
+            icon={<CheckOutlined />}
+            onClick={markAllAsRead}
+          >
+            Mark all read
+          </Button>
+        )}
+      </div>
+      <Divider style={{ margin: "8px 0" }} />
+
+      {notifications.length === 0 ? (
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="No notifications"
+        />
+      ) : (
+        <List
+          itemLayout="horizontal"
+          dataSource={notifications}
+          renderItem={(item) => (
+            <List.Item
+              style={{
+                padding: "8px",
+                cursor: "pointer",
+                borderRadius: 6,
+                background: item.is_read ? "#fff" : "#f0f7ff",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "#f5f5f5")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = item.is_read
+                  ? "#fff"
+                  : "#f0f7ff")
+              }
+              onClick={() => !item.is_read && markAsRead(item.id)}
+            >
+              <List.Item.Meta
+                avatar={
+                  <Badge dot={!item.is_read}>
+                    <Avatar
+                      size={36}
+                      icon={<BellOutlined />}
+                      style={{ backgroundColor: "#1677ff" }}
+                    />
+                  </Badge>
+                }
+                title={
+                  <Typography.Text strong={!item.is_read}>
+                    {item.title}
+                  </Typography.Text>
+                }
+                description={
+                  <>
+                    <Typography.Text
+                      type="secondary"
+                      style={{ fontSize: 12 }}
+                    >
+                      {item.message}
+                    </Typography.Text>
+                    <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+                      {dayjs(item.created_at).fromNow()}
+                    </div>
+                  </>
+                }
+              />
+            </List.Item>
+          )}
+        />
       )}
-    />
-  </div>
-);
+    </div>
+  );
+};
 
 /* ================= HEADER ================= */
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
 
   if (!user) return null;
 
@@ -170,13 +188,16 @@ export default function AppHeader() {
         {/* NOTIFICATION ICON */}
         <Dropdown
           trigger={["click"]}
-          dropdownRender={() => <NotificationPopup />}
+          dropdownRender={() => (
+            <NotificationPopup
+              notifications={notifications}
+              markAsRead={markAsRead}
+              markAllAsRead={markAllAsRead}
+            />
+          )}
           placement="bottomRight"
         >
-          <Badge
-            count={notifications.filter((n) => !n.read).length}
-            size="small"
-          >
+          <Badge count={unreadCount} size="small">
             <BellOutlined
               style={{
                 fontSize: 20,

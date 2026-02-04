@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from ...models import LeaveRequest
 from ...services import LeaveApprovalService
-from core.models import Notification
+from core.services.notification_service import create_leave_approved_notification
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +39,8 @@ class LeaveRequestApproveView(generics.GenericAPIView):
                 request.user
             )
 
-            # Create notification
-            Notification.objects.create(
-                user=leave_request.user,
-                type='LEAVE_APPROVED',
-                title='Leave Request Approved',
-                message=f'Your leave request for {leave_request.start_date} has been approved.',
-                link=f'/leaves/{leave_request.id}'
-            )
+            # Create notification for employee
+            create_leave_approved_notification(approved_request)
 
             return Response({
                 'id': str(approved_request.id),
