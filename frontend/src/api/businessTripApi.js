@@ -1,6 +1,6 @@
 import http from "./http";
 
-const API_URL = "http://localhost:8000/api/v1/leaves/business-trips";
+const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1"}/leaves/business-trips`;
 
 /**
  * Get user's business trips (paginated)

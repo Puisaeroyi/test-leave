@@ -1,6 +1,7 @@
 import http from "./http";
 
-const API_URL = "/api/v1/leaves";
+// Note: http.js baseURL already includes /api/v1, so we only add /leaves
+const API_URL = "/leaves";
 
 /* ================= FILE UPLOAD ================= */
 export const uploadFile = async (file) => {
