@@ -40,8 +40,9 @@ def create_notification(user, notification_type, title, message, link=""):
 def create_leave_pending_notification(manager, leave_request):
     """Notify manager of new pending leave request from their team member."""
     user_name = leave_request.user.get_full_name() or leave_request.user.email
+    category_name = leave_request.leave_category.category_name if leave_request.leave_category else "Leave"
     message = (
-        f"{user_name} has requested {leave_request.category.name} "
+        f"{user_name} has requested {category_name} "
         f"from {leave_request.start_date} to {leave_request.end_date}"
     )
     # Link to pending requests page
@@ -57,8 +58,9 @@ def create_leave_pending_notification(manager, leave_request):
 
 def create_leave_approved_notification(leave_request):
     """Notify employee that their leave request was approved."""
+    category_name = leave_request.leave_category.category_name if leave_request.leave_category else "Leave"
     message = (
-        f"Your {leave_request.category.name} request "
+        f"Your {category_name} request "
         f"from {leave_request.start_date} to {leave_request.end_date} has been approved"
     )
     return create_notification(
@@ -72,9 +74,10 @@ def create_leave_approved_notification(leave_request):
 
 def create_leave_rejected_notification(leave_request):
     """Notify employee that their leave request was rejected."""
+    category_name = leave_request.leave_category.category_name if leave_request.leave_category else "Leave"
     reason = f". Reason: {leave_request.rejection_reason}" if leave_request.rejection_reason else ""
     message = (
-        f"Your {leave_request.category.name} request "
+        f"Your {category_name} request "
         f"from {leave_request.start_date} to {leave_request.end_date} has been rejected{reason}"
     )
     return create_notification(
@@ -88,11 +91,12 @@ def create_leave_rejected_notification(leave_request):
 
 def create_leave_cancelled_notification(leave_request):
     """Notify that a leave request was cancelled."""
+    category_name = leave_request.leave_category.category_name if leave_request.leave_category else "Leave"
     # If was approved, notify the manager who approved it
     if leave_request.approved_by:
         message = (
             f"{leave_request.user.get_full_name() or leave_request.user.email} "
-            f"has cancelled their approved {leave_request.category.name} request "
+            f"has cancelled their approved {category_name} request "
             f"from {leave_request.start_date} to {leave_request.end_date}"
         )
         return create_notification(
@@ -105,7 +109,7 @@ def create_leave_cancelled_notification(leave_request):
     else:
         # Notify the employee their pending request was cancelled
         message = (
-            f"Your {leave_request.category.name} request "
+            f"Your {category_name} request "
             f"from {leave_request.start_date} to {leave_request.end_date} has been cancelled"
         )
         return create_notification(
