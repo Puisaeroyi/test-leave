@@ -117,20 +117,6 @@ export default function Profile() {
               <Text type="secondary">Not assigned</Text>
             )}
           </Descriptions.Item>
-
-          {["MANAGER", "ADMIN", "HR"].includes(user.role) &&
-          user.managed_departments &&
-          user.managed_departments.length > 0 ? (
-            <Descriptions.Item label="Departments Managed" span={2}>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {user.managed_departments.map((dept, index) => (
-                  <Tag key={index} color="green">
-                    {dept.department} ({dept.location})
-                  </Tag>
-                ))}
-              </div>
-            </Descriptions.Item>
-          ) : null}
         </Descriptions>
 
         {/* ACTION */}
