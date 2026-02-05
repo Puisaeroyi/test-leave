@@ -3,6 +3,7 @@ const endPoints = {
        LOGIN: "/login",
        REGISTER: "/register",
        PROFILE: "/profile",
+       SETTINGS: "/settings",
        TEAMCALENDAR: "/team-calendar",
        LEAVEREQUEST: "/leave-request",
        LEAVEHISTORY: "/leave-history",

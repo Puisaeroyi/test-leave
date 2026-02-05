@@ -53,8 +53,8 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://10.10.73.5:8000/api/v1
-    # Note: Use server IP for remote network access (not localhost)
+      - VITE_API_URL=http://localhost:8000
+    # Note: For local development use localhost, for remote use server IP
     depends_on:
       - backend
 

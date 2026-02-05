@@ -57,6 +57,15 @@ class User(AbstractUser):
     entity = models.ForeignKey('organizations.Entity', on_delete=models.PROTECT, null=True, blank=True)
     location = models.ForeignKey('organizations.Location', on_delete=models.SET_NULL, null=True, blank=True)
     department = models.ForeignKey('organizations.Department', on_delete=models.SET_NULL, null=True, blank=True)
+    # Approver field for person-to-person approval system (cross-entity supported)
+    approver = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='subordinates',
+        help_text="Direct approver for leave requests. Cross-entity approval supported."
+    )
     join_date = models.DateField(null=True, blank=True)
     avatar_url = models.URLField(max_length=500, blank=True)
 
@@ -96,6 +105,13 @@ class User(AbstractUser):
                     f"'{self.department.entity.entity_name}', not '{self.entity.entity_name}'. "
                     f"Please select a department within {self.entity.entity_name}."
                 )
+
+        # Validate approver is not self (circular reference prevention)
+        if self.approver and self.approver == self:
+            raise ValueError(
+                "A user cannot be their own approver. "
+                "Please select a different approver or leave the field blank."
+            )
 
         super().save(*args, **kwargs)
 

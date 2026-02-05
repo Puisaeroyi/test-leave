@@ -17,7 +17,8 @@ from ...utils import (
     validate_leave_request_dates
 )
 from core.services.notification_service import create_leave_pending_notification
-from organizations.models import DepartmentManager
+import logging
+logger = logging.getLogger(__name__)
 
 
 class LeaveRequestListView(generics.ListCreateAPIView):
@@ -152,28 +153,12 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             status='PENDING'
         )
 
-        # Notify managers who can approve this request
-        # Get all active managers assigned to this user's department+location
-        managers = DepartmentManager.objects.filter(
-            department=user.department,
-            location=user.location,
-            is_active=True
-        ).values_list('manager', flat=True)
-
-        # Also include HR and Admin
-        from users.models import User
-        hr_admin_users = User.objects.filter(role__in=['HR', 'ADMIN']).values_list('id', flat=True)
-
-        # Combine and deduplicate manager IDs
-        manager_ids = set(managers) | set(hr_admin_users)
-
-        # Create notifications for each manager
-        for manager_id in manager_ids:
-            try:
-                manager = User.objects.get(id=manager_id)
-                create_leave_pending_notification(manager, leave_request)
-            except User.DoesNotExist:
-                pass
+        # Notify the assigned approver
+        if user.approver:
+            create_leave_pending_notification(user.approver, leave_request)
+        else:
+            # Log warning: no approver assigned
+            logger.warning(f"User {user.email} has no approver assigned - no notification sent for leave request {leave_request.id}")
 
         serializer = LeaveRequestSerializer(leave_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

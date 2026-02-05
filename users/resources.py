@@ -3,11 +3,44 @@ Django import-export resources for User model with validation.
 Supports CSV/XLSX import with organization references.
 """
 from import_export import resources, fields
-from import_export.widgets import ForeignKeyWidget, BooleanWidget
+from import_export.widgets import ForeignKeyWidget, BooleanWidget, Widget
 from django.core.exceptions import ValidationError
 from django.utils.dateparse import parse_date
+from datetime import datetime, date
 from .models import User
 from organizations.models import Entity, Location, Department
+
+
+class NullableDateWidget(Widget):
+    """Widget that handles nullable date fields."""
+
+    def clean(self, value, row=None, **kwargs):
+        if value is None or value == '' or str(value).strip() == '':
+            return None
+        # Handle datetime objects from Excel
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        # Parse string dates
+        parsed = parse_date(str(value))
+        if parsed:
+            return parsed
+        raise ValidationError(f"Invalid date format: '{value}'. Expected YYYY-MM-DD.")
+
+    def render(self, value, obj=None):
+        if value is None:
+            return ''
+        return value.strftime('%Y-%m-%d') if value else ''
+
+
+class NullableCharWidget(Widget):
+    """Widget that handles nullable char fields - converts empty string to None."""
+
+    def clean(self, value, row=None, **kwargs):
+        if value is None or value == '' or str(value).strip() == '':
+            return None
+        return str(value)
 
 
 class DefaultTrueBooleanWidget(BooleanWidget):
@@ -68,7 +101,7 @@ class LocationByNameWidget(ForeignKeyWidget):
 
 
 class DepartmentByCodeWidget(ForeignKeyWidget):
-    """Widget for looking up Department by code and entity."""
+    """Widget for looking up Department by code, entity, and location."""
 
     def __init__(self):
         super().__init__(Department, field='code')
@@ -88,16 +121,61 @@ class DepartmentByCodeWidget(ForeignKeyWidget):
         except Entity.DoesNotExist:
             raise ValidationError(f"Entity with code '{entity_code}' not found or inactive")
 
+        # Get location from row to match department at specific location
+        location_name = row.get('Location_Name') if row else None
+        location = None
+        if location_name and str(location_name).strip():
+            try:
+                location = Location.objects.get(
+                    entity=entity,
+                    location_name=str(location_name).strip(),
+                    is_active=True
+                )
+            except Location.DoesNotExist:
+                raise ValidationError(
+                    f"Location '{location_name}' not found for Entity '{entity_code}'"
+                )
+
+        # Try to find department with location first, fall back to entity-wide (location=null)
         try:
             return Department.objects.get(
                 entity=entity,
+                location=location,
                 code=department_code,
                 is_active=True
             )
         except Department.DoesNotExist:
+            # If no location-specific department found, try entity-wide (location=null)
+            if location:
+                try:
+                    return Department.objects.get(
+                        entity=entity,
+                        location__isnull=True,
+                        code=department_code,
+                        is_active=True
+                    )
+                except Department.DoesNotExist:
+                    pass
             raise ValidationError(
-                f"Department '{department_code}' not found for Entity '{entity_code}'"
+                f"Department '{department_code}' not found for Entity '{entity_code}' at Location '{location_name}'"
             )
+
+
+class ApproverByEmailWidget(ForeignKeyWidget):
+    """Widget for looking up Approver (User) by email."""
+
+    def __init__(self):
+        super().__init__(User, field='email')
+
+    def clean(self, value, row=None, **kwargs):
+        if not value or str(value).strip() == '':
+            return None
+        email = str(value).strip()
+
+        try:
+            return User.objects.get(email__iexact=email, is_active=True)
+        except User.DoesNotExist:
+            raise ValidationError(f"Approver with email '{value}' not found or inactive")
 
 
 class UserResource(resources.ModelResource):
@@ -107,9 +185,10 @@ class UserResource(resources.ModelResource):
     email = fields.Field(attribute='email', column_name='Email')
     first_name = fields.Field(attribute='first_name', column_name='First_Name')
     last_name = fields.Field(attribute='last_name', column_name='Last_Name')
+    employee_code = fields.Field(attribute='employee_code', column_name='Employee_Code', widget=NullableCharWidget())
     role = fields.Field(attribute='role', column_name='Role')
     status = fields.Field(attribute='status', column_name='Status')
-    join_date = fields.Field(attribute='join_date', column_name='Join_Date')
+    join_date = fields.Field(attribute='join_date', column_name='Join_Date', widget=NullableDateWidget())
 
     entity = fields.Field(
         column_name='Entity_Code',
@@ -126,6 +205,11 @@ class UserResource(resources.ModelResource):
         attribute='department',
         widget=DepartmentByCodeWidget()
     )
+    approver = fields.Field(
+        column_name='Approver_Email',
+        attribute='approver',
+        widget=ApproverByEmailWidget()
+    )
     is_active = fields.Field(
         column_name='is_active',
         attribute='is_active',
@@ -138,12 +222,12 @@ class UserResource(resources.ModelResource):
         import_id_fields = ['email']
         # Use column names (case-sensitive from CSV headers)
         fields = (
-            'Email', 'First_Name', 'Last_Name', 'Entity_Code', 'Location_Name',
-            'Department_Code', 'Role', 'Status', 'Join_Date', 'is_active'
+            'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Entity_Code', 'Location_Name',
+            'Department_Code', 'Role', 'Status', 'Approver_Email', 'Join_Date', 'is_active'
         )
         export_order = (
-            'Email', 'First_Name', 'Last_Name', 'Role', 'Status', 'Entity_Code',
-            'Location_Name', 'Department_Code', 'Join_Date', 'is_active'
+            'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Role', 'Status', 'Entity_Code',
+            'Location_Name', 'Department_Code', 'Approver_Email', 'Join_Date', 'is_active'
         )
         skip_unchanged = True
         report_skipped = True

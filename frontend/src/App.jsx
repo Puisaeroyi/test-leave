@@ -6,6 +6,7 @@ import MainLayout from "@layouts/mainLayout";
 import Login from "@pages/login";
 import Signup from "@pages/signup";
 import Profile from "@pages/Profile";
+import Settings from "@pages/Settings";
 import Dashboard from "@pages/dashBoard";
 import TeamCalendar from "@pages/Calendar";
 import ManagerTickets from "@pages/ManagerTicket";
@@ -28,6 +29,7 @@ export default function App() {
             }
           >
             <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<TeamCalendar />} />
             <Route path="/manager" element={<ManagerTickets />} />

@@ -1,6 +1,6 @@
 import http from "./http";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1"}/auth`;
+const API_URL = `/auth`;
 
 export async function login({ email, password }) {
   const res = await http.post(`${API_URL}/login/`, {
@@ -59,7 +59,7 @@ export async function getCurrentUser() {
 }
 
 // Organization APIs for registration dropdowns
-const ORG_API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:8000/api/v1"}/organizations`;
+const ORG_API_URL = `/organizations`;
 
 export async function getEntities() {
   const res = await http.get(`${ORG_API_URL}/entities/`);

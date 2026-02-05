@@ -1,7 +1,8 @@
 """
 User & Authentication API URLs
 """
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 
 from .views import (
     RegisterView,
@@ -10,8 +11,16 @@ from .views import (
     UserMeView,
     UserBalanceAdjustView,
 )
+from .viewsets import UserViewSet
+
+# ViewSet router for user management
+router = DefaultRouter()
+router.register(r'users', UserViewSet, basename='user')
 
 urlpatterns = [
+    # User management (ViewSet)
+    path('', include(router.urls)),
+
     # Authentication
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),

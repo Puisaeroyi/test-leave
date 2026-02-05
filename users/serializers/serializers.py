@@ -144,22 +144,47 @@ class LoginSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model"""
+
+    class ApproverSerializer(serializers.Serializer):
+        """Nested serializer for approver field"""
+        id = serializers.UUIDField()
+        email = serializers.EmailField()
+        first_name = serializers.CharField(allow_blank=True)
+        last_name = serializers.CharField(allow_blank=True)
+
+    class EntitySerializer(serializers.Serializer):
+        """Nested serializer for entity field"""
+        id = serializers.UUIDField()
+        entity_name = serializers.CharField()
+
+    class DepartmentSerializer(serializers.Serializer):
+        """Nested serializer for department field"""
+        id = serializers.UUIDField()
+        department_name = serializers.CharField()
+
+    approver = ApproverSerializer(read_only=True, allow_null=True)
+    entity = EntitySerializer(read_only=True, allow_null=True)
+    department = DepartmentSerializer(read_only=True, allow_null=True)
+
     class Meta:
         model = User
         fields = [
             'id',
+            'employee_code',
             'email',
             'first_name',
             'last_name',
             'role',
             'status',
+            'is_active',
             'entity',
             'location',
             'department',
+            'approver',  # New field for person-to-person approval
             'join_date',
             'avatar_url',
         ]
-        read_only_fields = ['id', 'email', 'role', 'status', 'join_date']
+        read_only_fields = ['id', 'email', 'role', 'status', 'is_active', 'join_date', 'approver', 'employee_code']
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -169,13 +194,27 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         fields = [
             'first_name',
             'last_name',
+            'email',
+            'employee_code',
             'avatar_url',
-            'status',
+            'approver',  # HR/Admin can assign approver
         ]
 
-    def validate_status(self, value):
-        """Only admins can change status"""
+    def validate_email(self, value):
+        """Validate email is unique"""
+        # Exclude current user from uniqueness check
+        instance = self.instance
+        if instance:
+            if User.objects.filter(email=value).exclude(id=instance.id).exists():
+                raise serializers.ValidationError("A user with this email already exists.")
+        else:
+            if User.objects.filter(email=value).exists():
+                raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_approver(self, value):
+        """Only HR/Admin can assign approver"""
         request = self.context.get('request')
-        if request and not request.user.role == User.Role.ADMIN:
-            raise serializers.ValidationError("Only admins can change user status.")
+        if request and request.user.role not in [User.Role.HR, User.Role.ADMIN]:
+            raise serializers.ValidationError("Only HR/Admin can assign approver.")
         return value

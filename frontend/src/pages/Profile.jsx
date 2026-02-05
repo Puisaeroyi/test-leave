@@ -108,9 +108,9 @@ export default function Profile() {
             {user.join_date || "-"}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Manager">
-            {user.manager ? (
-              <Tag color="purple">{user.manager.full_name}</Tag>
+          <Descriptions.Item label="Approver">
+            {user.approver ? (
+              <Tag color="purple">{user.approver.full_name}</Tag>
             ) : ["MANAGER", "ADMIN", "HR"].includes(user.role) ? (
               <Text type="secondary">N/A</Text>
             ) : (

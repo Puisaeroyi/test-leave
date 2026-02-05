@@ -15,6 +15,7 @@ import {
   LogoutOutlined,
   BellOutlined,
   CheckOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { useNavigate } from "react-router-dom";
@@ -147,9 +148,20 @@ export default function AppHeader() {
       label: "Profile",
       onClick: () => navigate("/profile"),
     },
-    {
-      type: "divider",
-    },
+    // Only show Settings for HR and Admin
+    ...(user?.role === "HR" || user?.role === "ADMIN"
+      ? [
+          {
+            key: "settings",
+            icon: <SettingOutlined />,
+            label: "Settings",
+            onClick: () => navigate("/settings"),
+          },
+          {
+            type: "divider",
+          },
+        ]
+      : []),
     {
       key: "logout",
       icon: <LogoutOutlined />,

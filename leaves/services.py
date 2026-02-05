@@ -12,7 +12,10 @@ class LeaveApprovalService:
     @staticmethod
     def get_pending_requests_for_manager(user):
         """
-        Get pending leave requests for a manager based on DepartmentManager assignments.
+        Get pending leave requests for a manager based on approver relationship.
+
+        Returns only requests where the current user is the assigned approver.
+        Supports cross-entity approval (no entity/department/location filtering).
 
         Args:
             user: Manager user instance
@@ -20,33 +23,14 @@ class LeaveApprovalService:
         Returns:
             QuerySet of pending LeaveRequest objects
         """
-        from organizations.models import DepartmentManager
         from users.models import User
 
-        if user.role in ['HR', 'ADMIN']:
-            # HR and Admin can see all pending requests
-            return LeaveRequest.objects.filter(status='PENDING')
-
-        # For managers, filter by their assigned department+location combinations
-        managed = DepartmentManager.objects.filter(
-            manager=user,
-            is_active=True
-        ).values('department_id', 'location_id')
-
-        department_ids = [m['department_id'] for m in managed]
-        location_ids = [m['location_id'] for m in managed]
-
-        # Get pending requests from users in the same entity
-        # and matching department+location combinations
-        queryset = LeaveRequest.objects.filter(
+        # Show requests where current user is the assigned approver
+        # No role check - the approver relationship IS the permission
+        return LeaveRequest.objects.filter(
             status='PENDING',
-            user__entity=user.entity,
-        ).filter(
-            user__department_id__in=department_ids,
-            user__location_id__in=location_ids,
-        ).exclude(user=user)
-
-        return queryset.select_related('user', 'leave_category').order_by('created_at')
+            user__approver=user
+        ).exclude(user=user).select_related('user', 'leave_category').order_by('created_at')
 
     @staticmethod
     def get_approval_history_for_manager(user):
@@ -72,6 +56,9 @@ class LeaveApprovalService:
         """
         Check if a manager can approve a specific leave request.
 
+        Permission based solely on approver relationship (request.user.approver == manager).
+        No role-based bypass - HR/ADMIN must be assigned as approver to approve.
+
         Args:
             manager: Manager user instance
             leave_request: LeaveRequest instance
@@ -79,19 +66,9 @@ class LeaveApprovalService:
         Returns:
             bool: True if manager can approve, False otherwise
         """
-        from organizations.models import DepartmentManager
-
-        # HR and Admin can approve any request
-        if manager.role in ['HR', 'ADMIN']:
-            return True
-
-        # Check if manager is assigned to this department+location
-        return DepartmentManager.objects.filter(
-            manager=manager,
-            department=leave_request.user.department,
-            location=leave_request.user.location,
-            is_active=True
-        ).exists()
+        # User can approve if they are the assigned approver
+        # No role-based bypass - approver relationship IS the permission
+        return leave_request.user.approver == manager
 
     @staticmethod
     @transaction.atomic
