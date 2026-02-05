@@ -7,10 +7,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Q
 
-from ...models import LeaveRequest, LeaveBalance
+from ...models import LeaveRequest, LeaveBalance, LeaveCategory
 from ...serializers import LeaveRequestSerializer
 from ...services import LeaveApprovalService
-from ...constants import DEFAULT_PAGE_SIZE, DEFAULT_YEARLY_ALLOCATION
+from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
     calculate_leave_hours,
@@ -124,12 +124,33 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Determine balance type from exempt_type and leave_category
+        exempt_type = data.get('exempt_type', 'EXEMPT').upper()
+        category_id = data.get('leave_category') or data.get('leave_category_id')
+        is_vacation = False
+        if category_id:
+            cat = LeaveCategory.objects.filter(id=category_id).first()
+            is_vacation = cat and cat.code.upper() == 'VACATION'
+
+        if is_vacation:
+            balance_type = 'EXEMPT_VACATION' if exempt_type == 'EXEMPT' else 'NON_EXEMPT_VACATION'
+        else:
+            balance_type = 'EXEMPT_SICK' if exempt_type == 'EXEMPT' else 'NON_EXEMPT_SICK'
+
         # Check balance
         year = start_date.year
+        default_allocation = {
+            'EXEMPT_VACATION': Decimal('80.00'),
+            'NON_EXEMPT_VACATION': Decimal('40.00'),
+            'EXEMPT_SICK': Decimal('40.00'),
+            'NON_EXEMPT_SICK': Decimal('40.00'),
+        }
+        default_hours = default_allocation.get(balance_type, Decimal('40.00'))
         balance, _ = LeaveBalance.objects.get_or_create(
             user=user,
             year=year,
-            defaults={'allocated_hours': Decimal(str(DEFAULT_YEARLY_ALLOCATION))}
+            balance_type=balance_type,
+            defaults={'allocated_hours': default_hours}
         )
 
         if total_hours > balance.remaining_hours:
@@ -141,7 +162,8 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         # Create request
         leave_request = LeaveRequest.objects.create(
             user=user,
-            leave_category_id=data.get('leave_category') or data.get('leave_category_id'),
+            leave_category_id=category_id,
+            exempt_type=exempt_type,
             start_date=start_date,
             end_date=end_date,
             shift_type=shift_type,

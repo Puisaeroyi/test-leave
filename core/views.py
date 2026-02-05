@@ -42,6 +42,7 @@ class NotificationListView(generics.GenericAPIView):
                 'title': notification.title,
                 'message': notification.message,
                 'link': notification.link,
+                'related_object_id': str(notification.related_object_id) if notification.related_object_id else None,
                 'is_read': notification.is_read,
                 'created_at': notification.created_at.isoformat()
             })

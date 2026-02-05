@@ -27,14 +27,15 @@ class TeamCalendarView(generics.GenericAPIView):
         # Get current user
         user = request.user
 
-        # Get team members (same entity, location, department)
+        # Get team members (same entity+location+department) + direct subordinates (cross-entity)
         team_filters = Q(entity_id=user.entity_id)
         if user.location_id:
             team_filters &= Q(location_id=user.location_id)
         if user.department_id:
             team_filters &= Q(department_id=user.department_id)
 
-        team_members = User.objects.filter(team_filters).filter(is_active=True)
+        subordinate_filter = Q(approver=user)
+        team_members = User.objects.filter(team_filters | subordinate_filter).filter(is_active=True).distinct()
 
         # Filter by specific member IDs if provided
         if member_ids:

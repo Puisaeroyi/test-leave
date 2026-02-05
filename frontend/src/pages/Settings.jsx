@@ -161,11 +161,6 @@ const Settings = () => {
       render: (status) => (
         <Tag color={status === "ACTIVE" ? "green" : "default"}>{status}</Tag>
       ),
-      filters: [
-        { text: "Active", value: "ACTIVE" },
-        { text: "Inactive", value: "INACTIVE" },
-      ],
-      onFilter: (value, record) => record.status === value,
     },
     {
       title: "Entity",
@@ -173,6 +168,10 @@ const Settings = () => {
       key: "entity",
       width: 120,
       render: (entity) => entity?.entity_name || "-",
+      filters: Array.from(new Set(users.map(u => u.entity?.entity_name).filter(Boolean)))
+        .sort()
+        .map(name => ({ text: name, value: name })),
+      onFilter: (value, record) => record.entity?.entity_name === value,
     },
     {
       title: "Department",
@@ -246,7 +245,7 @@ const Settings = () => {
     total: users.length,
     active: users.filter((u) => u.status === "ACTIVE").length,
     withoutApprover: users.filter(
-      (u) => !u.approver && u.role === "EMPLOYEE"
+      (u) => !u.approver && (u.role === "EMPLOYEE" || u.role === "MANAGER")
     ).length,
   };
 
@@ -274,7 +273,7 @@ const Settings = () => {
         <Col span={8}>
           <Card>
             <Statistic
-              title="Employees Without Approver"
+              title="Users Without Approver"
               value={stats.withoutApprover}
               valueStyle={{ color: stats.withoutApprover > 0 ? "#cf1322" : undefined }}
             />
@@ -306,7 +305,7 @@ const Settings = () => {
           loading={loading}
           scroll={{ x: 1200 }}
           pagination={{
-            pageSize: 20,
+            pageSizeOptions: ['10', '20', '50', '100'],
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} users`,
           }}

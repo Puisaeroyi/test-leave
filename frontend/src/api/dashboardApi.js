@@ -48,22 +48,32 @@ export const getLeaveHistory = async (sort = "new") => {
 
 /* ================= CREATE REQUEST ================= */
 export const createLeaveRequest = async (formData) => {
-  // Get categories to find the category ID
+  // Get categories to find the category ID based on leaveCategory
   const categories = await getLeaveCategories();
-  const category = categories.find(c => c.name === formData.type);
+
+  // Map leaveCategory (vacation/sick) to category name/code
+  // Assuming backend has categories with codes like "VACATION", "SICK"
+  const categoryMap = {
+    vacation: categories.find(c => c.code === "VACATION"),
+    sick: categories.find(c => c.code === "SICK"),
+  };
+
+  const category = categoryMap[formData.leaveCategory];
 
   if (!category) {
-    throw new Error(`Invalid leave type: ${formData.type}`);
+    throw new Error(`Invalid leave category: ${formData.leaveCategory}`);
   }
 
   // Map frontend form data to backend format
   const payload = {
     leave_category: category.id,
+    exempt_type: formData.exemptType.toUpperCase(), // exempt -> EXEMPT, non-exempt -> NON_EXEMPT
     start_date: formData.date[0].format("YYYY-MM-DD"),
     end_date: formData.date[1].format("YYYY-MM-DD"),
     shift_type: formData.dayType === "custom" ? "CUSTOM_HOURS" : "FULL_DAY",
     start_time: formData.startTime ? formData.startTime.format("HH:mm") : null,
     end_time: formData.endTime ? formData.endTime.format("HH:mm") : null,
+    total_hours: formData.totalHours,
     reason: formData.reason,
     attachment_url: formData.attachment_url || null,
   };
@@ -79,14 +89,9 @@ export const getLeaveBalance = async (year = new Date().getFullYear()) => {
   });
   const data = res.data;
 
-  // Map backend response to frontend format
-  return {
-    total: data.allocated_hours,
-    used: data.used_hours,
-    free: data.remaining_hours,
-    remaining: data.remaining_hours,
-    remaining_days: data.remaining_days,
-  };
+  // Map backend 4-balance response to frontend format
+  // Backend returns: { balances: [{ type, label, allocated_hours, used_hours, remaining_hours }, ...] }
+  return data.balances || [];
 };
 
 /* ================= TEAM CALENDAR DATA ================= */
@@ -167,18 +172,21 @@ export const getLeaveCategories = async () => {
   }));
 };
 
-/* ================= MANAGER: PENDING REQUESTS ================= */
+/* ================= MANAGER: PENDING REQUESTS (includes Approved for denial) ================= */
 export const getPendingRequests = async () => {
   const res = await http.get(`${API_URL}/requests/`, {
-    params: { status: "pending", my: "false" },
+    params: { my: "false", status: "pending" },
   });
 
   // Backend returns paginated response: { count, next, previous, results }
   const data = res.data.results || [];
 
   // Map backend response to frontend format
-  return data.map((item) => ({
-    id: item.id,
+  // Filter to only show Pending and Approved (hide Rejected/Cancelled)
+  return data
+    .filter(item => ['PENDING', 'APPROVED'].includes(item.status))
+    .map((item) => ({
+      id: item.id,
     employee: item.user_email || item.user?.email || "Unknown",
     employeeName: item.user_name || `${item.user?.first_name || ""} ${item.user?.last_name || ""}`.trim() || "Unknown",
     type: item.category?.name || "Leave",
@@ -187,11 +195,18 @@ export const getPendingRequests = async () => {
     hours: item.total_hours,
     startTime: item.start_time || null,
     endTime: item.end_time || null,
-    status: item.status.charAt(0) + item.status.slice(1).toLowerCase(), // PENDING -> Pending
+    status: item.status.charAt(0) + item.status.slice(1).toLowerCase(), // PENDING -> Pending, APPROVED -> Approved
     reason: item.reason,
     attachment: item.attachment_url || null,
     denyReason: item.rejection_reason,
-  }));
+    approverComment: item.approver_comment || null,
+  }))
+    .sort((a, b) => {
+      // Sort: Pending first, then by date
+      if (a.status === "Pending" && b.status !== "Pending") return -1;
+      if (a.status !== "Pending" && b.status === "Pending") return 1;
+      return new Date(a.from) - new Date(b.from);
+    });
 };
 
 /* ================= MANAGER: APPROVE REQUEST ================= */

@@ -4,8 +4,10 @@ import logging
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.core.exceptions import ValidationError
 
 from ...models import LeaveRequest
+from ...serializers import LeaveRequestApproveSerializer
 from ...services import LeaveApprovalService
 from core.services.notification_service import create_leave_approved_notification
 
@@ -13,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class LeaveRequestApproveView(generics.GenericAPIView):
-    """Approve a leave request (no comment required)."""
+    """Approve a leave request with optional comment."""
 
     permission_classes = [IsAuthenticated]
 
@@ -32,11 +34,17 @@ class LeaveRequestApproveView(generics.GenericAPIView):
                 status=status.HTTP_403_FORBIDDEN
             )
 
+        # Validate request (comment is optional)
+        serializer = LeaveRequestApproveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         try:
-            # Approve the request (no comment needed)
+            # Approve the request with comment
+            comment = serializer.validated_data.get('comment', '')
             approved_request = LeaveApprovalService.approve_leave_request(
                 leave_request,
-                request.user
+                request.user,
+                comment=comment
             )
 
             # Create notification for employee

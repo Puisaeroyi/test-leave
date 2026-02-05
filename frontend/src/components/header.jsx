@@ -28,7 +28,7 @@ dayjs.extend(relativeTime);
 const { Header } = Layout;
 
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = ({ notifications, markAsRead, markAllAsRead }) => {
+const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick }) => {
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
@@ -88,7 +88,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead }) => {
                   ? "#fff"
                   : "#f0f7ff")
               }
-              onClick={() => !item.is_read && markAsRead(item.id)}
+              onClick={() => onNotificationClick(item)}
             >
               <List.Item.Meta
                 avatar={
@@ -139,6 +139,31 @@ export default function AppHeader() {
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
+  };
+
+  const handleNotificationClick = async (notification) => {
+    // Mark as read if unread
+    if (!notification.is_read) {
+      await markAsRead(notification.id);
+    }
+
+    // Navigate based on notification type
+    if (notification.type === "LEAVE_PENDING") {
+      // Approver clicks pending request → navigate to Manager Ticket page
+      navigate("/manager");
+    } else if (
+      (notification.type === "LEAVE_APPROVED" || notification.type === "LEAVE_REJECTED") &&
+      notification.related_object_id
+    ) {
+      // User clicks approved/rejected notification → navigate to dashboard with state
+      // Include timestamp to ensure React Router triggers re-render even if same request
+      navigate("/dashboard", {
+        state: { openRequestId: notification.related_object_id, _ts: Date.now() }
+      });
+    } else {
+      // For other notification types, navigate to dashboard
+      navigate("/dashboard");
+    }
   };
 
   const menuItems = [
@@ -205,6 +230,7 @@ export default function AppHeader() {
               notifications={notifications}
               markAsRead={markAsRead}
               markAllAsRead={markAllAsRead}
+              onNotificationClick={handleNotificationClick}
             />
           )}
           placement="bottomRight"

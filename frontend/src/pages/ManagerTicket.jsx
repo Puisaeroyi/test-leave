@@ -11,6 +11,7 @@ import {
   Divider,
   Input,
   message,
+  Tooltip,
 } from "antd";
 import {
   EyeOutlined,
@@ -18,7 +19,9 @@ import {
   CloseCircleOutlined,
   PaperClipOutlined,
   ReloadOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
+import dayjs from "dayjs";
 import { getPendingRequests, approveLeaveRequest, rejectLeaveRequest } from "../api/dashboardApi";
 
 const { Text } = Typography;
@@ -31,7 +34,40 @@ export default function ManagerTickets() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [confirmType, setConfirmType] = useState(null); // approve | deny
   const [denyReason, setDenyReason] = useState("");
-  const isPending = selectedTicket?.status === "Pending";
+  const [approveReason, setApproveReason] = useState("");
+
+  // Check if ticket can be acted upon
+  const canActOnTicket = (ticket) => {
+    if (!ticket) return false;
+    // Pending tickets can always be approved/denied
+    if (ticket.status === "Pending") return true;
+    // Approved tickets can be denied only if within 24h of start
+    if (ticket.status === "Approved") {
+      const now = dayjs();
+      const leaveStart = dayjs(ticket.from).startOf("day");
+      const cutoff = leaveStart.subtract(24, "hour");
+      return now.isBefore(cutoff);
+    }
+    return false;
+  };
+
+  // Calculate time remaining for approved tickets
+  const getTimeRemaining = (ticket) => {
+    if (ticket.status !== "Approved") return null;
+    const now = dayjs();
+    const leaveStart = dayjs(ticket.from).startOf("day");
+    const cutoff = leaveStart.subtract(24, "hour");
+    const diff = cutoff.diff(now, "hour");
+
+    if (diff <= 0) return { canDeny: false, text: "Too late to deny" };
+
+    const days = Math.floor(diff / 24);
+    const hours = diff % 24;
+    let text = "";
+    if (days > 0) text += `${days}d `;
+    text += `${hours}h`;
+    return { canDeny: true, text: `${text} remaining to deny` };
+  };
 
   // Fetch pending requests on mount
   useEffect(() => {
@@ -111,7 +147,7 @@ export default function ManagerTickets() {
   const handleApprove = async () => {
     try {
       setActionLoading(true);
-      await approveLeaveRequest(selectedTicket.id);
+      await approveLeaveRequest(selectedTicket.id, approveReason);
       message.success("Ticket approved");
 
       // Refresh the list
@@ -119,6 +155,7 @@ export default function ManagerTickets() {
 
       setConfirmType(null);
       setSelectedTicket(null);
+      setApproveReason("");
     } catch (error) {
       console.error("Failed to approve:", error);
       let errorMsg = "Failed to approve request";
@@ -172,6 +209,9 @@ export default function ManagerTickets() {
       setActionLoading(false);
     }
   };
+
+  const timeInfo = selectedTicket ? getTimeRemaining(selectedTicket) : null;
+  const canAct = selectedTicket ? canActOnTicket(selectedTicket) : false;
 
   return (
     <>
@@ -234,6 +274,27 @@ export default function ManagerTickets() {
                 </Tag>
               </Descriptions.Item>
 
+              {/* Approver Comment (for approved tickets) */}
+              {selectedTicket.status === "Approved" && selectedTicket.approverComment && (
+                <Descriptions.Item label="Approver Note">
+                  <Text type="secondary">{selectedTicket.approverComment}</Text>
+                </Descriptions.Item>
+              )}
+
+              {/* Time Remaining for Approved tickets */}
+              {selectedTicket.status === "Approved" && timeInfo && (
+                <Descriptions.Item label="Denial Window">
+                  <Space>
+                    <ClockCircleOutlined style={{
+                      color: timeInfo.canDeny ? "#52c41a" : "#ff4d4f"
+                    }} />
+                    <Text type={timeInfo.canDeny ? "success" : "danger"}>
+                      {timeInfo.text}
+                    </Text>
+                  </Space>
+                </Descriptions.Item>
+              )}
+
               {selectedTicket.status === "Denied" &&
                 selectedTicket.denyReason && (
                   <Descriptions.Item label="Deny Reason">
@@ -287,25 +348,29 @@ export default function ManagerTickets() {
                 marginTop: 12,
               }}
             >
-              <Button
-                size="large"
-                danger
-                disabled={!isPending}
-                icon={<CloseCircleOutlined />}
-                style={{
-                  minWidth: 140,
-                  height: 44,
-                  fontWeight: 600,
-                  opacity: isPending ? 1 : 0.5,
-                }}
-                onClick={() => setConfirmType("deny")}
-              >
-                Deny
-              </Button>
+              {/* Deny button - enabled for Pending and Approved (within 24h) */}
+              <Tooltip title={selectedTicket.status === "Approved" && !canAct ? "Cannot deny within 24h of leave start" : ""}>
+                <Button
+                  size="large"
+                  danger
+                  disabled={!canAct}
+                  icon={<CloseCircleOutlined />}
+                  style={{
+                    minWidth: 140,
+                    height: 44,
+                    fontWeight: 600,
+                    opacity: canAct ? 1 : 0.5,
+                  }}
+                  onClick={() => setConfirmType("deny")}
+                >
+                  Deny
+                </Button>
+              </Tooltip>
 
+              {/* Approve button - only for Pending tickets */}
               <Button
                 size="large"
-                disabled={!isPending}
+                disabled={selectedTicket.status !== "Pending"}
                 icon={<CheckCircleOutlined />}
                 style={{
                   minWidth: 140,
@@ -314,7 +379,7 @@ export default function ManagerTickets() {
                   background: "#52c41a",
                   borderColor: "#52c41a",
                   color: "#fff",
-                  opacity: isPending ? 1 : 0.5,
+                  opacity: selectedTicket.status === "Pending" ? 1 : 0.5,
                 }}
                 onClick={() => setConfirmType("approve")}
               >
@@ -340,12 +405,32 @@ export default function ManagerTickets() {
         title={confirmType === "approve" ? "Confirm Approve" : "Confirm Deny"}
       >
         {confirmType === "approve" && (
-          <Text>Are you sure you want to approve this ticket?</Text>
+          <>
+            <Text>Are you sure you want to approve this ticket?</Text>
+            <div style={{ marginTop: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                (Optional) Add a note for the employee:
+              </Text>
+              <TextArea
+                rows={3}
+                value={approveReason}
+                onChange={(e) => setApproveReason(e.target.value)}
+                placeholder="Enter approval note (optional)..."
+                style={{ marginTop: 8 }}
+                maxLength={500}
+                showCount
+              />
+            </div>
+          </>
         )}
 
         {confirmType === "deny" && (
           <>
-            <Text>Please provide reason for denying this ticket:</Text>
+            <Text>
+              {selectedTicket?.status === "Approved"
+                ? "This ticket is already approved. Denying it will restore the employee's balance."
+                : "Please provide reason for denying this ticket:"}
+            </Text>
             <TextArea
               rows={4}
               value={denyReason}

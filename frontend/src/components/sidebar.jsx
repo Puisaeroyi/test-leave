@@ -36,7 +36,7 @@ export default function Sidebar() {
     },
   ];
 
-  if (user.role === "MANAGER" || user.role === "HR" || user.role === "ADMIN") {
+  if (user.role === "MANAGER" || user.role === "HR" || user.role === "ADMIN" || user.isApprover) {
     items.push({
       key: "/manager",
       icon: <TeamOutlined />,

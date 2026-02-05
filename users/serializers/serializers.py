@@ -142,6 +142,28 @@ class LoginSerializer(serializers.Serializer):
         )
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    """Serializer for changing password (first login or general)"""
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'}
+    )
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                "password_confirm": "Password fields didn't match."
+            })
+        validate_password(attrs['password'])
+        return attrs
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model"""
 

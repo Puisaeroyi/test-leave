@@ -65,6 +65,31 @@ class LoginView(generics.GenericAPIView):
         }, status=status.HTTP_200_OK)
 
 
+class ChangePasswordView(generics.GenericAPIView):
+    """
+    Change password endpoint (used for first login and general password change)
+    POST /api/v1/auth/change-password/
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        from users.serializers import ChangePasswordSerializer
+
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        user.set_password(serializer.validated_data['password'])
+        user.first_login = False
+        user.save(update_fields=['password', 'first_login'])
+
+        return Response({
+            'message': 'Password changed successfully',
+            'user': build_user_response(user, include_tokens=True)
+        }, status=status.HTTP_200_OK)
+
+
 class LogoutView(generics.GenericAPIView):
     """
     User logout endpoint (blacklist refresh token)

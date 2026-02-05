@@ -4,6 +4,7 @@ import logging
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.core.exceptions import ValidationError
 
 from ...models import LeaveRequest
 from ...serializers import LeaveRequestRejectSerializer
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class LeaveRequestRejectView(generics.GenericAPIView):
-    """Reject a leave request."""
+    """Reject a leave request (supports both PENDING and APPROVED status)."""
 
     permission_classes = [IsAuthenticated]
 
@@ -56,5 +57,10 @@ class LeaveRequestRejectView(generics.GenericAPIView):
         except ValueError as e:
             return Response(
                 {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except ValidationError as e:
+            return Response(
+                {'error': str(e.message) if hasattr(e, 'message') else ' '.join(e.messages)},
                 status=status.HTTP_400_BAD_REQUEST
             )

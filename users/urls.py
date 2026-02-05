@@ -7,6 +7,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     RegisterView,
     LoginView,
+    ChangePasswordView,
     LogoutView,
     UserMeView,
     UserBalanceAdjustView,
@@ -24,6 +25,7 @@ urlpatterns = [
     # Authentication
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', UserMeView.as_view(), name='user_me'),
 

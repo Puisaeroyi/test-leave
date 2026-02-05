@@ -14,7 +14,7 @@ LEAVE_CANCELLED = "LEAVE_CANCELLED"
 BALANCE_ADJUSTED = "BALANCE_ADJUSTED"
 
 
-def create_notification(user, notification_type, title, message, link=""):
+def create_notification(user, notification_type, title, message, link="", related_object_id=None):
     """
     Create a notification for a user.
 
@@ -24,6 +24,7 @@ def create_notification(user, notification_type, title, message, link=""):
         title: Notification title
         message: Notification message
         link: Optional link to related resource
+        related_object_id: Optional ID of related object (e.g., leave_request.id)
 
     Returns:
         Notification instance
@@ -34,6 +35,7 @@ def create_notification(user, notification_type, title, message, link=""):
         title=title,
         message=message,
         link=link,
+        related_object_id=related_object_id,
     )
 
 
@@ -53,6 +55,7 @@ def create_leave_pending_notification(manager, leave_request):
         title="New Leave Request Pending Approval",
         message=message,
         link=link,
+        related_object_id=leave_request.id,
     )
 
 
@@ -69,6 +72,7 @@ def create_leave_approved_notification(leave_request):
         title="Leave Request Approved",
         message=message,
         link=f"/leave-requests/{leave_request.id}",
+        related_object_id=leave_request.id,
     )
 
 
@@ -86,6 +90,7 @@ def create_leave_rejected_notification(leave_request):
         title="Leave Request Rejected",
         message=message,
         link=f"/leave-requests/{leave_request.id}",
+        related_object_id=leave_request.id,
     )
 
 
@@ -105,6 +110,7 @@ def create_leave_cancelled_notification(leave_request):
             title="Leave Request Cancelled",
             message=message,
             link=f"/leave-requests/{leave_request.id}",
+            related_object_id=leave_request.id,
         )
     else:
         # Notify the employee their pending request was cancelled
@@ -118,6 +124,7 @@ def create_leave_cancelled_notification(leave_request):
             title="Leave Request Cancelled",
             message=message,
             link=f"/leave-requests/{leave_request.id}",
+            related_object_id=leave_request.id,
         )
 
 

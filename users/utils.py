@@ -33,6 +33,7 @@ def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, A
         'department_name': user.department.department_name if user.department else None,
         'first_name': user.first_name,
         'last_name': user.last_name,
+        'first_login': user.first_login,
     }
 
     # Add optional fields for specific endpoints
@@ -51,9 +52,11 @@ def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, A
             'full_name': f"{user.approver.first_name or ''} {user.approver.last_name or ''}".strip() or user.approver.email,
         }
 
-    # Add subordinates information (for users with subordinates)
+    # Check if user is an approver for anyone (controls Manager Ticket visibility)
     from users.models import User as UserModel
     subordinates = UserModel.objects.filter(approver=user, is_active=True)
+    response['is_approver'] = subordinates.exists()
+
     if subordinates.exists():
         response['subordinates'] = [
             {

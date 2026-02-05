@@ -9,30 +9,38 @@ export function AuthProvider({ children }) {
     return stored ? JSON.parse(stored) : null;
   });
 
-  const login = (userData) => {
-    // Normalize user from backend response
-    const normalizedUser = {
-      id: userData.id,
-      email: userData.email,
-      role: userData.role,
-      firstName: userData.first_name,
-      lastName: userData.last_name,
-      name: `${userData.first_name} ${userData.last_name}`,
-      entity: {
-        id: userData.entity_id,
-        name: userData.entity_name,
-      },
-      location: {
-        id: userData.location_id,
-        name: userData.location_name,
-      },
-      department: {
-        id: userData.department_id,
-        name: userData.department_name,
-      },
-      tokens: userData.tokens,
-    };
+  const normalizeUser = (userData) => ({
+    id: userData.id,
+    email: userData.email,
+    role: userData.role,
+    firstName: userData.first_name,
+    lastName: userData.last_name,
+    name: `${userData.first_name} ${userData.last_name}`,
+    firstLogin: userData.first_login,
+    entity: {
+      id: userData.entity_id,
+      name: userData.entity_name,
+    },
+    location: {
+      id: userData.location_id,
+      name: userData.location_name,
+    },
+    department: {
+      id: userData.department_id,
+      name: userData.department_name,
+    },
+    isApprover: userData.is_approver || false,
+    tokens: userData.tokens,
+  });
 
+  const login = (userData) => {
+    const normalizedUser = normalizeUser(userData);
+    setUser(normalizedUser);
+    localStorage.setItem("user", JSON.stringify(normalizedUser));
+  };
+
+  const updateUser = (userData) => {
+    const normalizedUser = normalizeUser(userData);
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
   };
@@ -50,7 +58,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

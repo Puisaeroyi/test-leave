@@ -11,8 +11,8 @@ class LeaveCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(LeaveBalance)
 class LeaveBalanceAdmin(admin.ModelAdmin):
-    list_display = ['user', 'year', 'allocated_hours', 'used_hours', 'adjusted_hours', 'remaining_hours']
-    list_filter = ['year']
+    list_display = ['user', 'year', 'balance_type', 'allocated_hours', 'used_hours', 'adjusted_hours', 'remaining_hours']
+    list_filter = ['year', 'balance_type']
     search_fields = ['user__email']
     readonly_fields = ['remaining_hours']
 

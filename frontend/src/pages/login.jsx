@@ -23,7 +23,13 @@ export default function Login() {
       const user = await loginApi(values);
       login(user);
       message.success("Login successful");
-      navigate("/dashboard", { replace: true });
+
+      // Redirect to change password if first login
+      if (user.first_login) {
+        navigate("/change-password", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     } catch (err) {
       message.error(err.message || "Login failed");
     }

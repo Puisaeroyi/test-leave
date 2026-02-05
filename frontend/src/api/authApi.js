@@ -53,6 +53,21 @@ export async function logout() {
   localStorage.removeItem("user");
 }
 
+export async function changePassword({ password, passwordConfirm }) {
+  const res = await http.post(`${API_URL}/change-password/`, {
+    password,
+    password_confirm: passwordConfirm,
+  });
+
+  // Update tokens after password change
+  if (res.data.user?.tokens) {
+    localStorage.setItem("access", res.data.user.tokens.access);
+    localStorage.setItem("refresh", res.data.user.tokens.refresh);
+  }
+
+  return res.data.user;
+}
+
 export async function getCurrentUser() {
   const res = await http.get(`${API_URL}/me/`);
   return res.data;

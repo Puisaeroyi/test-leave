@@ -3,6 +3,7 @@
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
+    ChangePasswordSerializer,
     UserSerializer,
     UserUpdateSerializer,
 )
@@ -10,6 +11,7 @@ from .serializers import (
 __all__ = [
     'RegisterSerializer',
     'LoginSerializer',
+    'ChangePasswordSerializer',
     'UserSerializer',
     'UserUpdateSerializer',
 ]

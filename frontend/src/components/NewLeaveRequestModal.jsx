@@ -34,7 +34,7 @@ export default function NewLeaveRequestModal({
   open,
   onCancel,
   onSubmit,
-  balance = 64,
+  balances = [], // Array of 4 balances
 }) {
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
@@ -63,11 +63,20 @@ export default function NewLeaveRequestModal({
   }, []);
 
   const values = Form.useWatch([], form);
+  const leaveCategory = Form.useWatch("leaveCategory", form);
   const sameDay = values?.date && values.date[0]?.isSame(values.date[1], "day");
   const dayType = values?.dayType || "full";
 
-  const minLeaveDate = dayjs().add(3, "day").startOf("day");
-  const disabledDate = (current) => current && current < minLeaveDate;
+  // Different date rules: Sick leave allows up to 2 weeks retroactive, Vacation requires 3-day advance
+  const minLeaveDate =
+    leaveCategory === "sick"
+      ? dayjs().subtract(14, "day").startOf("day")  // Allow 2 weeks retroactive for sick leave
+      : dayjs().add(3, "day").startOf("day");
+
+  const disabledDate = (current) => {
+    if (!leaveCategory) return false;
+    return current && current < minLeaveDate;
+  };
 
   const calculateHours = (start, end) => {
     if (!start || !end) return 0;
@@ -95,6 +104,16 @@ export default function NewLeaveRequestModal({
     sameDay && dayType === "custom"
       ? calculateHours(values?.startTime, values?.endTime)
       : 0;
+
+  // Get balance type key based on leaveCategory and exemptType
+  const getBalanceKey = (category, exemptType) =>
+    category === "vacation"
+      ? exemptType === "exempt"
+        ? "EXEMPT_VACATION"
+        : "NON_EXEMPT_VACATION"
+      : exemptType === "exempt"
+      ? "EXEMPT_SICK"
+      : "NON_EXEMPT_SICK";
 
   const handleContinue = async () => {
     const data = await form.validateFields();
@@ -124,7 +143,16 @@ export default function NewLeaveRequestModal({
       hours = workingDays * 8;
     }
 
-    setConfirmData({ ...data, totalHours: hours });
+    // Find the specific balance based on category and exempt type
+    const balanceKey = getBalanceKey(data.leaveCategory, data.exemptType);
+    const selectedBalance = balances.find(b => b.type === balanceKey);
+
+    setConfirmData({
+      ...data,
+      totalHours: hours,
+      remainingHours: selectedBalance?.remaining_hours || 0,
+      allocated_hours: selectedBalance?.allocated_hours || 0,
+    });
     setStep(1);
   };
 
@@ -191,17 +219,33 @@ export default function NewLeaveRequestModal({
               placeholder="Select leave type"
             >
               <Form.Item
-                name="type"
-                label="Leave Type"
-                rules={[{ required: true }]}
+                name="leaveCategory"
+                label="Leave Category"
+                rules={[{ required: true, message: "Please select leave category" }]}
               >
                 <Select
                   size="large"
-                  loading={categoriesLoading}
-                  placeholder="Select leave type"
-                  options={categories.map(c => ({ value: c.name, label: c.name }))}
+                  placeholder="Select leave category"
+                  options={[
+                    { value: "vacation", label: "Vacation" },
+                    { value: "sick", label: "Sick Leave" },
+                  ]}
                 />
               </Form.Item>
+
+              {leaveCategory && (
+                <Form.Item
+                  name="exemptType"
+                  label="Leave Type"
+                  rules={[{ required: true, message: "Please select leave type" }]}
+                  initialValue="exempt"
+                >
+                  <Radio.Group buttonStyle="solid" size="large">
+                    <Radio.Button value="exempt">Exempt</Radio.Button>
+                    <Radio.Button value="non-exempt">Non-Exempt</Radio.Button>
+                  </Radio.Group>
+                </Form.Item>
+              )}
 
               <Form.Item name="date" label="Date" rules={[{ required: true }]}>
                 <RangePicker
@@ -306,12 +350,24 @@ export default function NewLeaveRequestModal({
                   size="middle"
                   style={{ width: "100%" }}
                 >
-                  {/* TYPE */}
+                  {/* LEAVE CATEGORY */}
+                  <div
+                    style={{ display: "flex", justifyContent: "space-between" }}
+                  >
+                    <Text type="secondary">Leave Category</Text>
+                    <Tag color={confirmData.leaveCategory === "vacation" ? "blue" : "red"}>
+                      {confirmData.leaveCategory === "vacation" ? "Vacation" : "Sick Leave"}
+                    </Tag>
+                  </div>
+
+                  {/* LEAVE TYPE */}
                   <div
                     style={{ display: "flex", justifyContent: "space-between" }}
                   >
                     <Text type="secondary">Leave Type</Text>
-                    <Tag color="blue">{confirmData.type}</Tag>
+                    <Tag color="geekblue">
+                      {confirmData.exemptType === "exempt" ? "Exempt" : "Non-Exempt"}
+                    </Tag>
                   </div>
 
                   {/* DATE */}
@@ -364,11 +420,11 @@ export default function NewLeaveRequestModal({
                       padding: 16,
                       borderRadius: 12,
                       background:
-                        confirmData.totalHours > balance
+                        confirmData.totalHours > (confirmData.remainingHours || 0)
                           ? "rgba(255,77,79,0.12)"
                           : "rgba(22,119,255,0.12)",
                       border:
-                        confirmData.totalHours > balance
+                        confirmData.totalHours > (confirmData.remainingHours || 0)
                           ? "1px solid #ff4d4f"
                           : "1px solid #91caff",
                     }}
@@ -377,7 +433,7 @@ export default function NewLeaveRequestModal({
                       strong
                       style={{
                         color:
-                          confirmData.totalHours > balance
+                          confirmData.totalHours > (confirmData.remainingHours || 0)
                             ? "#ff4d4f"
                             : "#1677ff",
                         fontSize: 16,
@@ -387,10 +443,10 @@ export default function NewLeaveRequestModal({
                       {confirmData.totalHours.toFixed(1)} hours
                     </Text>
 
-                    {confirmData.totalHours > balance && (
+                    {confirmData.totalHours > (confirmData.remainingHours || 0) && (
                       <div style={{ marginTop: 8 }}>
                         <Text type="danger">
-                          ⚠ Your current balance is only {balance}h
+                          ⚠ Your current balance is only {confirmData.remainingHours?.toFixed(1) || 0}h
                         </Text>
                       </div>
                     )}

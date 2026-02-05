@@ -178,6 +178,22 @@ class ApproverByEmailWidget(ForeignKeyWidget):
             raise ValidationError(f"Approver with email '{value}' not found or inactive")
 
 
+DEFAULT_IMPORT_PASSWORD = 'Timpl.com'
+
+
+class PasswordWidget(Widget):
+    """Widget that returns password value or default. Not saved directly — handled in after_save_instance."""
+
+    def clean(self, value, row=None, **kwargs):
+        if value and str(value).strip():
+            return str(value).strip()
+        return DEFAULT_IMPORT_PASSWORD
+
+    def render(self, value, obj=None):
+        # Never export actual passwords
+        return ''
+
+
 class UserResource(resources.ModelResource):
     """Import/export resource for User model with validation."""
 
@@ -189,6 +205,8 @@ class UserResource(resources.ModelResource):
     role = fields.Field(attribute='role', column_name='Role')
     status = fields.Field(attribute='status', column_name='Status')
     join_date = fields.Field(attribute='join_date', column_name='Join_Date', widget=NullableDateWidget())
+    # Password column — optional, defaults to DEFAULT_IMPORT_PASSWORD
+    password = fields.Field(column_name='Password', widget=PasswordWidget())
 
     entity = fields.Field(
         column_name='Entity_Code',
@@ -223,7 +241,7 @@ class UserResource(resources.ModelResource):
         # Use column names (case-sensitive from CSV headers)
         fields = (
             'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Entity_Code', 'Location_Name',
-            'Department_Code', 'Role', 'Status', 'Approver_Email', 'Join_Date', 'is_active'
+            'Department_Code', 'Role', 'Status', 'Approver_Email', 'Join_Date', 'is_active', 'Password'
         )
         export_order = (
             'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Role', 'Status', 'Entity_Code',
@@ -231,6 +249,15 @@ class UserResource(resources.ModelResource):
         )
         skip_unchanged = True
         report_skipped = True
+
+    def after_save_instance(self, instance, row, **kwargs):
+        """Hash password and ensure first_login after save."""
+        # Get password from row (cleaned by PasswordWidget)
+        raw_password = row.get('Password', '').strip() or DEFAULT_IMPORT_PASSWORD
+        # set_password hashes properly — Model.save() stores plain text
+        instance.set_password(raw_password)
+        instance.first_login = True
+        instance.save(update_fields=['password', 'first_login'])
 
     def before_import_row(self, row, **kwargs):
         """Clean up None values and set defaults before import."""

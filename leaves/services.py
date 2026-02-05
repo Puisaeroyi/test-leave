@@ -3,6 +3,8 @@ Leave service layer for business logic
 """
 from django.db import transaction
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from datetime import timedelta
 from .models import LeaveRequest, LeaveBalance
 
 
@@ -27,8 +29,9 @@ class LeaveApprovalService:
 
         # Show requests where current user is the assigned approver
         # No role check - the approver relationship IS the permission
+        # Include both PENDING and APPROVED (for 24h denial window)
         return LeaveRequest.objects.filter(
-            status='PENDING',
+            status__in=['PENDING', 'APPROVED'],
             user__approver=user
         ).exclude(user=user).select_related('user', 'leave_category').order_by('created_at')
 
@@ -96,10 +99,12 @@ class LeaveApprovalService:
         leave_request.approver_comment = comment
         leave_request.save()
 
-        # Deduct from balance
+        # Deduct from balance (find by balance_type)
+        balance_type = LeaveApprovalService._get_balance_type(leave_request)
         balance = LeaveBalance.objects.select_for_update().get(
             user=leave_request.user,
-            year=leave_request.start_date.year
+            year=leave_request.start_date.year,
+            balance_type=balance_type
         )
         balance.used_hours += leave_request.total_hours
         balance.save()
@@ -122,10 +127,33 @@ class LeaveApprovalService:
         return leave_request
 
     @staticmethod
+    def _get_balance_type(leave_request):
+        """
+        Determine balance type based on leave category and exempt type.
+
+        Args:
+            leave_request: LeaveRequest instance
+
+        Returns:
+            str: BalanceType key (e.g., 'EXEMPT_VACATION')
+        """
+        is_vacation = leave_request.leave_category and leave_request.leave_category.code.lower() == 'vacation'
+        is_exempt = leave_request.exempt_type == 'EXEMPT'
+
+        if is_vacation:
+            return 'EXEMPT_VACATION' if is_exempt else 'NON_EXEMPT_VACATION'
+        else:
+            return 'EXEMPT_SICK' if is_exempt else 'NON_EXEMPT_SICK'
+
+    @staticmethod
     @transaction.atomic
     def reject_leave_request(leave_request, approver, reason):
         """
-        Reject a leave request.
+        Reject a leave request (supports both PENDING and APPROVED status).
+
+        For APPROVED requests:
+        - Validates 24-hour time constraint (must be >24h before leave starts)
+        - Restores the deducted balance
 
         Args:
             leave_request: LeaveRequest instance
@@ -137,11 +165,39 @@ class LeaveApprovalService:
         """
         from core.models import AuditLog
 
-        if leave_request.status != 'PENDING':
-            raise ValueError("Only pending requests can be rejected")
+        if leave_request.status not in ['PENDING', 'APPROVED']:
+            raise ValueError("Only pending or approved requests can be rejected")
 
         if len(reason) < 10:
             raise ValueError("Rejection reason must be at least 10 characters")
+
+        # For approved requests, validate 24-hour time constraint
+        if leave_request.status == 'APPROVED':
+            # Create aware datetime for start_date (midnight of leave start day)
+            leave_start = timezone.make_aware(
+                timezone.datetime.combine(leave_request.start_date, timezone.datetime.min.time())
+            )
+            cutoff_time = leave_start - timedelta(hours=24)
+            now = timezone.now()
+
+            if now >= cutoff_time:
+                raise ValidationError(
+                    "Cannot reject approved requests within 24 hours of leave start date. "
+                    f"Leave starts on {leave_request.start_date}, cutoff was {cutoff_time.strftime('%Y-%m-%d %H:%M')}"
+                )
+
+            # Restore balance (find by balance_type)
+            balance_type = LeaveApprovalService._get_balance_type(leave_request)
+            balance = LeaveBalance.objects.select_for_update().get(
+                user=leave_request.user,
+                year=leave_request.start_date.year,
+                balance_type=balance_type
+            )
+            balance.used_hours -= leave_request.total_hours
+            balance.save()
+
+        # Store old status for audit
+        old_status = leave_request.status
 
         # Update leave request
         leave_request.status = 'REJECTED'
@@ -156,7 +212,7 @@ class LeaveApprovalService:
             action='REJECT',
             entity_type='LeaveRequest',
             entity_id=leave_request.id,
-            old_values={'status': 'PENDING'},
+            old_values={'status': old_status},
             new_values={
                 'status': 'REJECTED',
                 'approved_by': str(approver.id),
@@ -184,10 +240,12 @@ class LeaveApprovalService:
         serializer = LeaveRequestSerializer(leave_request)
         data = serializer.data
 
-        # Add employee balance
+        # Add employee balance for the relevant balance type
+        balance_type = LeaveApprovalService._get_balance_type(leave_request)
         balance = LeaveBalance.objects.filter(
             user=leave_request.user,
-            year=leave_request.start_date.year
+            year=leave_request.start_date.year,
+            balance_type=balance_type
         ).first()
 
         if balance:

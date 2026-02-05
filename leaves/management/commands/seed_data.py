@@ -65,8 +65,8 @@ class Command(BaseCommand):
 
         # Create Leave Categories
         categories = [
-            {'category_name': 'PTO', 'code': 'PTO', 'sort_order': 1},
-            {'category_name': 'Unpaid Leave', 'code': 'UL', 'sort_order': 2},
+            {'category_name': 'Vacation', 'code': 'VACATION', 'sort_order': 1},
+            {'category_name': 'Sick Leave', 'code': 'SICK', 'sort_order': 2},
         ]
         for cat_data in categories:
             cat, _ = LeaveCategory.objects.get_or_create(

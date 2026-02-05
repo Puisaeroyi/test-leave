@@ -14,6 +14,7 @@ class Notification(models.Model):
     title = models.CharField(max_length=200)
     message = models.TextField()
     link = models.URLField(max_length=500, blank=True)
+    related_object_id = models.UUIDField(null=True, blank=True)  # ID of related object (e.g., leave_request.id)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

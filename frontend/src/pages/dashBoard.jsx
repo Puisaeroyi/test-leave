@@ -11,12 +11,12 @@ import {
   Descriptions,
   Typography,
   Space,
+  Progress,
 } from "antd";
 import { PaperClipOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
-import { PieChart, Pie, Cell, Tooltip } from "recharts";
 import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
 
 const { Text } = Typography;
@@ -44,9 +44,10 @@ const EVENT_STYLE = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [history, setHistory] = useState([]);
-  const [balance, setBalance] = useState({ total: 96, used: 0, free: 96 });
+  const [balance, setBalance] = useState([]); // Array of 4 balances
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [sort, setSort] = useState("new");
   const [openModal, setOpenModal] = useState(false);
@@ -76,6 +77,31 @@ export default function Dashboard() {
     };
     fetchData();
   }, [sort]);
+
+  // Auto-open request detail modal from notification click
+  useEffect(() => {
+    const openRequestId = location.state?.openRequestId;
+    if (!openRequestId) return;
+
+    // Clear state immediately to prevent re-opening on refresh
+    window.history.replaceState({}, "");
+
+    // Always fetch fresh data then find the request
+    const fetchAndOpen = async () => {
+      try {
+        const data = await getLeaveHistory(sort);
+        setHistory(data);
+        const found = data.find(r => String(r.id) === String(openRequestId));
+        if (found) {
+          setSelectedRequest(found);
+          setOpenDetail(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch request for notification:", err);
+      }
+    };
+    fetchAndOpen();
+  }, [location.state]);
 
   const handleCreateRequest = async (data) => {
     try {
@@ -135,11 +161,6 @@ export default function Dashboard() {
     },
   ];
 
-  const chartData = [
-    { name: "Used", value: balance.used },
-    { name: "Free", value: balance.free },
-  ];
-
   return (
     <>
       <Row gutter={24}>
@@ -192,66 +213,30 @@ export default function Dashboard() {
             title="Your Balance"
             style={{ borderRadius: 16, marginBottom: 24 }}
           >
-            <Row align="middle" gutter={16}>
-              {/* CHART */}
-              <Col span={10} style={{ textAlign: "center" }}>
-                <PieChart width={140} height={140}>
-                  <Pie
-                    data={chartData}
-                    dataKey="value"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={60}
-                  >
-                    <Cell fill="#1677ff" />
-                    <Cell fill="#91caff" />
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </Col>
-
-              {/* INFO */}
-              <Col span={14}>
-                {[
-                  {
-                    label: "Total",
-                    value: balance.total,
-                    bg: "#f5f5f5",
-                    color: "#000",
-                  },
-                  {
-                    label: "Used",
-                    value: balance.used,
-                    bg: "rgba(22,119,255,0.15)",
-                    color: "#1677ff",
-                  },
-                  {
-                    label: "Free",
-                    value: balance.free,
-                    bg: "rgba(34, 167, 219, 0.15)",
-                    color: "#66c6ecff",
-                  },
-                ].map((i) => (
-                  <div
-                    key={i.label}
-                    style={{
-                      background: i.bg,
-                      borderRadius: 10,
-                      padding: "8px 12px",
-                      fontWeight: 600,
-                      color: i.color,
-                      marginBottom: 10,
-                      display: "flex",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <span>{i.label}</span>
-                    <span>{i.value}h</span>
-                  </div>
-                ))}
-              </Col>
-            </Row>
+            {loading ? (
+              <p style={{ textAlign: "center", padding: 20 }}>Loading...</p>
+            ) : (
+              <Space direction="vertical" style={{ width: "100%" }} size={16}>
+                {balance.map((b) => {
+                  const percent = (b.remaining_hours / b.allocated_hours) * 100;
+                  return (
+                    <div key={b.type}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                        <Text strong>{b.label}</Text>
+                        <Text>
+                          {b.remaining_hours.toFixed(1)}h / {b.allocated_hours}h
+                        </Text>
+                      </div>
+                      <Progress
+                        percent={percent}
+                        strokeColor={b.type.includes("VACATION") ? "#1677ff" : "#f5222d"}
+                        showInfo={false}
+                      />
+                    </div>
+                  );
+                })}
+              </Space>
+            )}
           </Card>
 
           {/* ===== UPCOMING ===== */}
@@ -330,6 +315,7 @@ export default function Dashboard() {
         open={openModal}
         onCancel={() => setOpenModal(false)}
         onSubmit={handleCreateRequest}
+        balances={balance}
       />
 
       <Modal

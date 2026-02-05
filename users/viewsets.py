@@ -21,6 +21,8 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    # Disable pagination to return all users at once
+    pagination_class = None
 
     def get_queryset(self):
         """

@@ -29,12 +29,14 @@ def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
     if instance.has_completed_onboarding:
         current_year = timezone.now().year
 
-        # Create LeaveBalance if it doesn't exist for current year
-        LeaveBalance.objects.get_or_create(
-            user=instance,
-            year=current_year,
-            defaults={'allocated_hours': Decimal('96.00')}
-        )
+        # Create LeaveBalance for each balance type if not exists for current year
+        for balance_type in LeaveBalance.BalanceType.values:
+            LeaveBalance.objects.get_or_create(
+                user=instance,
+                year=current_year,
+                balance_type=balance_type,
+                defaults={'allocated_hours': Decimal('96.00')}
+            )
 
 
 # DEPRECATED: DepartmentManager auto-creation signal

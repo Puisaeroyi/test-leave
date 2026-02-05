@@ -3,5 +3,11 @@ import { useAuth } from "@auth/authContext";
 
 export default function ProtectedRoute({ children }) {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/login" replace />;
+
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Force password change on first login
+  if (user.firstLogin) return <Navigate to="/change-password" replace />;
+
+  return children;
 }

@@ -68,6 +68,10 @@ class User(AbstractUser):
     )
     join_date = models.DateField(null=True, blank=True)
     avatar_url = models.URLField(max_length=500, blank=True)
+    first_login = models.BooleanField(
+        default=True,
+        help_text="Flag to force password change on first login"
+    )
 
     # Use custom manager for email-based authentication
     objects = UserManager()
