@@ -5,37 +5,52 @@ DEPRECATED: DepartmentManager auto-creation signal commented out below.
 DepartmentManager is no longer used for approval logic - replaced by User.approver FK.
 DepartmentManager table is kept for reporting only.
 """
+from datetime import date
+from decimal import Decimal
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
-from decimal import Decimal
 
 from .models import User
 from leaves.models import LeaveBalance
+from leaves.services import calculate_exempt_vacation_hours
+
+# Fixed defaults for non-dynamic balance types
+FIXED_BALANCE_DEFAULTS = {
+    'NON_EXEMPT_VACATION': Decimal('40.00'),
+    'EXEMPT_SICK': Decimal('40.00'),
+    'NON_EXEMPT_SICK': Decimal('40.00'),
+}
 
 
 @receiver(post_save, sender=User)
 def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
     """
-    Auto-create LeaveBalance when user completes onboarding
+    Auto-create LeaveBalance when user completes onboarding.
 
-    Signal triggers when:
-    - User is first created (has entity, location, department)
-    - User updates their profile to complete onboarding
-
-    Creates a LeaveBalance for the current year with default 96 hours.
+    EXEMPT_VACATION uses dynamic allocation based on years of service.
+    Other balance types use fixed defaults.
     """
-    # Check if user has completed onboarding (has entity, location, department)
     if instance.has_completed_onboarding:
         current_year = timezone.now().year
+        reference_date = date(current_year, 1, 1)
 
-        # Create LeaveBalance for each balance type if not exists for current year
         for balance_type in LeaveBalance.BalanceType.values:
+            if balance_type == 'EXEMPT_VACATION':
+                hours = calculate_exempt_vacation_hours(
+                    instance.join_date, reference_date
+                )
+            else:
+                hours = FIXED_BALANCE_DEFAULTS.get(
+                    balance_type, Decimal('0.00')
+                )
+
             LeaveBalance.objects.get_or_create(
                 user=instance,
                 year=current_year,
                 balance_type=balance_type,
-                defaults={'allocated_hours': Decimal('96.00')}
+                defaults={'allocated_hours': hours},
             )
 
 

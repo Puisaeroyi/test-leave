@@ -1,11 +1,98 @@
 """
 Leave service layer for business logic
 """
+import math
+from datetime import date, timedelta
+from decimal import Decimal
+
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
-from django.core.exceptions import ValidationError
-from datetime import timedelta
-from .models import LeaveRequest, LeaveBalance
+
+from .models import LeaveBalance, LeaveRequest
+
+
+# --- EXEMPT_VACATION dynamic allocation constants ---
+
+# Tier table: (min_year_of_service, max_year_of_service) -> hours
+# Year 1 handled separately via FIRST_YEAR_PRORATE
+EXEMPT_VACATION_TIERS = {
+    (2, 5): Decimal('80.00'),     # 10 days
+    (6, 10): Decimal('120.00'),   # 15 days
+    (11, 15): Decimal('160.00'),  # 20 days
+    (16, None): Decimal('200.00'),  # 25 days (cap)
+}
+
+# 1st-year prorate by join month
+FIRST_YEAR_PRORATE = {
+    1: Decimal('72.00'),
+    2: Decimal('64.00'),
+    3: Decimal('56.00'),
+    4: Decimal('48.00'),
+    5: Decimal('40.00'),
+    6: Decimal('32.00'),
+    7: Decimal('24.00'),
+    8: Decimal('16.00'),
+    9: Decimal('8.00'),
+    10: Decimal('0.00'),
+    11: Decimal('0.00'),
+    12: Decimal('0.00'),
+}
+
+# Default fallback when join_date is None
+DEFAULT_EXEMPT_VACATION_HOURS = Decimal('80.00')
+
+
+def get_year_of_service(join_date: date, reference_date: date) -> int:
+    """
+    Calculate year of service (1-based).
+
+    Uses YEARFRAC-equivalent: floor((reference_date - join_date).days / 365.25) + 1
+    """
+    delta_days = (reference_date - join_date).days
+    completed_years = math.floor(delta_days / 365.25)
+    return completed_years + 1
+
+
+def calculate_exempt_vacation_hours(join_date, reference_date: date) -> Decimal:
+    """
+    Calculate EXEMPT_VACATION allocated hours based on years of service.
+
+    Args:
+        join_date: Employee join date (date or None)
+        reference_date: Jan 1st of the balance year
+
+    Returns:
+        Decimal hours allocation
+    """
+    if join_date is None:
+        return DEFAULT_EXEMPT_VACATION_HOURS
+
+    # Future year: employee hasn't started yet
+    if join_date.year > reference_date.year:
+        return Decimal('0.00')
+
+    # Same year as balance year: first-year prorate by join month
+    if join_date.year == reference_date.year:
+        return FIRST_YEAR_PRORATE[join_date.month]
+
+    yos = get_year_of_service(join_date, reference_date)
+
+    # Prior-year joiners with <365 days get yos=1; treat as tier 2 (they
+    # already received prorated allocation in their join year)
+    if yos < 2:
+        yos = 2
+
+    # Tier lookup
+    for (low, high), hours in EXEMPT_VACATION_TIERS.items():
+        if high is None:
+            if yos >= low:
+                return hours
+        elif low <= yos <= high:
+            return hours
+
+    # Fallback (shouldn't happen): return cap
+    return Decimal('200.00')
 
 
 class LeaveApprovalService:

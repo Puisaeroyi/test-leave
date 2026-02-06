@@ -173,7 +173,7 @@ test-leave/
 
 - **Submit leave requests** with category, dates, and hours
 - **Automatic validation** against available balance
-- **Hours-based tracking** (8 hours/day default, 96 hours/year allocation)
+- **Hours-based tracking** (8 hours/day default, dynamic EXEMPT_VACATION by years of service)
 - **Weekend & holiday exclusion** in calculations
 - **Partial day support** (0.5h, 1.0h, 1.5h increments)
 
