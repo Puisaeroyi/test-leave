@@ -46,7 +46,7 @@ def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
                     balance_type, Decimal('0.00')
                 )
 
-            LeaveBalance.objects.get_or_create(
+            LeaveBalance.objects.update_or_create(
                 user=instance,
                 year=current_year,
                 balance_type=balance_type,
