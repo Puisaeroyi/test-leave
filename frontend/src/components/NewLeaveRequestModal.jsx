@@ -35,6 +35,7 @@ export default function NewLeaveRequestModal({
   onCancel,
   onSubmit,
   balances = [], // Array of 4 balances
+  initialDate = null, // Pre-selected date from calendar click
 }) {
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
@@ -44,6 +45,13 @@ export default function NewLeaveRequestModal({
   const [fileList, setFileList] = useState([]);
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+
+  // Pre-fill date from calendar click
+  useEffect(() => {
+    if (open && initialDate) {
+      form.setFieldsValue({ date: [initialDate, initialDate] });
+    }
+  }, [open, initialDate, form]);
 
   // Fetch leave categories on mount
   useEffect(() => {

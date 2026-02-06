@@ -344,6 +344,7 @@ export default function TeamCalendar() {
           }
         }}
         balances={balance}
+        initialDate={selectedClickDate}
       />
 
       {/* ===== BUSINESS TRIP MODAL ===== */}
@@ -353,6 +354,7 @@ export default function TeamCalendar() {
         onSubmit={() => {
           fetchCalendarData();
         }}
+        initialDate={selectedClickDate}
       />
     </>
   );

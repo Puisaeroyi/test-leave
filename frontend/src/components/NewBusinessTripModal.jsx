@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   Form,
@@ -19,11 +19,18 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
-export default function NewBusinessTripModal({ open, onCancel, onSubmit }) {
+export default function NewBusinessTripModal({ open, onCancel, onSubmit, initialDate = null }) {
   const [form] = Form.useForm();
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fileList, setFileList] = useState([]);
+
+  // Pre-fill date from calendar click
+  useEffect(() => {
+    if (open && initialDate) {
+      form.setFieldsValue({ date: [initialDate, initialDate] });
+    }
+  }, [open, initialDate, form]);
 
   const disabledDate = (current) => {
     return current && current < dayjs().startOf("day");
