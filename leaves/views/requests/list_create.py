@@ -54,13 +54,22 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         if status_filter and status_filter != 'pending':
             queryset = queryset.filter(status=status_filter.upper())
         if year_filter:
-            queryset = queryset.filter(start_date__year=int(year_filter))
+            try:
+                year_val = int(year_filter)
+                if 1900 <= year_val <= 2100:
+                    queryset = queryset.filter(start_date__year=year_val)
+            except (ValueError, TypeError):
+                pass
 
         queryset = queryset.select_related('user', 'leave_category', 'approved_by').order_by('-created_at')
 
-        # Pagination
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', DEFAULT_PAGE_SIZE))
+        # Pagination with DoS protection
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', DEFAULT_PAGE_SIZE))))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = DEFAULT_PAGE_SIZE
         start = (page - 1) * page_size
         end = start + page_size
 

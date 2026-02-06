@@ -31,5 +31,5 @@ def get_entity_options(request):
         return Response({'locations': locations, 'departments': departments})
     except Entity.DoesNotExist:
         return Response({'locations': [], 'departments': []})
-    except Exception as e:
-        return Response({'error': str(e), 'locations': [], 'departments': []}, status=400)
+    except Exception:
+        return Response({'error': 'An unexpected error occurred', 'locations': [], 'departments': []}, status=400)

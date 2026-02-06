@@ -52,14 +52,30 @@ class UserBalanceAdjustView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate and require balance_type
+        balance_type = request.data.get('balance_type')
+        if not balance_type:
+            return Response(
+                {'error': 'balance_type is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        VALID_BALANCE_TYPES = ['EXEMPT_VACATION', 'NON_EXEMPT_VACATION', 'EXEMPT_SICK', 'NON_EXEMPT_SICK']
+        if balance_type not in VALID_BALANCE_TYPES:
+            return Response(
+                {'error': f'Invalid balance_type. Must be one of: {", ".join(VALID_BALANCE_TYPES)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         # Get year (default to current year)
         from django.utils import timezone
         year = request.data.get('year', timezone.now().year)
 
-        # Get or create balance
+        # Get or create balance with specific balance_type
         balance, created = LeaveBalance.objects.get_or_create(
             user=target_user,
             year=year,
+            balance_type=balance_type,
             defaults={'allocated_hours': Decimal(str(DEFAULT_YEARLY_ALLOCATION))}
         )
 

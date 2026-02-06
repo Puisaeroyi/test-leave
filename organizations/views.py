@@ -3,15 +3,15 @@ Organizations API Views
 """
 from django.db import models
 from rest_framework import generics, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Entity, Location, Department
 
 
 class EntityListView(generics.ListAPIView):
-    """List all entities - public for registration"""
-    permission_classes = [AllowAny]
+    """List all entities"""
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         entities = Entity.objects.filter(is_active=True)
@@ -25,8 +25,8 @@ class EntityListView(generics.ListAPIView):
 
 
 class LocationListView(APIView):
-    """List locations filtered by entity - public for registration"""
-    permission_classes = [AllowAny]
+    """List locations filtered by entity"""
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         locations = Location.objects.filter(is_active=True)
@@ -48,8 +48,8 @@ class LocationListView(APIView):
 
 
 class DepartmentListView(APIView):
-    """List departments filtered by entity and/or location - public for registration"""
-    permission_classes = [AllowAny]
+    """List departments filtered by entity and/or location"""
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         departments = Department.objects.filter(is_active=True)

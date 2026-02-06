@@ -23,9 +23,13 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
             user=user
         ).order_by('-created_at')
 
-        # Pagination
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', DEFAULT_PAGE_SIZE))
+        # Pagination with DoS protection
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', DEFAULT_PAGE_SIZE))))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = DEFAULT_PAGE_SIZE
         start = (page - 1) * page_size
         end = start + page_size
 

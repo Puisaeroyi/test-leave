@@ -60,6 +60,29 @@ class FileUploadView(APIView):
                 status=400
             )
 
+        # Validate magic bytes to prevent spoofed Content-Type
+        MAGIC_BYTES = {
+            b'%PDF': '.pdf',
+            b'\xff\xd8\xff': '.jpg',
+            b'\x89PNG': '.png',
+            b'GIF87a': '.gif',
+            b'GIF89a': '.gif',
+            b'RIFF': '.webp',  # WebP starts with RIFF
+        }
+
+        # Read first 8 bytes to check magic bytes
+        file_header = uploaded_file.read(8)
+        uploaded_file.seek(0)  # Reset file pointer
+
+        valid_magic = False
+        for magic, ext in MAGIC_BYTES.items():
+            if file_header.startswith(magic):
+                valid_magic = True
+                break
+
+        if not valid_magic:
+            return Response({'error': 'File content does not match declared type'}, status=400)
+
         # Get file extension from MIME type
         extension = ALLOWED_EXTENSIONS[file_type]
 

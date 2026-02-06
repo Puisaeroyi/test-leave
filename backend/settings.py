@@ -30,7 +30,7 @@ def get_secret_key():
             # Dev only: generate and warn
             import secrets
             key = secrets.token_urlsafe(50)
-            print(f"WARNING: Generated SECRET_KEY for development: {key}")
+            print("WARNING: Using auto-generated SECRET_KEY for development.")
             print("WARNING: Set DJANGO_SECRET_KEY environment variable for production!")
         else:
             # Prod: fail fast
@@ -250,6 +250,14 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '20/minute',
+        'user': '60/minute',
+    },
 }
 
 
@@ -290,9 +298,6 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# Only allow all origins in development mode
-CORS_ALLOW_ALL_ORIGINS = True  # For development only - always enable for local dev
-
 # CSRF Trusted Origins
 if DEBUG:
     # Dev: allow all localhost origins with any port
@@ -323,6 +328,7 @@ else:
     SECURE_SSL_REDIRECT = False
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SECURE = False
+    CORS_ALLOW_ALL_ORIGINS = True  # For development only
 
 # SameSite cookies (prevent CSRF)
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -330,6 +336,7 @@ CSRF_COOKIE_SAMESITE = 'Lax'
 
 # Update CORS for production
 if not DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
         f'https://{host}' for host in ALLOWED_HOSTS
     ]

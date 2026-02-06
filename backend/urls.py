@@ -46,12 +46,15 @@ urlpatterns = [
     path('api/v1/organizations/', include('organizations.urls')),
     path('api/v1/leaves/', include('leaves.urls')),
     path('api/v1/notifications/', include('core.urls')),
-
-    # API Documentation
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 ]
+
+# API Documentation (development only)
+if settings.DEBUG:
+    urlpatterns += [
+        path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+        path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+        path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+    ]
 
 # Serve media and static files in development only
 if settings.DEBUG:

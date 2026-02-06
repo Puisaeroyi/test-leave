@@ -4,7 +4,6 @@ import ProtectedRoute from "@router/protectedRoute";
 import MainLayout from "@layouts/mainLayout";
 
 import Login from "@pages/login";
-import Signup from "@pages/signup";
 import ChangePassword from "@pages/change-password";
 import Profile from "@pages/Profile";
 import Settings from "@pages/Settings";
@@ -20,7 +19,6 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
           <Route path="/change-password" element={<ChangePassword />} />
 
           <Route

@@ -45,6 +45,13 @@ class UserViewSet(viewsets.ModelViewSet):
             return UserUpdateSerializer
         return UserSerializer
 
+    def create(self, request, *args, **kwargs):
+        """Disable user creation via ViewSet - use register endpoint instead."""
+        return Response(
+            {'error': 'Use /api/v1/auth/register/ to create accounts.'},
+            status=status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
     def update(self, request, *args, **kwargs):
         """
         Update user (HR/Admin only for most fields)

@@ -6,7 +6,6 @@ import {
   message,
   Typography,
   Checkbox,
-  Divider,
 } from "antd";
 import { login as loginApi } from "@api/authApi";
 import { useNavigate, Link } from "react-router-dom";
@@ -56,16 +55,6 @@ export default function Login() {
           boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
         }}
       >
-        {/* SIGN UP LINK */}
-        <div style={{ textAlign: "right", marginBottom: 12 }}>
-          <Text>
-            Don’t have an account?{" "}
-            <Link to="/signup" style={{ fontWeight: 600 }}>
-              Sign up now
-            </Link>
-          </Text>
-        </div>
-
         {/* TITLE */}
         <Title level={3} style={{ marginBottom: 0 }}>
           Hello 👋
@@ -121,22 +110,6 @@ export default function Login() {
           </Button>
         </Form>
 
-        {/* DIVIDER */}
-        <Divider plain style={{ margin: "24px 0" }}>
-          Login with
-        </Divider>
-
-        {/* GOOGLE LOGIN */}
-        <div style={{ textAlign: "center" }}>
-          <img
-            src="https://developers.google.com/identity/images/g-logo.png"
-            alt="Google Login"
-            style={{
-              width: 36,
-              cursor: "pointer",
-            }}
-          />
-        </div>
       </Card>
     </div>
   );
