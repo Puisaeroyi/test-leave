@@ -12,6 +12,7 @@ import {
   Input,
   message,
   Tooltip,
+  Select,
 } from "antd";
 import {
   EyeOutlined,
@@ -35,6 +36,7 @@ export default function ManagerTickets() {
   const [confirmType, setConfirmType] = useState(null); // approve | deny
   const [denyReason, setDenyReason] = useState("");
   const [approveReason, setApproveReason] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // Check if ticket can be acted upon
   const canActOnTicket = (ticket) => {
@@ -88,7 +90,7 @@ export default function ManagerTickets() {
   };
 
   const typeColor = {
-    PTO: "blue",
+    Vacation: "blue",
     "Sick Leave": "red",
     "Business Trip": "purple",
   };
@@ -104,15 +106,27 @@ export default function ManagerTickets() {
       render: (v) => <Text strong>{v}</Text>,
     },
     {
-      title: "Leave Type",
+      title: "Leave Category",
       dataIndex: "type",
       align: "center",
       render: (t) => <Tag color={typeColor[t]}>{t}</Tag>,
     },
     {
+      title: "Leave Type",
+      dataIndex: "exemptType",
+      align: "center",
+      render: (t) => <Tag color={t === "Exempt" ? "geekblue" : "cyan"}>{t}</Tag>,
+    },
+    {
       title: "From - To",
       align: "center",
       render: (_, r) => `${r.from} → ${r.to}`,
+    },
+    {
+      title: "Hours",
+      dataIndex: "hours",
+      align: "center",
+      render: (h) => `${h}h`,
     },
     {
       title: "Status",
@@ -216,21 +230,34 @@ export default function ManagerTickets() {
   return (
     <>
       <Card
-        title="📝 Manager Ticket Approval"
+        title="📝 Manager – Leave Requests"
         style={{ borderRadius: 16 }}
         extra={
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={fetchPendingRequests}
-            loading={loading}
-          >
-            Refresh
-          </Button>
+          <Space>
+            <Select
+              value={statusFilter}
+              onChange={setStatusFilter}
+              style={{ width: 160 }}
+              options={[
+                { value: "all", label: "All Status" },
+                { value: "Pending", label: "Pending" },
+                { value: "Approved", label: "Approved" },
+                { value: "Denied", label: "Denied" },
+              ]}
+            />
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchPendingRequests}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Space>
         }
       >
         <Table
           columns={columns}
-          dataSource={tickets}
+          dataSource={statusFilter === "all" ? tickets : tickets.filter((t) => t.status === statusFilter)}
           rowKey="id"
           loading={loading}
           pagination={false}
@@ -254,9 +281,15 @@ export default function ManagerTickets() {
                 {selectedTicket.employeeName}
               </Descriptions.Item>
 
-              <Descriptions.Item label="Leave Type">
+              <Descriptions.Item label="Leave Category">
                 <Tag color={typeColor[selectedTicket.type]}>
                   {selectedTicket.type}
+                </Tag>
+              </Descriptions.Item>
+
+              <Descriptions.Item label="Leave Type">
+                <Tag color={selectedTicket.exemptType === "Exempt" ? "geekblue" : "cyan"}>
+                  {selectedTicket.exemptType}
                 </Tag>
               </Descriptions.Item>
 

@@ -16,16 +16,20 @@ import {
   Row,
   Col,
   Statistic,
+  DatePicker,
 } from "antd";
+import dayjs from "dayjs";
 import {
   SettingOutlined,
   EditOutlined,
   SaveOutlined,
   ReloadOutlined,
   DeleteOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { getAllUsers, updateUser, deleteUser } from "@api/userApi";
+import { exportApprovedLeaves } from "@api/dashboardApi";
 import "./Settings.css";
 
 const { Title, Text } = Typography;
@@ -38,6 +42,11 @@ const Settings = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [exportRange, setExportRange] = useState([
+    dayjs().startOf("month"),
+    dayjs().add(1, "month").startOf("month"),
+  ]);
+  const [exporting, setExporting] = useState(false);
 
   // Check if user has access (HR or Admin only)
   if (!user || (user.role !== "HR" && user.role !== "ADMIN")) {
@@ -107,6 +116,30 @@ const Settings = () => {
       fetchUsers();
     } catch (error) {
       message.error("Failed to delete user: " + (error.response?.data?.error || error.message));
+    }
+  };
+
+  const handleExport = async () => {
+    if (!exportRange || exportRange.length !== 2) {
+      message.warning("Please select a date range");
+      return;
+    }
+    setExporting(true);
+    try {
+      const startDate = exportRange[0].format("YYYY-MM-DD");
+      const endDate = exportRange[1].format("YYYY-MM-DD");
+      const blob = await exportApprovedLeaves(startDate, endDate);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `approved_leaves_${startDate}_to_${endDate}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+      message.success("Export downloaded");
+    } catch (error) {
+      message.error("Export failed: " + (error.response?.data?.error || error.message));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -280,6 +313,32 @@ const Settings = () => {
           </Card>
         </Col>
       </Row>
+
+      <Card
+        title={
+          <Space>
+            <DownloadOutlined />
+            <span>Export Approved Leave Requests</span>
+          </Space>
+        }
+        style={{ marginBottom: 24 }}
+      >
+        <Space wrap>
+          <DatePicker.RangePicker
+            value={exportRange}
+            onChange={(dates) => setExportRange(dates)}
+            format="YYYY-MM-DD"
+          />
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            onClick={handleExport}
+            loading={exporting}
+          >
+            Export to Excel
+          </Button>
+        </Space>
+      </Card>
 
       <Card
         title={

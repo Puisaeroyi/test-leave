@@ -28,11 +28,11 @@ const EVENT_STYLE = {
     tag: "gold",
     label: "Holiday",
   },
-  PTO: {
+  Vacation: {
     bg: "#F0F5FF",
     badge: "#1677ff",
     tag: "blue",
-    label: "PTO",
+    label: "Vacation",
   },
   business: {
     bg: "#F9F0FF",
@@ -329,7 +329,7 @@ export default function Dashboard() {
             <Descriptions.Item label="Type">
               <Tag
                 color={
-                  selectedRequest.type === "PTO"
+                  selectedRequest.type === "Vacation"
                     ? "blue"
                     : selectedRequest.type === "Sick Leave"
                       ? "red"

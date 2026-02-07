@@ -17,11 +17,15 @@ from .views import (
     BusinessTripDetailView,
     BusinessTripCancelView,
     FileUploadView,
+    ExportApprovedLeavesView,
 )
 
 urlpatterns = [
     # File Upload
     path('upload/', FileUploadView.as_view(), name='file_upload'),
+
+    # Export
+    path('export/approved/', ExportApprovedLeavesView.as_view(), name='export_approved_leaves'),
 
     # Team Calendar
     path('calendar/', TeamCalendarView.as_view(), name='team_calendar'),

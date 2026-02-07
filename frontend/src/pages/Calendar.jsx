@@ -26,11 +26,11 @@ const TYPE_STYLE = {
     border: "#ff4d4f",
     label: "Holiday",
   },
-  pto: {
+  vacation: {
     color: "#0958d9",
     bg: "rgba(22,119,255,0.12)",
     border: "#1677ff",
-    label: "PTO",
+    label: "Vacation",
   },
   sick: {
     color: "#ad4e00",
@@ -59,7 +59,7 @@ const mapCategoryToType = (category) => {
   const cat = (category || "").toLowerCase();
   if (cat.includes("sick")) return "sick";
   if (cat.includes("remote")) return "remote";
-  return "pto";
+  return "vacation";
 };
 
 export default function TeamCalendar() {
@@ -294,11 +294,11 @@ export default function TeamCalendar() {
               options={[
                 { value: "all", label: "All leave types" },
                 { value: "business", label: "Business Trip only" },
-                { value: "pto", label: "PTO only" },
+                { value: "vacation", label: "Vacation only" },
                 { value: "holiday", label: "Holidays only" },
               ]}
             />
-            {["holiday", "pto", "business"].map((type) => (
+            {["holiday", "vacation", "sick", "business"].map((type) => (
               <Badge key={type} color={TYPE_STYLE[type].border} text={TYPE_STYLE[type].label} />
             ))}
           </div>

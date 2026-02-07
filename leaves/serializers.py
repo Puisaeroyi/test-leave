@@ -53,7 +53,8 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         model = LeaveRequest
         fields = [
             'id', 'user', 'user_name', 'user_email', 'user_timezone', 'user_location_name',
-            'department_name', 'leave_category', 'category', 'start_date', 'end_date', 'shift_type',
+            'department_name', 'leave_category', 'category', 'exempt_type',
+            'start_date', 'end_date', 'shift_type',
             'start_time', 'end_time', 'total_hours', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',

@@ -116,9 +116,9 @@ class LeaveApprovalService:
 
         # Show requests where current user is the assigned approver
         # No role check - the approver relationship IS the permission
-        # Include both PENDING and APPROVED (for 24h denial window)
+        # Include PENDING, APPROVED (for 24h denial window), and REJECTED
         return LeaveRequest.objects.filter(
-            status__in=['PENDING', 'APPROVED'],
+            status__in=['PENDING', 'APPROVED', 'REJECTED'],
             user__approver=user
         ).exclude(user=user).select_related('user', 'leave_category').order_by('created_at')
 

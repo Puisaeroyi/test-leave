@@ -135,7 +135,7 @@ export const getUpcomingEvents = async () => {
         title: displayName,
         from: l.start_date,
         to: l.end_date,
-        type: "PTO",
+        type: "Vacation",
       });
     });
   }
@@ -181,21 +181,22 @@ export const getPendingRequests = async () => {
   // Backend returns paginated response: { count, next, previous, results }
   const data = res.data.results || [];
 
-  // Map backend response to frontend format
-  // Filter to only show Pending and Approved (hide Rejected/Cancelled)
+  // Map backend response to frontend format (hide Cancelled only)
+  const statusLabel = { PENDING: "Pending", APPROVED: "Approved", REJECTED: "Denied" };
   return data
-    .filter(item => ['PENDING', 'APPROVED'].includes(item.status))
+    .filter(item => ['PENDING', 'APPROVED', 'REJECTED'].includes(item.status))
     .map((item) => ({
       id: item.id,
     employee: item.user_email || item.user?.email || "Unknown",
     employeeName: item.user_name || `${item.user?.first_name || ""} ${item.user?.last_name || ""}`.trim() || "Unknown",
     type: item.category?.name || "Leave",
+    exemptType: item.exempt_type === "NON_EXEMPT" ? "Non-Exempt" : "Exempt",
     from: item.start_date,
     to: item.end_date,
     hours: item.total_hours,
     startTime: item.start_time || null,
     endTime: item.end_time || null,
-    status: item.status.charAt(0) + item.status.slice(1).toLowerCase(), // PENDING -> Pending, APPROVED -> Approved
+    status: statusLabel[item.status] || item.status,
     reason: item.reason,
     attachment: item.attachment_url || null,
     denyReason: item.rejection_reason,
@@ -213,6 +214,15 @@ export const getPendingRequests = async () => {
 export const approveLeaveRequest = async (id, comment = "") => {
   const res = await http.post(`${API_URL}/requests/${id}/approve/`, {
     comment,
+  });
+  return res.data;
+};
+
+/* ================= EXPORT APPROVED LEAVES ================= */
+export const exportApprovedLeaves = async (startDate, endDate) => {
+  const res = await http.get(`${API_URL}/export/approved/`, {
+    params: { start_date: startDate, end_date: endDate },
+    responseType: "blob",
   });
   return res.data;
 };
