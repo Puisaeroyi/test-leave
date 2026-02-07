@@ -19,9 +19,9 @@ class PublicHolidayListView(generics.ListAPIView):
         year = request.query_params.get('year')
 
         # Build query for holidays applicable to user's entity/location
-        query = Q(entity__isnull=True) | Q(entity=user.entity_id)
-        if user.location_id:
-            query &= Q(location__isnull=True) | Q(location=user.location_id)
+        query = Q(entity__isnull=True) | Q(entity=user.entity)
+        if user.location:
+            query &= Q(location__isnull=True) | Q(location=user.location)
 
         holidays = PublicHoliday.objects.filter(query, is_active=True)
 

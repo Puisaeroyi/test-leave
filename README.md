@@ -1,76 +1,25 @@
 # Leave Management System
 
-A comprehensive, multi-tenant web application for managing employee leave requests, approvals, and analytics. Built with Django + React, featuring JWT authentication, hours-based leave tracking, and a complete approval workflow.
+A comprehensive web application for managing employee leave requests, approvals, and analytics. Built with Django + React, featuring JWT authentication, hours-based tracking, and multi-tenant organizational support.
 
-**Status:** Active Development (Phase 1 Complete, Phase 2 In Progress)
-
----
-
-## Quick Links
-
-- **API Documentation:** [docs/api-overview.md](docs/api-overview.md)
-- **Database Schema:** [docs/database-schema-erd.md](docs/database-schema-erd.md)
-- **Code Standards:** [docs/code-standards.md](docs/code-standards.md)
-- **System Architecture:** [docs/system-architecture.md](docs/system-architecture.md)
-- **Project Roadmap:** [docs/project-roadmap.md](docs/project-roadmap.md)
-
----
-
-## Tech Stack
-
-### Backend
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Framework | Django + DRF | 6.0.1 |
-| Database | PostgreSQL | 16 |
-| Authentication | SimpleJWT | Latest |
-| Server | Gunicorn | Latest |
-| Language | Python | 3.12 |
-
-### Frontend
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Framework | React | 19.2 |
-| Language | TypeScript | 5.9 |
-| Build Tool | Vite | 7.2 |
-| Styling | Tailwind CSS | 4.1 |
-| Routing | React Router | 7.x |
-| HTTP Client | Axios | Latest |
-
-### Infrastructure
-
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Containerization | Docker | Latest |
-| Orchestration | Docker Compose | 3.8 |
-| Development Port | Vite | 5173 |
-| API Port | Gunicorn | 8000 |
-| Database Port | PostgreSQL | 5432 |
+**Status:** Active Development | **Phase 1:** Complete ✓ | **Phase 2:** 70% In Progress
 
 ---
 
 ## Quick Start
 
 ### Prerequisites
-
-- Docker & Docker Compose installed
-- Node.js 20+ (optional, for local frontend development)
-- Python 3.12+ (optional, for local backend development)
+- Docker & Docker Compose
+- Git
 
 ### Running with Docker
 
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd test-leave
+docker compose up
 
-# Start all services
-docker-compose up
-
-# Wait for services to start (1-2 minutes)
-# Access the application:
+# Wait 1-2 minutes for services to start
 # Frontend: http://localhost:5173
 # API: http://localhost:8000/api/v1
 # Admin: http://localhost:8000/admin
@@ -84,42 +33,119 @@ Password: demo123456
 
 ### Local Development
 
-#### Backend Setup
-
+**Backend:**
 ```bash
-# Create virtual environment
 python3.12 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# Configure database
-export DATABASE_URL=postgresql://user:password@localhost:5432/leave_db
-
-# Run migrations
+export DATABASE_URL=postgresql://user:pass@localhost:5432/leave_db
 python manage.py migrate
-
-# Load demo data
-python manage.py loaddata demo_data
-
-# Start development server
-python manage.py runserver 0.0.0.0:8000
+python manage.py runserver
 ```
 
-#### Frontend Setup
-
+**Frontend:**
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
-
-# Frontend will be available at http://localhost:5173
+npm run dev  # http://localhost:5173
 ```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 19 + TypeScript, Vite, Ant Design, Axios |
+| **Backend** | Django 6.0 + DRF, PostgreSQL 16, SimpleJWT |
+| **Infrastructure** | Docker Compose, Gunicorn (4w × 4t) |
+| **Testing** | pytest (backend) |
+
+---
+
+## Core Features
+
+### User Management
+- Email-based JWT authentication with token refresh
+- Role-based access: EMPLOYEE, MANAGER, HR, ADMIN
+- Onboarding wizard (entity/location/department assignment)
+- Profile management with approver relationships
+
+### Leave Management
+- Submit requests with category, dates, partial days (0.5-1.5h)
+- Automatic working day calculation (Mon-Fri, 8h/day)
+- Holiday exclusion from calculations
+- Four leave types: EXEMPT_VACATION, NON_EXEMPT_VACATION, EXEMPT_SICK, NON_EXEMPT_SICK
+- Dynamic EXEMPT_VACATION by years of service (Y1: 8h/mo, Y2-5: 80h, Y6-10: 120h, Y11-15: 160h, Y16+: 200h)
+
+### Approval Workflow
+- Manager approval/rejection with atomic balance updates
+- Approver-based permissions (not role-based)
+- 24-hour rejection rule for approved leaves
+- Automatic notifications and audit trail
+
+### Team Collaboration
+- Team calendar with color-coded leaves
+- Drag-to-create requests on calendar
+- Department-level leave reports
+- Business trip tracking with overlap detection
+
+### Organizational Structure
+- Multi-tenant: Entity → Location → Department hierarchy
+- 33 timezone options per location
+- Manager assignments (many-to-many)
+- Public holidays (scoped: global, entity, location)
+
+---
+
+## API Overview
+
+**All endpoints** require JWT authentication (except login/register).
+
+```
+Auth:
+  POST   /api/v1/auth/register/           Register
+  POST   /api/v1/auth/login/              Login
+  POST   /api/v1/auth/refresh/            Refresh token
+  POST   /api/v1/auth/logout/             Logout
+
+Leaves:
+  GET    /api/v1/leaves/requests/         List requests
+  POST   /api/v1/leaves/requests/         Create request
+  PUT    /api/v1/leaves/requests/{id}/approve/    Approve
+  PUT    /api/v1/leaves/requests/{id}/reject/     Reject
+  PUT    /api/v1/leaves/requests/{id}/cancel/     Cancel
+  GET    /api/v1/leaves/balance/my/       My balance
+  GET    /api/v1/leaves/calendar/         Team calendar
+  POST   /api/v1/leaves/export/           Export to CSV
+
+Organizations:
+  GET    /api/v1/organizations/entities/              List entities
+  POST   /api/v1/organizations/entities/create/       Create entity (HR/Admin)
+  PATCH  /api/v1/organizations/entities/{id}/update/  Update entity (HR/Admin)
+  PATCH  /api/v1/organizations/entities/{id}/soft-delete/  Soft-delete with cascade (HR/Admin)
+  GET    /api/v1/organizations/entities/{id}/delete-impact/  Get deletion impact counts
+  GET    /api/v1/organizations/locations/             List locations
+  GET    /api/v1/organizations/departments/           List departments
+
+Notifications:
+  GET    /api/v1/notifications/           List notifications
+  PUT    /api/v1/notifications/{id}/      Mark read
+```
+
+**Full API docs:** http://localhost:8000/api/v1/docs/ (Swagger)
+
+---
+
+## Documentation
+
+See `/docs` directory:
+- [codebase-summary.md](./docs/codebase-summary.md) - Codebase structure
+- [code-standards/](./docs/code-standards/) - Coding conventions & patterns
+- [system-architecture.md](./docs/system-architecture.md) - System design
+- [project-overview-pdr.md](./docs/project-overview-pdr.md) - Business requirements
+- [development-roadmap.md](./docs/development-roadmap.md) - Phases & timeline
+- [project-changelog.md](./docs/project-changelog.md) - Release notes
 
 ---
 
@@ -127,252 +153,72 @@ npm run dev
 
 ```
 test-leave/
-├── backend/                    # Django settings package
-├── users/                      # User authentication & profile app
-│   ├── models.py              # Custom User model with roles
-│   ├── views.py               # Auth endpoints
-│   ├── serializers.py         # User data serialization
-│   └── permissions.py         # Role-based permissions
-├── organizations/             # Entity/Location/Department app
-│   ├── models.py              # Org hierarchy models
-│   └── views.py               # CRUD endpoints
-├── leaves/                    # Leave management app
-│   ├── models.py              # LeaveRequest, Balance, Category
-│   ├── views.py               # Leave API endpoints (922 LOC)
-│   ├── services.py            # LeaveApprovalService
-│   ├── utils.py               # Date/hour calculations
-│   └── serializers.py         # Leave data validation
-├── core/                      # Notifications & audit app
-│   ├── models.py              # Notification, AuditLog
-│   └── views.py               # Notification endpoints
-├── frontend/src/              # React application
-│   ├── pages/                 # Page components
-│   ├── components/            # Reusable components
-│   ├── hooks/                 # Custom React hooks
-│   ├── api/                   # Axios API client
-│   ├── types/                 # TypeScript type definitions
-│   └── App.tsx                # Route definitions
-├── docs/                      # Project documentation
-├── docker-compose.yml         # Multi-container setup
-├── manage.py                  # Django CLI
-└── README.md                  # This file
+├── backend/              Django settings
+├── users/               Auth & user management
+├── organizations/       Entity/Location/Department
+├── leaves/              Leave management core
+│   ├── views/          Endpoint implementations
+│   ├── services.py     LeaveApprovalService
+│   └── utils.py        Calculations (working days, overlap)
+├── core/               Notifications & audit logs
+├── frontend/src/       React SPA
+│   ├── pages/          9 main pages
+│   ├── components/     5 reusable components
+│   ├── api/            API client files
+│   └── auth/           AuthContext
+├── docs/               Project documentation
+└── docker-compose.yml  Multi-container setup
 ```
 
 ---
 
-## Core Features
+## Database
 
-### User Management
-
-- **Email-based authentication** with JWT tokens
-- **Role-based access control:** EMPLOYEE, MANAGER, HR, ADMIN
-- **Onboarding wizard** for entity/location/department assignment
-- **Profile management** with department and role tracking
-
-### Leave Management
-
-- **Submit leave requests** with category, dates, and hours
-- **Automatic validation** against available balance
-- **Hours-based tracking** (8 hours/day default, dynamic EXEMPT_VACATION by years of service)
-- **Weekend & holiday exclusion** in calculations
-- **Partial day support** (0.5h, 1.0h, 1.5h increments)
-
-### Approval Workflow
-
-- **Manager approvals** for team member requests
-- **Multi-tenant scoping** by department/location
-- **Automatic balance updates** on approval
-- **Rejection with reasons** capability
-- **Audit trail** of all actions
-
-### Team Collaboration
-
-- **Team calendar** with color-coded leave visualization
-- **Leave balance cards** showing hours used/remaining
-- **Department-level reporting** for managers
-- **Entity-wide analytics** for HR
-- **In-app notifications** for requests and approvals
-
-### Organizational Structure
-
-- **Multi-tenant support** via Entity/Location/Department hierarchy
-- **Timezone-aware** scheduling per location
-- **Manager assignment** with DepartmentManager junction
-- **Public holidays** scoped by location
-
-### Audit & Compliance
-
-- **Complete audit trail** of all leave actions
-- **Action logging** with user, timestamp, and details
-- **Request history** with status and approval notes
-- **Balance change tracking** with adjustments
-
----
-
-## API Overview
-
-All endpoints require JWT authentication (except `/api/v1/auth/login/` and `/api/v1/auth/register/`).
-
-### Authentication
-
-```
-POST   /api/v1/auth/register/           Register new user
-POST   /api/v1/auth/login/              Get JWT tokens
-POST   /api/v1/auth/refresh/            Refresh access token
-POST   /api/v1/auth/logout/             Blacklist refresh token
-GET    /api/v1/auth/me/                 Get current user
-PUT    /api/v1/auth/onboarding/         Complete onboarding
-```
-
-### Leave Requests
-
-```
-GET    /api/v1/leaves/requests/         List all requests (scoped)
-POST   /api/v1/leaves/requests/         Create new request
-GET    /api/v1/leaves/requests/my/      Get user's requests
-PUT    /api/v1/leaves/requests/{id}/approve/     Manager approves
-PUT    /api/v1/leaves/requests/{id}/reject/      Manager rejects
-PUT    /api/v1/leaves/requests/{id}/cancel/      User cancels
-```
-
-### Leave Data
-
-```
-GET    /api/v1/leaves/categories/       List leave types
-GET    /api/v1/leaves/balance/my/       Get user's balance
-GET    /api/v1/leaves/calendar/         Get team calendar
-GET    /api/v1/leaves/reports/          Get analytics (HR only)
-```
-
-### Users & Organizations
-
-```
-GET    /api/v1/auth/                    List users (HR/Admin)
-POST   /api/v1/auth/create/             Create user (HR/Admin)
-PUT    /api/v1/auth/{id}/setup/         Assign role/dept (HR/Admin)
-PUT    /api/v1/auth/{id}/balance/adjust/ Adjust balance (HR/Admin)
-
-GET    /api/v1/organizations/entities/
-GET    /api/v1/organizations/locations/
-GET    /api/v1/organizations/departments/
-GET    /api/v1/organizations/managers/
-```
-
-### Notifications
-
-```
-GET    /api/v1/notifications/           List notifications
-PUT    /api/v1/notifications/{id}/      Mark as read
-PUT    /api/v1/notifications/mark-all-read/
-GET    /api/v1/notifications/unread-count/
-```
-
-**Full API documentation:** [docs/api-overview.md](docs/api-overview.md)
-
----
-
-## Database Schema
-
-The system uses PostgreSQL 16 with the following key tables:
-
-- **users_user** - Custom user with roles and onboarding flags
-- **organizations_entity** - Companies/subsidiaries
-- **organizations_location** - Offices with timezone
-- **organizations_department** - Organizational units
-- **organizations_departmentmanager** - Manager assignments
-- **leaves_leavecategory** - Leave types (Sick, Vacation, etc.)
-- **leaves_leavebalance** - Annual allocation tracking
-- **leaves_leaverequest** - Individual requests with full lifecycle
-- **leaves_publicholiday** - Non-working days
-- **core_notification** - In-app alerts
-- **core_auditlog** - Complete action history
-
-**Full schema documentation:** [docs/database-schema-erd.md](docs/database-schema-erd.md)
-
----
-
-## User Roles & Permissions
-
-| Role | Capabilities |
-|------|--------------|
-| **EMPLOYEE** | Submit leave, view own balance, see team calendar, manage notifications |
-| **MANAGER** | All EMPLOYEE + approve/reject team requests, view team reports |
-| **HR** | All MANAGER + user management, balance adjustments, entity-wide reports |
-| **ADMIN** | Full system access, org structure management, configuration |
-
----
-
-## Development Workflow
-
-### Running Tests
-
-```bash
-# Backend tests
-python manage.py test
-
-# Frontend tests
-cd frontend && npm run test
-
-# Test coverage
-python manage.py test --cov
-```
-
-### Code Quality
-
-```bash
-# Backend linting
-flake8 . --exclude=venv
-
-# Frontend linting
-cd frontend && npm run lint
-
-# Type checking
-cd frontend && npx tsc --noEmit
-```
-
-### Building for Production
-
-```bash
-# Backend: Gunicorn handles serving
-# Frontend: Build static assets
-cd frontend && npm run build
-
-# Output: frontend/dist/
-```
+PostgreSQL 16 with key tables:
+- `users_user` - Custom user (roles, approver FK, join_date)
+- `organizations_*` - Entity/Location/Department hierarchy
+- `leaves_*` - LeaveRequest, LeaveBalance (Decimal), LeaveCategory, PublicHoliday
+- `core_*` - Notification, AuditLog
 
 ---
 
 ## Configuration
 
-### Environment Variables
+**Environment Variables:**
 
-**Backend (.env or docker-compose environment):**
+Backend (.env or docker-compose):
 ```
 DEBUG=False
-SECRET_KEY=your-secret-key-here
+SECRET_KEY=your-secret-key
 DATABASE_URL=postgresql://user:pass@db:5432/leave_db
 ALLOWED_HOSTS=localhost,127.0.0.1
 CORS_ALLOWED_ORIGINS=http://localhost:5173
-
-JWT_SECRET_KEY=your-jwt-secret
-JWT_ACCESS_TOKEN_LIFETIME=3600      # 1 hour
-JWT_REFRESH_TOKEN_LIFETIME=604800   # 7 days
+JWT_ACCESS_TOKEN_LIFETIME=3600
+JWT_REFRESH_TOKEN_LIFETIME=604800
 ```
 
-**Frontend (.env.local):**
+Frontend (.env.local):
 ```
 VITE_API_BASE_URL=http://localhost:8000/api/v1
-VITE_APP_NAME=Leave Management System
 ```
 
-### Database Connection
+---
 
-Default: PostgreSQL running in Docker on port 5432
+## Development
 
-To use external database:
+### Running Tests
+
 ```bash
-export DATABASE_URL=postgresql://user:password@host:5432/leave_db
-python manage.py migrate
+# Backend
+python -m pytest --verbosity=2
+cd frontend && npm test  # Frontend tests
+```
+
+### Code Quality
+
+```bash
+flake8 . --exclude=venv
+cd frontend && npx tsc --noEmit
 ```
 
 ---
@@ -382,136 +228,74 @@ python manage.py migrate
 ### Docker Production Build
 
 ```bash
-# Build images
-docker-compose -f docker-compose.prod.yml build
-
-# Run containers
-docker-compose -f docker-compose.prod.yml up -d
-
-# Scale backend servers
-docker-compose -f docker-compose.prod.yml up -d --scale backend=3
+docker compose -f docker-compose.prod.yml build
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-### Requirements for Production
+### Production Checklist
 
 - [ ] Configure HTTPS/SSL certificates
 - [ ] Set DEBUG=False
 - [ ] Use strong SECRET_KEY
 - [ ] Configure database backups
 - [ ] Setup monitoring and logging
-- [ ] Configure email service
-- [ ] Review security settings
-- [ ] Load test before go-live
-
-**Deployment guide:** [docs/deployment-guide.md](docs/deployment-guide.md) (future)
+- [ ] Configure CORS origins to HTTPS only
+- [ ] Enable HSTS headers
+- [ ] Load test before launch
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
 **Docker services won't start:**
 ```bash
-# Check logs
-docker-compose logs backend
-docker-compose logs frontend
-docker-compose logs db
-
-# Rebuild images
-docker-compose down
-docker-compose up --build
+docker compose logs backend
+docker compose logs frontend
+docker compose down
+docker compose up --build
 ```
 
 **Database connection error:**
 ```bash
-# Verify PostgreSQL is running
-docker-compose ps
-
-# Check database migrations
-docker-compose exec backend python manage.py migrate --check
-
-# Reset database
-docker-compose down -v  # Removes all volumes
-docker-compose up       # Recreates everything
+docker compose exec backend python manage.py migrate --check
+docker compose down -v  # Reset everything
+docker compose up       # Fresh start
 ```
 
-**Frontend API calls failing:**
-- Verify backend is running on port 8000
-- Check VITE_API_BASE_URL is correct
-- Check CORS settings in Django
-- Review browser console for errors
-
 **JWT token errors:**
-- Clear localStorage and login again
+- Clear browser localStorage and login again
 - Verify SECRET_KEY hasn't changed
 - Check token expiration times
 
 ---
 
-## Documentation
+## User Roles & Permissions
 
-Comprehensive documentation available in `/docs`:
-
-| Document | Purpose |
-|----------|---------|
-| [api-overview.md](docs/api-overview.md) | Complete API reference (1,095 lines) |
-| [database-schema-erd.md](docs/database-schema-erd.md) | ERD and schema details |
-| [code-standards.md](docs/code-standards.md) | Coding conventions and patterns |
-| [system-architecture.md](docs/system-architecture.md) | Architecture diagrams and flows |
-| [project-roadmap.md](docs/project-roadmap.md) | Development phases and timeline |
-| [codebase-summary.md](docs/codebase-summary.md) | Codebase structure overview |
-| [project-overview-pdr.md](docs/project-overview-pdr.md) | PDR and business requirements |
+| Role | Capabilities |
+|------|--------------|
+| **EMPLOYEE** | Submit leave, view balance, see team calendar |
+| **MANAGER** | Employee + approve/reject team requests, team reports |
+| **HR** | Manager + user management, balance adjustments, entity reports |
+| **ADMIN** | Full system access, org structure, configuration |
 
 ---
 
 ## Contributing
 
-1. **Read code standards:** [docs/code-standards.md](docs/code-standards.md)
-2. **Follow git conventions:** Conventional commits format
-3. **Write tests:** Aim for > 80% coverage
-4. **Code review:** All PRs require review before merge
-5. **Update docs:** Keep documentation in sync with code changes
+1. Read [docs/code-standards.md](./docs/code-standards.md)
+2. Follow conventional commit format: `feat:`, `fix:`, `docs:`, etc.
+3. Write tests (80%+ coverage target)
+4. Ensure all tests pass before PR
+5. Update docs if changing features
 
 ---
 
-## Support & Issues
+## Support
 
-- **Bug reports:** GitHub Issues
-- **Feature requests:** GitHub Discussions
-- **Documentation:** /docs directory
-- **Code examples:** [docs/sample-data-walkthrough.md](docs/sample-data-walkthrough.md)
-
----
-
-## Roadmap
-
-**Current Status:** Phase 1 Complete (100%), Phase 2 In Progress (60%)
-
-**Upcoming:**
-- Admin dashboard full implementation
-- Approvals page with approval/rejection forms
-- Mobile responsiveness improvements
-- Email notifications integration
-- Advanced reporting & analytics
-- WebSocket real-time updates
-
-**Full roadmap:** [docs/project-roadmap.md](docs/project-roadmap.md)
+- **Issues:** GitHub Issues
+- **API Docs:** http://localhost:8000/api/v1/docs/
+- **Full Roadmap:** [development-roadmap.md](./docs/development-roadmap.md)
 
 ---
 
-## License
-
-[Add license information]
-
----
-
-## Contact
-
-**Project Lead:** [Team information]
-**GitHub:** [Repository URL]
-**Documentation:** See `/docs` directory
-
----
-
-**Last Updated:** 2026-01-27 | **Version:** 1.0.0
+**Last Updated:** 2026-02-07 | **Version:** 1.1.0

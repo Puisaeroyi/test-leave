@@ -255,7 +255,7 @@ class UserCreateSerializer(serializers.Serializer):
     entity = serializers.UUIDField(required=True)
     location = serializers.UUIDField(required=True)
     department = serializers.UUIDField(required=True)
-    approver = serializers.UUIDField(required=False, allow_null=True)
+    approver = serializers.UUIDField(required=True)
     join_date = serializers.DateField(required=False, allow_null=True)
 
     def validate_email(self, value):
@@ -273,12 +273,10 @@ class UserCreateSerializer(serializers.Serializer):
         return validate_active_relationship(Department, value, 'department')
 
     def validate_approver(self, value):
-        if value:
-            try:
-                return User.objects.get(id=value, is_active=True)
-            except User.DoesNotExist:
-                raise serializers.ValidationError("Approver not found or inactive.")
-        return None
+        try:
+            return User.objects.get(id=value, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Approver not found or inactive.")
 
     def validate(self, attrs):
         entity = attrs.get('entity')

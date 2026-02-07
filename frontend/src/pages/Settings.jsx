@@ -17,6 +17,7 @@ import {
   Col,
   Statistic,
   DatePicker,
+  Tabs,
 } from "antd";
 import dayjs from "dayjs";
 import {
@@ -32,6 +33,7 @@ import { useAuth } from "@auth/authContext";
 import { getAllUsers, updateUser, deleteUser, createUser } from "@api/userApi";
 import { getEntities, getLocations, getDepartments } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
+import EntityManagement from "@components/EntityManagement";
 import "./Settings.css";
 
 const { Title, Text } = Typography;
@@ -106,7 +108,7 @@ const Settings = () => {
         last_name: values.last_name,
         email: values.email,
         employee_code: values.employee_code || null,
-        approver: values.approver || null,
+        approver: values.approver,
       });
 
       message.success("User updated successfully");
@@ -203,7 +205,7 @@ const Settings = () => {
         entity: values.entity,
         location: values.location,
         department: values.department,
-        approver: values.approver || null,
+        approver: values.approver,
         join_date: values.join_date?.format("YYYY-MM-DD") || null,
       });
       message.success("User created successfully");
@@ -359,38 +361,94 @@ const Settings = () => {
     ).length,
   };
 
+  // Tab items configuration
+  const tabItems = [
+    {
+      key: 'users',
+      label: 'Users',
+      children: (
+        <div>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="Total Users"
+                  value={stats.total}
+                  prefix={<SettingOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="Active Users"
+                  value={stats.active}
+                  valueStyle={{ color: "#3f8600" }}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Card>
+                <Statistic
+                  title="Users Without Approver"
+                  value={stats.withoutApprover}
+                  valueStyle={{ color: stats.withoutApprover > 0 ? "#cf1322" : undefined }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          <Card
+            title={
+              <Space>
+                <SettingOutlined />
+                <span>User Management</span>
+              </Space>
+            }
+            extra={
+              <Space>
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleAddUser}
+                >
+                  Add User
+                </Button>
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={fetchUsers}
+                  loading={loading}
+                >
+                  Refresh
+                </Button>
+              </Space>
+            }
+          >
+            <Table
+              columns={columns}
+              dataSource={users}
+              rowKey="id"
+              loading={loading}
+              scroll={{ x: 1200 }}
+              pagination={{
+                pageSizeOptions: ['10', '20', '50', '100'],
+                showSizeChanger: true,
+                showTotal: (total) => `Total ${total} users`,
+              }}
+            />
+          </Card>
+        </div>
+      ),
+    },
+    {
+      key: 'entities',
+      label: 'Entities',
+      children: <EntityManagement />,
+    },
+  ];
+
   return (
     <div style={{ padding: 24 }}>
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Total Users"
-              value={stats.total}
-              prefix={<SettingOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Active Users"
-              value={stats.active}
-              valueStyle={{ color: "#3f8600" }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card>
-            <Statistic
-              title="Users Without Approver"
-              value={stats.withoutApprover}
-              valueStyle={{ color: stats.withoutApprover > 0 ? "#cf1322" : undefined }}
-            />
-          </Card>
-        </Col>
-      </Row>
-
       <Card
         title={
           <Space>
@@ -417,44 +475,8 @@ const Settings = () => {
         </Space>
       </Card>
 
-      <Card
-        title={
-          <Space>
-            <SettingOutlined />
-            <span>User Management Settings</span>
-          </Space>
-        }
-        extra={
-          <Space>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAddUser}
-            >
-              Add User
-            </Button>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={fetchUsers}
-              loading={loading}
-            >
-              Refresh
-            </Button>
-          </Space>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={users}
-          rowKey="id"
-          loading={loading}
-          scroll={{ x: 1200 }}
-          pagination={{
-            pageSizeOptions: ['10', '20', '50', '100'],
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} users`,
-          }}
-        />
+      <Card>
+        <Tabs defaultActiveKey="users" items={tabItems} />
       </Card>
 
       <Modal
@@ -677,12 +699,11 @@ const Settings = () => {
           <Form.Item
             label="Approver"
             name="approver"
-            tooltip="Optional - leave empty for HR/Admin roles"
+            rules={[{ required: true, message: "Please select an approver" }]}
           >
             <Select
-              allowClear
               showSearch
-              placeholder="Select an approver (optional)"
+              placeholder="Select an approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }

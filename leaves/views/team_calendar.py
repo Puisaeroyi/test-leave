@@ -27,15 +27,14 @@ class TeamCalendarView(generics.GenericAPIView):
         # Get current user
         user = request.user
 
-        # Get team members (same entity+location+department) + direct subordinates (cross-entity)
-        team_filters = Q(entity_id=user.entity_id)
-        if user.location_id:
-            team_filters &= Q(location_id=user.location_id)
-        if user.department_id:
-            team_filters &= Q(department_id=user.department_id)
+        # Get team members (same entity) + direct subordinates + user's approver
+        team_filters = Q(entity=user.entity)  # Entity-level only
+        subordinate_filter = Q(approver=user)  # Direct subordinates
+        approver_filter = Q(id=user.approver.pk) if user.approver else Q()  # User's approver
 
-        subordinate_filter = Q(approver=user)
-        team_members = User.objects.filter(team_filters | subordinate_filter).filter(is_active=True).distinct()
+        team_members = User.objects.filter(
+            team_filters | subordinate_filter | approver_filter
+        ).filter(is_active=True).distinct()
 
         # Filter by specific member IDs if provided
         if member_ids:
@@ -120,13 +119,13 @@ class TeamCalendarView(generics.GenericAPIView):
         ).filter(
             Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).filter(
-            Q(entity_id=user.entity_id) | Q(entity_id__isnull=True)
+            Q(entity=user.entity) | Q(entity__isnull=True)
         )
 
         # Filter by location if applicable
-        if user.location_id:
+        if user.location:
             holidays_query = holidays_query.filter(
-                Q(location_id=user.location_id) | Q(location_id__isnull=True)
+                Q(location=user.location) | Q(location__isnull=True)
             )
 
         holidays_data = [
