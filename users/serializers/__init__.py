@@ -6,6 +6,7 @@ from .serializers import (
     ChangePasswordSerializer,
     UserSerializer,
     UserUpdateSerializer,
+    UserCreateSerializer,
 )
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     'ChangePasswordSerializer',
     'UserSerializer',
     'UserUpdateSerializer',
+    'UserCreateSerializer',
 ]

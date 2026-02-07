@@ -240,3 +240,77 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         if request and request.user.role not in [User.Role.HR, User.Role.ADMIN]:
             raise serializers.ValidationError("Only HR/Admin can assign approver.")
         return value
+
+
+class UserCreateSerializer(serializers.Serializer):
+    """Serializer for HR/Admin user creation. Auto-sets password to DEFAULT_IMPORT_PASSWORD."""
+
+    email = serializers.EmailField(required=True)
+    first_name = serializers.CharField(required=True, max_length=150)
+    last_name = serializers.CharField(required=True, max_length=150)
+    employee_code = serializers.CharField(
+        required=False, allow_null=True, allow_blank=True, max_length=50
+    )
+    role = serializers.ChoiceField(choices=User.Role.choices, default=User.Role.EMPLOYEE)
+    entity = serializers.UUIDField(required=True)
+    location = serializers.UUIDField(required=True)
+    department = serializers.UUIDField(required=True)
+    approver = serializers.UUIDField(required=False, allow_null=True)
+    join_date = serializers.DateField(required=False, allow_null=True)
+
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
+    def validate_entity(self, value):
+        return validate_active_relationship(Entity, value, 'entity')
+
+    def validate_location(self, value):
+        return validate_active_relationship(Location, value, 'location')
+
+    def validate_department(self, value):
+        return validate_active_relationship(Department, value, 'department')
+
+    def validate_approver(self, value):
+        if value:
+            try:
+                return User.objects.get(id=value, is_active=True)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("Approver not found or inactive.")
+        return None
+
+    def validate(self, attrs):
+        entity = attrs.get('entity')
+        location = attrs.get('location')
+        department = attrs.get('department')
+
+        if location and entity and location.entity != entity:
+            raise serializers.ValidationError({
+                "location": "Selected location does not belong to the selected entity."
+            })
+        if department and entity and department.entity != entity:
+            raise serializers.ValidationError({
+                "department": "Selected department does not belong to the selected entity."
+            })
+        return attrs
+
+    def create(self, validated_data):
+        from datetime import date
+        from users.resources import DEFAULT_IMPORT_PASSWORD
+
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            password=DEFAULT_IMPORT_PASSWORD,
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            employee_code=validated_data.get('employee_code') or None,
+            role=validated_data.get('role', User.Role.EMPLOYEE),
+            entity=validated_data['entity'],
+            location=validated_data['location'],
+            department=validated_data['department'],
+            approver=validated_data.get('approver'),
+            join_date=validated_data.get('join_date') or date.today(),
+            first_login=True,
+        )
+        return user

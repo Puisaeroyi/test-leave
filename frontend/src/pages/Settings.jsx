@@ -26,9 +26,11 @@ import {
   ReloadOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
-import { getAllUsers, updateUser, deleteUser } from "@api/userApi";
+import { getAllUsers, updateUser, deleteUser, createUser } from "@api/userApi";
+import { getEntities, getLocations, getDepartments } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
 import "./Settings.css";
 
@@ -47,6 +49,14 @@ const Settings = () => {
     dayjs().add(1, "month").startOf("month"),
   ]);
   const [exporting, setExporting] = useState(false);
+
+  // Add User modal state
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [addForm] = Form.useForm();
+  const [entities, setEntities] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [creating, setCreating] = useState(false);
 
   // Check if user has access (HR or Admin only)
   if (!user || (user.role !== "HR" && user.role !== "ADMIN")) {
@@ -140,6 +150,73 @@ const Settings = () => {
       message.error("Export failed: " + (error.response?.data?.error || error.message));
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Add User handlers
+  const handleAddUser = async () => {
+    addForm.resetFields();
+    setLocations([]);
+    setDepartments([]);
+    setAddModalVisible(true);
+    try {
+      const data = await getEntities();
+      setEntities(data.results || data);
+    } catch (error) {
+      message.error("Failed to load entities");
+    }
+  };
+
+  const handleEntityChange = async (entityId) => {
+    addForm.setFieldsValue({ location: undefined, department: undefined });
+    setDepartments([]);
+    if (!entityId) { setLocations([]); return; }
+    try {
+      const data = await getLocations(entityId);
+      setLocations(data.results || data);
+    } catch (error) {
+      message.error("Failed to load locations");
+    }
+  };
+
+  const handleLocationChange = async (locationId) => {
+    addForm.setFieldsValue({ department: undefined });
+    if (!locationId) { setDepartments([]); return; }
+    try {
+      const data = await getDepartments(locationId);
+      setDepartments(data.results || data);
+    } catch (error) {
+      message.error("Failed to load departments");
+    }
+  };
+
+  const handleCreateUser = async () => {
+    try {
+      const values = await addForm.validateFields();
+      setCreating(true);
+      await createUser({
+        email: values.email,
+        first_name: values.first_name,
+        last_name: values.last_name,
+        employee_code: values.employee_code || null,
+        role: values.role,
+        entity: values.entity,
+        location: values.location,
+        department: values.department,
+        approver: values.approver || null,
+        join_date: values.join_date?.format("YYYY-MM-DD") || null,
+      });
+      message.success("User created successfully");
+      setAddModalVisible(false);
+      addForm.resetFields();
+      fetchUsers();
+    } catch (error) {
+      if (error.errorFields) return; // Form validation errors
+      const errData = error.response?.data;
+      const errMsg = errData?.error || errData?.email?.[0] || error.message;
+      message.error("Failed to create user: " + errMsg);
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -348,13 +425,22 @@ const Settings = () => {
           </Space>
         }
         extra={
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={fetchUsers}
-            loading={loading}
-          >
-            Refresh
-          </Button>
+          <Space>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAddUser}
+            >
+              Add User
+            </Button>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchUsers}
+              loading={loading}
+            >
+              Refresh
+            </Button>
+          </Space>
         }
       >
         <Table
@@ -437,6 +523,181 @@ const Settings = () => {
               }))}
             />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Add User Modal */}
+      <Modal
+        title="Add New User"
+        open={addModalVisible}
+        onOk={handleCreateUser}
+        onCancel={() => {
+          setAddModalVisible(false);
+          addForm.resetFields();
+          setLocations([]);
+          setDepartments([]);
+        }}
+        confirmLoading={creating}
+        okText="Create User"
+        width={700}
+      >
+        <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="First Name"
+                name="first_name"
+                rules={[{ required: true, message: "Please enter first name" }]}
+              >
+                <Input placeholder="John" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Last Name"
+                name="last_name"
+                rules={[{ required: true, message: "Please enter last name" }]}
+              >
+                <Input placeholder="Doe" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Email"
+                name="email"
+                rules={[
+                  { required: true, message: "Please enter email" },
+                  { type: "email", message: "Please enter a valid email" },
+                ]}
+              >
+                <Input placeholder="john.doe@example.com" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="Employee Code" name="employee_code">
+                <Input placeholder="EMP-001 (Optional)" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                label="Role"
+                name="role"
+                initialValue="EMPLOYEE"
+                rules={[{ required: true, message: "Please select role" }]}
+              >
+                <Select>
+                  <Select.Option value="EMPLOYEE">Employee</Select.Option>
+                  <Select.Option value="MANAGER">Manager</Select.Option>
+                  <Select.Option value="HR">HR</Select.Option>
+                  <Select.Option value="ADMIN">Admin</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                label="Join Date"
+                name="join_date"
+                tooltip="Defaults to today if not specified"
+              >
+                <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                label="Entity"
+                name="entity"
+                rules={[{ required: true, message: "Please select entity" }]}
+              >
+                <Select
+                  placeholder="Select entity"
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={handleEntityChange}
+                  options={entities.map((e) => ({
+                    value: e.id,
+                    label: e.entity_name,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                label="Location"
+                name="location"
+                rules={[{ required: true, message: "Please select location" }]}
+              >
+                <Select
+                  placeholder={locations.length ? "Select location" : "Select entity first"}
+                  disabled={locations.length === 0}
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                  }
+                  onChange={handleLocationChange}
+                  options={locations.map((loc) => ({
+                    value: loc.id,
+                    label: loc.location_name,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                label="Department"
+                name="department"
+                rules={[{ required: true, message: "Please select department" }]}
+              >
+                <Select
+                  placeholder={departments.length ? "Select department" : "Select location first"}
+                  disabled={departments.length === 0}
+                  showSearch
+                  filterOption={(input, option) =>
+                    (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={departments.map((dept) => ({
+                    value: dept.id,
+                    label: dept.department_name,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            label="Approver"
+            name="approver"
+            tooltip="Optional - leave empty for HR/Admin roles"
+          >
+            <Select
+              allowClear
+              showSearch
+              placeholder="Select an approver (optional)"
+              filterOption={(input, option) =>
+                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+              }
+              options={users
+                .filter((u) => u.is_active)
+                .map((u) => ({
+                  value: u.id,
+                  label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                }))}
+            />
+          </Form.Item>
+
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Note: Password will be auto-set to default. User will be required to change password on first login.
+          </Text>
         </Form>
       </Modal>
     </div>

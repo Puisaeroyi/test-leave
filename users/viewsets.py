@@ -1,13 +1,14 @@
 """
 User ViewSet for HR/Admin user management
 """
+from django.db import transaction
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from .models import User
-from .serializers.serializers import UserSerializer, UserUpdateSerializer
+from .serializers.serializers import UserSerializer, UserUpdateSerializer, UserCreateSerializer
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -40,16 +41,33 @@ class UserViewSet(viewsets.ModelViewSet):
             return User.objects.filter(id=user.id).select_related('entity', 'location', 'department', 'approver')
 
     def get_serializer_class(self):
-        """Use UserUpdateSerializer for update operations"""
+        """Use appropriate serializer based on action"""
+        if self.action == 'create':
+            return UserCreateSerializer
         if self.action in ['update', 'partial_update']:
             return UserUpdateSerializer
         return UserSerializer
 
     def create(self, request, *args, **kwargs):
-        """Disable user creation via ViewSet - use register endpoint instead."""
+        """Create new user (HR/ADMIN only). Auto-sets password with first_login=True."""
+        if request.user.role not in [User.Role.HR, User.Role.ADMIN]:
+            return Response(
+                {'error': 'Only HR and Admin can create users.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = UserCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            user = serializer.save()
+            # Create initial leave balances (all 4 types)
+            from .utils import create_initial_leave_balance
+            create_initial_leave_balance(user)
+
         return Response(
-            {'error': 'Use /api/v1/auth/register/ to create accounts.'},
-            status=status.HTTP_405_METHOD_NOT_ALLOWED
+            UserSerializer(user).data,
+            status=status.HTTP_201_CREATED
         )
 
     def update(self, request, *args, **kwargs):

@@ -34,6 +34,11 @@ def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
     """
     if instance.has_completed_onboarding:
         current_year = timezone.now().year
+
+        # Skip if balances already exist (created by utility in ViewSet/RegisterView)
+        if LeaveBalance.objects.filter(user=instance, year=current_year).exists():
+            return
+
         reference_date = date(current_year, 1, 1)
 
         for balance_type in LeaveBalance.BalanceType.values:

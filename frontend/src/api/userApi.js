@@ -35,6 +35,15 @@ export const deleteUser = async (id) => {
 };
 
 /**
+ * Create new user (HR/Admin only)
+ * Password auto-set to DEFAULT_IMPORT_PASSWORD with first_login=True
+ */
+export const createUser = async (data) => {
+  const response = await http.post("/auth/users/", data);
+  return response.data;
+};
+
+/**
  * Get subordinates for current user (users who have current user as approver)
  */
 export const getMySubordinates = async () => {

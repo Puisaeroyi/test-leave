@@ -17,25 +17,15 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        from datetime import date
         from users.serializers import RegisterSerializer
-        from leaves.models import LeaveBalance
-        from leaves.constants import INITIAL_ONBOARDING_HOURS
+        from users.utils import create_initial_leave_balance
 
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Create initial leave balance
-        LeaveBalance.objects.get_or_create(
-            user=user,
-            year=date.today().year,
-            defaults={
-                'allocated_hours': INITIAL_ONBOARDING_HOURS,
-                'used_hours': 0,
-                'adjusted_hours': 0,
-            }
-        )
+        # Create initial leave balances (all 4 types)
+        create_initial_leave_balance(user)
 
         return Response({
             'user': build_user_response(user, include_tokens=True)

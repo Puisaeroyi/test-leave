@@ -1,12 +1,65 @@
 """User utility functions."""
 
 import logging
+from datetime import date
+from decimal import Decimal
 from typing import Dict, Any
 
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+
+
+# Fixed defaults for non-dynamic balance types (matches recalculate_exempt_vacation command)
+FIXED_BALANCE_DEFAULTS = {
+    'NON_EXEMPT_VACATION': Decimal('40.00'),
+    'EXEMPT_SICK': Decimal('40.00'),
+    'NON_EXEMPT_SICK': Decimal('40.00'),
+}
+
+
+def create_initial_leave_balance(user):
+    """Create initial leave balances (all 4 types) for a new user.
+
+    - EXEMPT_VACATION: dynamic by years of service
+    - NON_EXEMPT_VACATION, EXEMPT_SICK, NON_EXEMPT_SICK: fixed 40h each
+    """
+    from leaves.models import LeaveBalance
+    from leaves.services import calculate_exempt_vacation_hours
+
+    current_year = date.today().year
+    join_date = user.join_date or date.today()
+
+    # EXEMPT_VACATION: dynamic based on years of service
+    ev_hours = calculate_exempt_vacation_hours(
+        join_date=join_date,
+        reference_date=date(current_year, 1, 1)
+    )
+
+    LeaveBalance.objects.get_or_create(
+        user=user,
+        year=current_year,
+        balance_type=LeaveBalance.BalanceType.EXEMPT_VACATION,
+        defaults={
+            'allocated_hours': ev_hours,
+            'used_hours': Decimal('0.00'),
+            'adjusted_hours': Decimal('0.00'),
+        }
+    )
+
+    # Fixed balance types
+    for balance_type, hours in FIXED_BALANCE_DEFAULTS.items():
+        LeaveBalance.objects.get_or_create(
+            user=user,
+            year=current_year,
+            balance_type=balance_type,
+            defaults={
+                'allocated_hours': hours,
+                'used_hours': Decimal('0.00'),
+                'adjusted_hours': Decimal('0.00'),
+            }
+        )
 
 
 def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, Any]:
