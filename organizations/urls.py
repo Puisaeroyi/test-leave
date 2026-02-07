@@ -7,11 +7,21 @@ from .views import (
     LocationListView,
     DepartmentListView,
     DepartmentManagerListView,
+    EntityCreateView,
+    EntityUpdateView,
+    EntitySoftDeleteView,
+    EntityDeleteImpactView,
 )
 
 urlpatterns = [
-    # Entities
+    # Entities - List
     path('entities/', EntityListView.as_view(), name='entity_list'),
+
+    # Entities - CRUD operations
+    path('entities/create/', EntityCreateView.as_view(), name='entity_create'),
+    path('entities/<uuid:pk>/update/', EntityUpdateView.as_view(), name='entity_update'),
+    path('entities/<uuid:pk>/soft-delete/', EntitySoftDeleteView.as_view(), name='entity_soft_delete'),
+    path('entities/<uuid:pk>/delete-impact/', EntityDeleteImpactView.as_view(), name='entity_delete_impact'),
 
     # Locations
     path('locations/', LocationListView.as_view(), name='location_list'),
