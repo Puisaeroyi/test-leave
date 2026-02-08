@@ -8,8 +8,8 @@ from ...models import LeaveRequest
 from ...services import LeaveApprovalService
 
 
-class LeaveRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Leave request detail view."""
+class LeaveRequestDetailView(generics.RetrieveAPIView):
+    """Leave request detail view (read-only)."""
 
     permission_classes = [IsAuthenticated]
 

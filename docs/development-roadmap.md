@@ -1,6 +1,6 @@
 # Development Roadmap
 
-**Last Updated:** 2026-02-07 | **Version:** 1.1.0
+**Last Updated:** 2026-02-08 | **Version:** 1.1.2
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 Phase 1: Core Platform         Jan 2026    100% Complete
-Phase 2: Features & Polish     Jan-Mar     70% In Progress
+Phase 2: Features & Polish     Jan-Mar     75% In Progress
 Phase 3: Enterprise Features   Apr-Sep     0% Planned
 Phase 4: Scale & Optimization  Q4 2026+    0% Future
 ```
@@ -163,9 +163,9 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 
 ---
 
-## Phase 2: Features & Polish (IN PROGRESS - 70%)
+## Phase 2: Features & Polish (IN PROGRESS - 75%)
 
-**Timeline:** January - March 2026 | **Status:** 70% Complete
+**Timeline:** January - March 2026 | **Status:** 75% Complete
 
 ### Completed Milestones
 
@@ -209,18 +209,19 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 
 ### In-Progress Milestones
 
-#### 2.4 Testing & Code Coverage (60% ⚙️)
+#### 2.5 Testing & Code Coverage (60% ⚙️)
 - [x] Backend unit tests for core services
 - [x] API endpoint tests
 - [x] Database transaction tests
+- [x] Security vulnerability tests
 - [ ] Frontend component tests (30% done)
 - [ ] E2E tests with Cypress (0% done)
 - [ ] Performance load testing (0% done)
 
 **Target Completion:** 2026-02-20
-**Current Coverage:** Backend 82%, Frontend 45%
+**Current Coverage:** Backend 85%, Frontend 45%
 
-#### 2.5 Performance Optimization (50% ⚙️)
+#### 2.6 Performance Optimization (50% ⚙️)
 - [x] Database query optimization (select_related, prefetch_related)
 - [x] Added necessary database indexes
 - [x] API response optimization
@@ -230,7 +231,7 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 
 **Target Completion:** 2026-02-25
 
-#### 2.6 Advanced Reporting (40% ⚙️)
+#### 2.7 Advanced Reporting (40% ⚙️)
 - [x] Approved leave export CSV
 - [x] Department-level leave reports
 - [ ] Dashboard analytics (in progress)
@@ -239,6 +240,40 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 - [ ] Custom report builder (planned)
 
 **Target Completion:** 2026-03-10
+
+### Completed Milestones
+
+#### 2.4 Security Hardening - Batch 1 (100% ✓)
+- [x] Fix race condition on leave creation (transaction.atomic + select_for_update)
+- [x] Fix double-approve/reject race condition (select_for_update on LeaveRequest)
+- [x] Replace hardcoded 80h with dynamic YoS calculation for EXEMPT_VACATION
+- [x] Implement IDOR protection on leave request detail endpoint
+- [x] Add entity-level filtering on HR leave list
+- [x] Fix change-password auth (first_login vs normal flow)
+- [x] Add negative used_hours floor check on rejection
+- [x] Implement safe null handling in balance type detection
+- [x] Handle LeaveBalance.DoesNotExist gracefully
+
+**Completion Date:** 2026-02-08
+**Status:** Complete
+**Test Coverage:** 90%
+
+#### 2.4b Security Hardening - Batch 2 (100% ✓)
+- [x] Validate attachment URLs with regex pattern enforcement
+- [x] Block cross-year leave requests
+- [x] Check entity active status on leave submission
+- [x] Fix export OOM vulnerability (10K row cap)
+- [x] Harden notification pagination (page_size cap at 100)
+- [x] Fix WebP magic bytes validation (full RIFF+WEBP signature)
+- [x] Narrow DetailView to RetrieveAPIView (prevent PUT/DELETE)
+- [x] Require refresh token on logout endpoint
+- [x] Deactivate users on entity soft-delete cascade
+- [x] Restrict EntityDeleteImpactView to HR/Admin
+- [x] Include user count in deletion impact calculation
+
+**Completion Date:** 2026-02-08
+**Status:** Complete
+**Test Coverage:** 88%
 
 ### Planned Milestones
 
@@ -253,16 +288,16 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 **Target Completion:** 2026-03-05
 **Estimated LOC:** 200
 
-#### 2.8 Security Hardening (0% 📅)
+#### 2.8 Additional Security Enhancements (0% 📅)
 - [ ] CORS security audit
-- [ ] Rate limiting implementation
+- [ ] Advanced rate limiting per user
 - [ ] Input validation tightening
 - [ ] SQL injection prevention verification
 - [ ] XSS prevention audit
 - [ ] CSRF token verification
 
-**Target Start:** 2026-02-25
-**Target Completion:** 2026-03-15
+**Target Start:** 2026-03-01
+**Target Completion:** 2026-03-20
 **Estimated LOC:** 150
 
 #### 2.9 Documentation Completion (0% 📅)
@@ -282,7 +317,12 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 | Database performance degradation | High | Under monitoring | Add indexes, optimize queries |
 | Frontend test coverage lag | Medium | In progress | Allocate dev time to testing |
 | Email notification delay | Medium | Blocked | Requires SMTP setup (Phase 3) |
-| Concurrent approval race conditions | High | Resolved | Used atomic transactions |
+| Concurrent approval race conditions | High | Resolved (v1.1.1) | Used atomic transactions + select_for_update |
+| IDOR vulnerabilities | High | Resolved (v1.1.1) | Implemented permission checks |
+| Cross-entity access | High | Resolved (v1.1.1) | Added entity-level filtering |
+| Input validation gaps | High | Resolved (v1.1.2) | Regex validation + type checking |
+| Resource exhaustion (OOM) | High | Resolved (v1.1.2) | Row caps + pagination limits |
+| File format validation bypass | Medium | Resolved (v1.1.2) | Magic bytes signature checking |
 
 ---
 
@@ -427,6 +467,8 @@ Phase 4: Scale & Optimization  Q4 2026+    0% Future
 | Business Trip Feature | 2026-01-27 | ✓ DONE |
 | Export Functionality | 2026-02-03 | ✓ DONE |
 | Phase 2 Milestone 1 | 2026-02-07 | ✓ DONE |
+| Security Hardening Batch 1 (v1.1.1) | 2026-02-08 | ✓ DONE |
+| Security Hardening Batch 2 (v1.1.2) | 2026-02-08 | ✓ DONE |
 | Phase 2 Testing Complete | 2026-02-20 | ⚙️ IN PROGRESS |
 | Phase 2 Complete | 2026-03-15 | 📅 TARGET |
 | Phase 3 Planning | 2026-03-20 | 📅 PLANNED |

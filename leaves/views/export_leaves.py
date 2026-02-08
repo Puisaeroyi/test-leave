@@ -35,11 +35,13 @@ class ExportApprovedLeavesView(APIView):
                 "Invalid date format. Use YYYY-MM-DD.", status=400
             )
 
+        # Scope to HR user's entity for multi-tenant isolation
         queryset = (
             LeaveRequest.objects.filter(
                 status="APPROVED",
                 start_date__gte=start,
                 start_date__lte=end,
+                user__entity=request.user.entity,
             )
             .select_related(
                 "user",
@@ -51,6 +53,16 @@ class ExportApprovedLeavesView(APIView):
             )
             .order_by("start_date", "user__last_name")
         )
+
+        # Cap at 10,000 rows to prevent OOM
+        MAX_EXPORT_ROWS = 10000
+        total = queryset.count()
+        if total > MAX_EXPORT_ROWS:
+            return HttpResponse(
+                f"Export too large ({total} rows). Max {MAX_EXPORT_ROWS}. Narrow the date range.",
+                status=400,
+            )
+        queryset = queryset[:MAX_EXPORT_ROWS]
 
         wb = Workbook()
         ws = wb.active

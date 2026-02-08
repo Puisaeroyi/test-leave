@@ -288,8 +288,8 @@ class EntitySoftDeleteView(APIView):
 
 
 class EntityDeleteImpactView(APIView):
-    """Get deletion impact counts (authenticated users)"""
-    permission_classes = [IsAuthenticated]
+    """Get deletion impact counts (HR/Admin only)"""
+    permission_classes = [IsAuthenticated, IsHRAdmin]
 
     def get(self, request, *args, **kwargs):
         entity_id = kwargs.get('pk')

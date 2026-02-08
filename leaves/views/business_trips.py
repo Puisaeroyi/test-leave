@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from ..models import BusinessTrip
 from ..serializers import BusinessTripSerializer, BusinessTripCreateSerializer
 from ..constants import DEFAULT_PAGE_SIZE
-from ..utils import validate_leave_request_dates, check_overlapping_business_trips
+from ..utils import validate_leave_request_dates, check_overlapping_business_trips, validate_attachment_url
 
 
 class BusinessTripListCreateView(generics.ListCreateAPIView):
@@ -68,6 +68,12 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        # Validate attachment URL
+        attachment_url = data.get('attachment_url', '')
+        is_valid, error = validate_attachment_url(attachment_url)
+        if not is_valid:
+            return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
+
         # Create business trip (no approval workflow, no balance impact)
         trip = BusinessTrip.objects.create(
             user=user,
@@ -76,7 +82,7 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
             start_date=start_date,
             end_date=end_date,
             note=data.get('note', ''),
-            attachment_url=data.get('attachment_url', '')
+            attachment_url=attachment_url
         )
 
         return Response(BusinessTripSerializer(trip).data, status=status.HTTP_201_CREATED)

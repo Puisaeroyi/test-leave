@@ -67,18 +67,21 @@ class FileUploadView(APIView):
             b'\x89PNG': '.png',
             b'GIF87a': '.gif',
             b'GIF89a': '.gif',
-            b'RIFF': '.webp',  # WebP starts with RIFF
         }
 
-        # Read first 8 bytes to check magic bytes
-        file_header = uploaded_file.read(8)
+        # Read first 12 bytes to check magic bytes (WebP needs 12)
+        file_header = uploaded_file.read(12)
         uploaded_file.seek(0)  # Reset file pointer
 
         valid_magic = False
-        for magic, ext in MAGIC_BYTES.items():
-            if file_header.startswith(magic):
-                valid_magic = True
-                break
+        # WebP: RIFF????WEBP (bytes 0-3 = RIFF, bytes 8-11 = WEBP)
+        if file_header[:4] == b'RIFF' and file_header[8:12] == b'WEBP':
+            valid_magic = True
+        else:
+            for magic, ext in MAGIC_BYTES.items():
+                if file_header.startswith(magic):
+                    valid_magic = True
+                    break
 
         if not valid_magic:
             return Response({'error': 'File content does not match declared type'}, status=400)

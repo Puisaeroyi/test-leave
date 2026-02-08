@@ -1,12 +1,40 @@
 # Project Changelog
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-08
 
 ---
 
 ## Version History
 
 ### [Unreleased]
+
+#### Security Fixes (Batch 2 - 2026-02-08)
+
+**Input Validation & Access Control Hardening:**
+- security: fix attachment_url validation with regex pattern enforcement (/media/attachments/{uuid}.{ext})
+- security: add cross-year leave request rejection (block requests spanning multiple years)
+- security: implement entity active check on leave submission (deactivated entities blocked)
+- security: implement export OOM fix (10K row cap + entity-scoped export for HR)
+- security: harden notification pagination (page_size capped at 100, safe parsing)
+- security: fix WebP magic bytes validation (check full RIFF+WEBP 12-byte signature)
+- security: narrow DetailView to RetrieveAPIView only (prevent accidental PUT/DELETE)
+- security: require refresh token on logout endpoint (return 400 if missing)
+- security: soft-delete deactivates users on entity cascade
+- security: restrict EntityDeleteImpactView to HR/Admin only
+- security: include user count in entity deletion impact calculation
+
+#### Security Fixes (Batch 1 - 2026-02-08)
+
+**Race Condition & IDOR Vulnerability Fixes:**
+- security: fix race condition on leave creation with transaction.atomic + select_for_update on LeaveBalance
+- security: fix double-approve/reject race condition using select_for_update on LeaveRequest
+- security: replace hardcoded 80h EXEMPT_VACATION default with dynamic years-of-service calculation
+- security: add IDOR protection on leave request detail endpoint (owner/approver/HR only)
+- security: implement entity-scoped filtering on HR leave list (prevent cross-entity access)
+- security: fix change-password authentication (first_login requires no old_password, normal flow does)
+- security: add negative used_hours floor check on rejection to prevent balance overflow
+- security: implement safe null handling in _get_balance_type method
+- security: handle LeaveBalance.DoesNotExist gracefully in approve endpoint (return 400 instead of 500)
 
 #### Added
 
@@ -25,6 +53,45 @@
 - feat: service layer functions: soft_delete_entity_cascade(), get_entity_delete_impact()
 - feat: transaction-wrapped cascade operations for data integrity
 - feat: 31 comprehensive tests covering serializers, services, and API endpoints
+
+### v1.1.2 (2026-02-08) - Security Hardening Patch 2
+
+**Release Type:** Patch Release (Security Fixes)
+
+#### Security Fixes
+
+- fix: attachment URL validation regex enforcement
+- fix: prevent cross-year leave requests
+- fix: entity active check on leave submission
+- fix: export out-of-memory vulnerability (10K row cap)
+- fix: notification pagination hardening
+- fix: WebP magic bytes signature validation
+- fix: DetailView method restriction (RetrieveAPIView only)
+- fix: logout requires refresh token
+- fix: user deactivation on entity soft-delete
+- fix: EntityDeleteImpactView access control
+- fix: entity deletion impact includes user count
+
+**Migration:** No migration required. Immediate rollout recommended.
+
+---
+
+### v1.1.1 (2026-02-08) - Security Hardening Patch 1
+
+**Release Type:** Patch Release (Security Fixes)
+
+#### Security Fixes
+
+- fix: race condition on leave creation (concurrent balance updates)
+- fix: double-approve/reject race condition
+- fix: IDOR vulnerability on leave request detail endpoint
+- fix: cross-entity access in HR leave list
+- fix: weak authentication on password change endpoint
+- fix: potential balance overflow on rejection
+
+**Migration:** No migration required. Immediate rollout recommended.
+
+---
 
 ### v1.1.0 (2026-02-07) - Phase 2 Milestone 1
 
@@ -394,14 +461,25 @@ All APIs are stable and backward compatible.
 
 ### Critical Security Updates
 
-| Version | Date | Issue | CVE | Fixed |
-|---------|------|-------|-----|-------|
-| v1.0.1 | 2026-01-30 | JWT token leakage in error logs | TBD | Yes |
-| v1.0.2 | 2026-02-02 | CORS misconfiguration | TBD | Yes |
+| Version | Date | Issue | Severity | Fixed |
+|---------|------|-------|----------|-------|
+| v1.1.2 | 2026-02-08 | Attachment URL validation bypass | High | Yes |
+| v1.1.2 | 2026-02-08 | Cross-year leave request bypass | Medium | Yes |
+| v1.1.2 | 2026-02-08 | Export out-of-memory vulnerability | High | Yes |
+| v1.1.2 | 2026-02-08 | WebP file validation bypass | Medium | Yes |
+| v1.1.2 | 2026-02-08 | DetailView PUT/DELETE exposure | Medium | Yes |
+| v1.1.2 | 2026-02-08 | Logout missing token validation | Low | Yes |
+| v1.1.1 | 2026-02-08 | Race condition on leave creation | Critical | Yes |
+| v1.1.1 | 2026-02-08 | Double-approve/reject race condition | Critical | Yes |
+| v1.1.1 | 2026-02-08 | IDOR on leave request detail | High | Yes |
+| v1.1.1 | 2026-02-08 | Cross-entity access in HR list | High | Yes |
+| v1.1.1 | 2026-02-08 | Weak password change auth | Medium | Yes |
+| v1.0.1 | 2026-01-30 | JWT token leakage in error logs | Critical | Yes |
+| v1.0.2 | 2026-02-02 | CORS misconfiguration | High | Yes |
 
 ### Recommended Upgrades
 
-All users should upgrade to v1.1.0 for security and stability improvements.
+All users should upgrade to v1.1.2 for critical security fixes addressing input validation, access control, and resource management vulnerabilities.
 
 ---
 
@@ -409,8 +487,10 @@ All users should upgrade to v1.1.0 for security and stability improvements.
 
 | Version | Date | Environment | Status |
 |---------|------|-------------|--------|
-| v1.1.0 | 2026-02-07 | Staging | Ready for deployment |
-| v1.0.0 | 2026-01-27 | Production | Stable, 99.2% uptime |
+| v1.1.2 | 2026-02-08 | Staging | Ready for production deployment |
+| v1.1.1 | 2026-02-08 | Staging | Superseded by v1.1.2 |
+| v1.1.0 | 2026-02-07 | Staging | Superseded by v1.1.2 |
+| v1.0.0 | 2026-01-27 | Production | Stable, 99.2% uptime (upgrade to v1.1.2 recommended) |
 | v0.9.0 | 2026-01-20 | Beta | Archived |
 | v0.8.0 | 2026-01-15 | Dev | Archived |
 

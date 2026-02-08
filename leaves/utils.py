@@ -110,17 +110,35 @@ def get_holidays_for_user(user, start_date, end_date):
 
 def validate_leave_request_dates(start_date, end_date):
     """
-    Validate that end_date is >= start_date
-
-    Args:
-        start_date: date object
-        end_date: date object
+    Validate leave request dates: end >= start and same year.
 
     Returns:
         tuple: (is_valid, error_message)
     """
     if end_date < start_date:
         return False, "End date must be on or after start date"
+
+    if start_date.year != end_date.year:
+        return False, "Leave requests cannot span across years. Please submit separate requests for each year."
+
+    return True, None
+
+
+def validate_attachment_url(url):
+    """
+    Validate attachment_url matches expected media path pattern.
+    Accepts empty string (no attachment) or /media/attachments/{uuid}.{ext}
+
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    if not url:
+        return True, None
+
+    import re
+    pattern = r'^(https?://[^/]+)?/media/attachments/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|gif|webp)$'
+    if not re.match(pattern, url):
+        return False, "Invalid attachment URL. Must be a file uploaded through the upload endpoint."
 
     return True, None
 

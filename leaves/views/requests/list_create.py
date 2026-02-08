@@ -15,7 +15,8 @@ from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
     calculate_leave_hours,
-    validate_leave_request_dates
+    validate_leave_request_dates,
+    validate_attachment_url
 )
 from core.services.notification_service import create_leave_pending_notification
 import logging
@@ -128,6 +129,19 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
+        # Validate attachment URL if provided
+        attachment_url = data.get('attachment_url', '')
+        is_valid, error = validate_attachment_url(attachment_url)
+        if not is_valid:
+            return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Block submissions from deactivated entities
+        if user.entity and not user.entity.is_active:
+            return Response(
+                {'error': 'Your entity has been deactivated. Cannot submit leave requests.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Calculate hours
         try:
             total_hours = calculate_leave_hours(user, start_date, end_date, shift_type, start_time, end_time)
@@ -191,7 +205,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     end_time=end_time,
                     total_hours=total_hours,
                     reason=data.get('reason', ''),
-                    attachment_url=data.get('attachment_url', ''),
+                    attachment_url=attachment_url,
                     status='PENDING'
                 )
         except Exception as e:

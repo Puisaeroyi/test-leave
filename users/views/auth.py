@@ -57,7 +57,7 @@ class LoginView(generics.GenericAPIView):
 
 class ChangePasswordView(generics.GenericAPIView):
     """
-    Change password endpoint (used for first login and general password change)
+    Change password endpoint (first login only).
     POST /api/v1/auth/change-password/
     """
 
@@ -66,24 +66,17 @@ class ChangePasswordView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         from users.serializers import ChangePasswordSerializer
 
-        serializer = ChangePasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
         user = request.user
 
-        # Require old password verification unless first login
+        # Only allow password change on first login
         if not user.first_login:
-            old_password = serializer.validated_data.get('old_password')
-            if not old_password:
-                return Response(
-                    {'error': 'old_password is required for non-first-login password changes'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            if not user.check_password(old_password):
-                return Response(
-                    {'error': 'Current password is incorrect'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            return Response(
+                {'error': 'Password has already been changed. Contact HR to reset.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
         user.set_password(serializer.validated_data['password'])
         user.first_login = False
@@ -104,14 +97,19 @@ class LogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response(
+                {'error': 'Refresh token is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
-            refresh_token = request.data.get('refresh')
-            if refresh_token:
-                from rest_framework_simplejwt.tokens import RefreshToken
-                token = RefreshToken(refresh_token)
-                token.blacklist()
+            from rest_framework_simplejwt.tokens import RefreshToken
+            token = RefreshToken(refresh_token)
+            token.blacklist()
             return Response({'message': 'Successfully logged out'}, status=status.HTTP_200_OK)
-        except Exception as e:
+        except Exception:
             return Response(
                 {'error': 'Invalid token or already logged out'},
                 status=status.HTTP_400_BAD_REQUEST

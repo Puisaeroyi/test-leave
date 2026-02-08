@@ -14,10 +14,14 @@ class NotificationListView(generics.GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         """Return paginated list of user's notifications"""
-        # Get query parameters
+        # Get query parameters with safe parsing
         is_read = request.query_params.get('is_read')
-        page = int(request.query_params.get('page', 1))
-        page_size = int(request.query_params.get('page_size', 20))
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', 20))))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = 20
 
         # Get base queryset
         notifications = Notification.objects.filter(user=request.user).order_by('-created_at')
