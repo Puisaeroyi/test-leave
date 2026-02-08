@@ -188,11 +188,17 @@ class LeaveApprovalService:
 
         # Deduct from balance (find by balance_type)
         balance_type = LeaveApprovalService._get_balance_type(leave_request)
-        balance = LeaveBalance.objects.select_for_update().get(
-            user=leave_request.user,
-            year=leave_request.start_date.year,
-            balance_type=balance_type
-        )
+        try:
+            balance = LeaveBalance.objects.select_for_update().get(
+                user=leave_request.user,
+                year=leave_request.start_date.year,
+                balance_type=balance_type
+            )
+        except LeaveBalance.DoesNotExist:
+            raise ValueError(
+                f"No {balance_type} balance found for year {leave_request.start_date.year}. "
+                "Cannot approve without an existing balance record."
+            )
         balance.used_hours += leave_request.total_hours
         balance.save()
 
@@ -224,7 +230,8 @@ class LeaveApprovalService:
         Returns:
             str: BalanceType key (e.g., 'EXEMPT_VACATION')
         """
-        is_vacation = leave_request.leave_category and leave_request.leave_category.code.lower() == 'vacation'
+        category = leave_request.leave_category
+        is_vacation = category is not None and hasattr(category, 'code') and category.code and category.code.lower() == 'vacation'
         is_exempt = leave_request.exempt_type == 'EXEMPT'
 
         if is_vacation:
@@ -280,7 +287,7 @@ class LeaveApprovalService:
                 year=leave_request.start_date.year,
                 balance_type=balance_type
             )
-            balance.used_hours -= leave_request.total_hours
+            balance.used_hours = max(Decimal('0.00'), balance.used_hours - leave_request.total_hours)
             balance.save()
 
         # Store old status for audit

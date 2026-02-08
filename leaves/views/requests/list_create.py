@@ -5,11 +5,12 @@ from decimal import Decimal
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db import transaction
 from django.db.models import Q
 
 from ...models import LeaveRequest, LeaveBalance, LeaveCategory
 from ...serializers import LeaveRequestSerializer
-from ...services import LeaveApprovalService
+from ...services import LeaveApprovalService, calculate_exempt_vacation_hours
 from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
@@ -44,9 +45,9 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             # Get user's own requests
             queryset = LeaveRequest.objects.filter(user=user)
         else:
-            # HR/Admin can see all
+            # HR/Admin see requests within their entity only
             if user.role in ['HR', 'ADMIN']:
-                queryset = LeaveRequest.objects.all()
+                queryset = LeaveRequest.objects.filter(user__entity=user.entity)
             else:
                 queryset = LeaveRequest.objects.filter(user=user)
 
@@ -146,49 +147,64 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         else:
             balance_type = 'EXEMPT_SICK' if exempt_type == 'EXEMPT' else 'NON_EXEMPT_SICK'
 
-        # Check balance
+        # Check balance + create request inside transaction to prevent race conditions
         year = start_date.year
-        default_allocation = {
-            'EXEMPT_VACATION': Decimal('80.00'),
-            'NON_EXEMPT_VACATION': Decimal('40.00'),
-            'EXEMPT_SICK': Decimal('40.00'),
-            'NON_EXEMPT_SICK': Decimal('40.00'),
-        }
-        default_hours = default_allocation.get(balance_type, Decimal('40.00'))
-        balance, _ = LeaveBalance.objects.get_or_create(
-            user=user,
-            year=year,
-            balance_type=balance_type,
-            defaults={'allocated_hours': default_hours}
-        )
 
-        if total_hours > balance.remaining_hours:
+        # Calculate proper default allocation (YoS-based for EXEMPT_VACATION)
+        if balance_type == 'EXEMPT_VACATION':
+            from datetime import date
+            reference_date = date(year, 1, 1)
+            default_hours = calculate_exempt_vacation_hours(user.join_date, reference_date)
+        else:
+            default_allocation = {
+                'NON_EXEMPT_VACATION': Decimal('40.00'),
+                'EXEMPT_SICK': Decimal('40.00'),
+                'NON_EXEMPT_SICK': Decimal('40.00'),
+            }
+            default_hours = default_allocation.get(balance_type, Decimal('40.00'))
+
+        try:
+            with transaction.atomic():
+                # Lock balance row to prevent concurrent overdraw
+                balance, _ = LeaveBalance.objects.select_for_update().get_or_create(
+                    user=user,
+                    year=year,
+                    balance_type=balance_type,
+                    defaults={'allocated_hours': default_hours}
+                )
+
+                if total_hours > balance.remaining_hours:
+                    return Response(
+                        {'error': f'Insufficient balance. Requested: {total_hours}h, Available: {balance.remaining_hours}h'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Create request inside same transaction
+                leave_request = LeaveRequest.objects.create(
+                    user=user,
+                    leave_category_id=category_id,
+                    exempt_type=exempt_type,
+                    start_date=start_date,
+                    end_date=end_date,
+                    shift_type=shift_type,
+                    start_time=start_time,
+                    end_time=end_time,
+                    total_hours=total_hours,
+                    reason=data.get('reason', ''),
+                    attachment_url=data.get('attachment_url', ''),
+                    status='PENDING'
+                )
+        except Exception as e:
+            logger.error(f"Error creating leave request: {e}")
             return Response(
-                {'error': f'Insufficient balance. Requested: {total_hours}h, Available: {balance.remaining_hours}h'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Failed to create leave request. Please try again.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Create request
-        leave_request = LeaveRequest.objects.create(
-            user=user,
-            leave_category_id=category_id,
-            exempt_type=exempt_type,
-            start_date=start_date,
-            end_date=end_date,
-            shift_type=shift_type,
-            start_time=start_time,
-            end_time=end_time,
-            total_hours=total_hours,
-            reason=data.get('reason', ''),
-            attachment_url=data.get('attachment_url', ''),
-            status='PENDING'
-        )
-
-        # Notify the assigned approver
+        # Notify the assigned approver (outside transaction for performance)
         if user.approver:
             create_leave_pending_notification(user.approver, leave_request)
         else:
-            # Log warning: no approver assigned
             logger.warning(f"User {user.email} has no approver assigned - no notification sent for leave request {leave_request.id}")
 
         serializer = LeaveRequestSerializer(leave_request)

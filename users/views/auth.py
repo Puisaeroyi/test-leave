@@ -70,6 +70,21 @@ class ChangePasswordView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
 
         user = request.user
+
+        # Require old password verification unless first login
+        if not user.first_login:
+            old_password = serializer.validated_data.get('old_password')
+            if not old_password:
+                return Response(
+                    {'error': 'old_password is required for non-first-login password changes'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not user.check_password(old_password):
+                return Response(
+                    {'error': 'Current password is incorrect'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
         user.set_password(serializer.validated_data['password'])
         user.first_login = False
         user.save(update_fields=['password', 'first_login'])

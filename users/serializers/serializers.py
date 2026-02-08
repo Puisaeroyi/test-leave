@@ -144,6 +144,11 @@ class LoginSerializer(serializers.Serializer):
 
 class ChangePasswordSerializer(serializers.Serializer):
     """Serializer for changing password (first login or general)"""
+    old_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        style={'input_type': 'password'}
+    )
     password = serializers.CharField(
         write_only=True,
         required=True,

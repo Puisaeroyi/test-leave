@@ -5,6 +5,7 @@ from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError
+from django.db import transaction
 
 from ...models import LeaveRequest
 from ...serializers import LeaveRequestRejectSerializer
@@ -22,31 +23,34 @@ class LeaveRequestRejectView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         """POST /api/v1/leaves/requests/{id}/reject/"""
         request_id = kwargs.get('pk')
-        try:
-            leave_request = LeaveRequest.objects.get(id=request_id)
-        except LeaveRequest.DoesNotExist:
-            return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if user can approve this request
-        if not LeaveApprovalService.can_manager_approve_request(request.user, leave_request):
-            return Response(
-                {'error': 'You do not have permission to reject this request'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Validate request
+        # Validate request body first
         serializer = LeaveRequestRejectSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
-            # Reject the request
-            rejected_request = LeaveApprovalService.reject_leave_request(
-                leave_request,
-                request.user,
-                serializer.validated_data['reason']
-            )
+            with transaction.atomic():
+                # Lock the leave request row to prevent double-reject race
+                try:
+                    leave_request = LeaveRequest.objects.select_for_update().get(id=request_id)
+                except LeaveRequest.DoesNotExist:
+                    return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Create notification for employee
+                # Check if user can reject this request
+                if not LeaveApprovalService.can_manager_approve_request(request.user, leave_request):
+                    return Response(
+                        {'error': 'You do not have permission to reject this request'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+
+                # Reject the request
+                rejected_request = LeaveApprovalService.reject_leave_request(
+                    leave_request,
+                    request.user,
+                    serializer.validated_data['reason']
+                )
+
+            # Create notification outside transaction for performance
             create_leave_rejected_notification(rejected_request)
 
             return Response({
