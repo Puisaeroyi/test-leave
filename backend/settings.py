@@ -108,6 +108,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -171,9 +172,8 @@ DATABASES = {
 # Security Settings
 # https://docs.djangoproject.com/en/6.0/topics/security/
 
-# Proxy SSL Header (if behind reverse proxy like nginx, AWS ELB, Cloudflare)
-# Uncomment if deploying behind reverse proxy
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Proxy SSL Header (behind reverse proxy like nginx, Caddy, AWS ELB, Cloudflare)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SSL Redirect Exemptions (for health checks)
 if not DEBUG:
@@ -226,6 +226,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [BASE_DIR / 'users' / 'static']
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Media files (User uploads)
 MEDIA_URL = '/media/'
