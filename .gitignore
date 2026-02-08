@@ -79,6 +79,9 @@ ck.md
 .gemini/settings.json
 .claude/settings.bak.json
 
+# Django static files (collected by collectstatic)
+staticfiles/
+
 # Django media files (user uploads)
 media/
 
