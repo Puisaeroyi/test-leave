@@ -226,4 +226,4 @@ class BusinessTripCreateSerializer(serializers.Serializer):
         error_messages={'required': 'Country is required'}
     )
     note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
-    attachment_url = serializers.URLField(required=False, allow_blank=True, max_length=500)
+    attachment_url = serializers.CharField(required=False, allow_blank=True, max_length=500)

@@ -136,8 +136,8 @@ def validate_attachment_url(url):
         return True, None
 
     import re
-    pattern = r'^(https?://[^/]+)?/media/attachments/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(pdf|jpg|png|gif|webp)$'
-    if not re.match(pattern, url):
+    pattern = r'^(https?://[^/]+)?/media/attachments/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.(pdf|jpe?g|png|gif|webp)$'
+    if not re.match(pattern, url, re.IGNORECASE):
         return False, "Invalid attachment URL. Must be a file uploaded through the upload endpoint."
 
     return True, None

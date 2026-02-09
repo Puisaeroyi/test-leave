@@ -85,7 +85,7 @@ class LeaveRequest(models.Model):
     end_time = models.TimeField(null=True, blank=True)
     total_hours = models.DecimalField(max_digits=5, decimal_places=2)
     reason = models.TextField(blank=True)
-    attachment_url = models.URLField(max_length=500, blank=True, null=True)
+    attachment_url = models.CharField(max_length=500, blank=True, null=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
     approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -160,7 +160,7 @@ class BusinessTrip(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     note = models.TextField(blank=True)
-    attachment_url = models.URLField(max_length=500, blank=True, null=True)
+    attachment_url = models.CharField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

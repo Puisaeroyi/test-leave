@@ -10,7 +10,7 @@ export const uploadFile = async (file) => {
 
   const res = await http.post(`${API_URL}/upload/`, formData, {
     headers: {
-      'Content-Type': 'multipart/form-data',
+      'Content-Type': undefined, // Let axios auto-set multipart/form-data with boundary
     },
   });
   return res.data; // { url, filename, size, type }
