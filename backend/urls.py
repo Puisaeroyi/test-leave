@@ -2,7 +2,8 @@
 URL configuration for backend project.
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
+from django.views.static import serve
 from django.http import JsonResponse
 from django.conf import settings
 from django.conf.urls.static import static
@@ -56,7 +57,11 @@ if settings.DEBUG:
         path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
     ]
 
-# Serve media and static files in development only
+# Serve media files in all environments (WhiteNoise only handles static, not media)
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
+]
+
+# Serve static files in development only (WhiteNoise handles prod)
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
