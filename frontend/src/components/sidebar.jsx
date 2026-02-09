@@ -7,6 +7,7 @@ import {
   TeamOutlined,
   RocketOutlined,
   SendOutlined,
+  CustomerServiceOutlined,
 } from "@ant-design/icons";
 import logo from "@/assets/logo.png";
 
@@ -50,6 +51,13 @@ export default function Sidebar() {
     });
   }
 
+  // Support link - always at the bottom
+  items.push({
+    key: "/support",
+    icon: <CustomerServiceOutlined />,
+    label: "Support",
+  });
+
   return (
     <Sider
       width={220}
@@ -65,7 +73,9 @@ export default function Sidebar() {
           alignItems: "center",
           justifyContent: "center",
           background: "#4A5C80",
+          cursor: "pointer",
         }}
+        onClick={() => navigate("/dashboard")}
       >
         <img
           src={logo}

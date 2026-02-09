@@ -12,6 +12,7 @@ import TeamCalendar from "@pages/Calendar";
 import ManagerTickets from "@pages/ManagerTicket";
 import BusinessTripHistory from "@pages/BusinessTripHistory";
 import BusinessTripTickets from "@pages/BusinessTripTickets";
+import Support from "@pages/Support";
 
 
 export default function App() {
@@ -36,6 +37,7 @@ export default function App() {
             <Route path="/manager" element={<ManagerTickets />} />
             <Route path="/business-trip" element={<BusinessTripHistory />} />
             <Route path="/business-trip-tickets" element={<BusinessTripTickets />} />
+            <Route path="/support" element={<Support />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/login" />} />
