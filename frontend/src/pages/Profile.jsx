@@ -1,15 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, Avatar, Typography, Descriptions, Tag, Button, message } from "antd";
-import { UserOutlined } from "@ant-design/icons";
+import { UserOutlined, CameraOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser } from "../api/authApi";
+import { getCurrentUser, updateAvatar } from "../api/authApi";
+import { useAuth } from "@auth/authContext";
 
 const { Title, Text } = Typography;
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { updateUser } = useAuth();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchUserProfile();
@@ -32,6 +36,45 @@ export default function Profile() {
     }
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      message.error('Invalid file type. Please upload JPG, PNG, GIF, or WebP.');
+      return;
+    }
+
+    // Validate file size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      message.error('File size exceeds 2MB limit.');
+      return;
+    }
+
+    try {
+      setAvatarLoading(true);
+      const updatedUser = await updateAvatar(file);
+      setUser(updatedUser);
+      updateUser(updatedUser); // Update auth context for header
+      message.success('Avatar updated successfully!');
+    } catch (error) {
+      console.error("Failed to update avatar:", error);
+      message.error(error.response?.data?.error || 'Failed to update avatar');
+    } finally {
+      setAvatarLoading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   if (loading) {
     return <Text>Loading...</Text>;
   }
@@ -43,13 +86,19 @@ export default function Profile() {
   const displayName = `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email;
 
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "32px auto",
-        padding: "0 16px",
-      }}
-    >
+    <>
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+      <div
+        style={{
+          maxWidth: 900,
+          margin: "32px auto",
+          padding: "0 16px",
+        }}
+      >
       <Card
         style={{
           borderRadius: 12,
@@ -58,7 +107,73 @@ export default function Profile() {
       >
         {/* HEADER */}
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
-          <Avatar size={96} src={user.avatar_url} icon={<UserOutlined />} />
+          <div style={{ position: "relative", display: "inline-block" }}>
+            <Avatar
+              size={96}
+              src={user.avatar_url}
+              icon={<UserOutlined />}
+              style={{
+                cursor: avatarLoading ? "default" : "pointer",
+                opacity: avatarLoading ? 0.6 : 1,
+              }}
+              onClick={avatarLoading ? undefined : handleAvatarClick}
+            />
+            {!avatarLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  background: "#1890ff",
+                  borderRadius: "50%",
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  border: "2px solid #fff",
+                }}
+                onClick={handleAvatarClick}
+              >
+                <CameraOutlined style={{ color: "#fff", fontSize: 14 }} />
+              </div>
+            )}
+            {avatarLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  background: "rgba(0,0,0,0.6)",
+                  borderRadius: "50%",
+                  width: 28,
+                  height: 28,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: 12,
+                    height: 12,
+                    border: "2px solid #fff",
+                    borderTopColor: "transparent",
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
 
           <div>
             <Title level={3} style={{ marginBottom: 4 }}>
@@ -125,5 +240,6 @@ export default function Profile() {
         </div>
       </Card>
     </div>
+    </>
   );
 }

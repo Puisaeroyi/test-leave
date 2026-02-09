@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
     lastName: userData.last_name,
     name: `${userData.first_name} ${userData.last_name}`,
     firstLogin: userData.first_login,
+    avatar: userData.avatar_url || null,
     entity: {
       id: userData.entity_id,
       name: userData.entity_name,

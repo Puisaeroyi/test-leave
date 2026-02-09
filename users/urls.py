@@ -12,6 +12,7 @@ from .views import (
     LogoutView,
     UserMeView,
     UserBalanceAdjustView,
+    AvatarUpdateView,
 )
 from .viewsets import UserViewSet
 
@@ -30,6 +31,7 @@ urlpatterns = [
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('me/', UserMeView.as_view(), name='user_me'),
+    path('avatar/', AvatarUpdateView.as_view(), name='avatar_update'),
 
     # User management (HR/Admin)
     path('<uuid:pk>/balance/adjust/', UserBalanceAdjustView.as_view(), name='user_balance_adjust'),

@@ -73,6 +73,18 @@ export async function getCurrentUser() {
   return res.data;
 }
 
+export async function updateAvatar(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await http.post(`${API_URL}/avatar/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return res.data;
+}
+
 // Organization APIs for registration dropdowns
 const ORG_API_URL = `/organizations`;
 
