@@ -302,20 +302,26 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+] + [
+    f'https://{host}' for host in ALLOWED_HOSTS
+    if host not in ('localhost', '127.0.0.1', '[::1]', 'backend')
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF Trusted Origins
 if DEBUG:
-    # Dev: allow all localhost origins with any port
     CSRF_TRUSTED_ORIGINS = [
         'http://localhost:*',
         'http://127.0.0.1:*',
         'http://[::1]:*',
     ]
+    # Also trust any non-localhost ALLOWED_HOSTS via HTTPS (e.g. public domain in dev)
+    CSRF_TRUSTED_ORIGINS += [
+        f'https://{host}' for host in ALLOWED_HOSTS
+        if host not in ('localhost', '127.0.0.1', '[::1]', 'backend')
+    ]
 else:
-    # Prod: generate from ALLOWED_HOSTS with HTTPS
     CSRF_TRUSTED_ORIGINS = [
         f'https://{host}' for host in ALLOWED_HOSTS
     ]
