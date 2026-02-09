@@ -58,3 +58,16 @@ export async function cancelBusinessTrip(id) {
   const res = await http.post(`${API_URL}/${id}/cancel/`);
   return res.data;
 }
+
+/**
+ * Get business trips for team/subordinates (manager/approver view)
+ * @param {Object} params - Query params { page, page_size }
+ * @returns {Promise<{count: number, results: []}>}
+ */
+export async function getTeamBusinessTrips(params = {}) {
+  const { page = 1, page_size = 20 } = params;
+  const res = await http.get(`${API_URL}/team/`, {
+    params: { page, page_size },
+  });
+  return res.data;
+}

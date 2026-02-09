@@ -6,6 +6,7 @@ import {
   CalendarOutlined,
   TeamOutlined,
   RocketOutlined,
+  SendOutlined,
 } from "@ant-design/icons";
 import logo from "@/assets/logo.png";
 
@@ -41,6 +42,11 @@ export default function Sidebar() {
       key: "/manager",
       icon: <TeamOutlined />,
       label: "Manager Ticket",
+    });
+    items.push({
+      key: "/business-trip-tickets",
+      icon: <SendOutlined />,
+      label: "Business Trip Ticket",
     });
   }
 

@@ -1,12 +1,28 @@
 # Project Changelog
 
-**Last Updated:** 2026-02-08
+**Last Updated:** 2026-02-10
 
 ---
 
 ## Version History
 
 ### [Unreleased]
+
+#### Business Trip Tickets for Approvers (2026-02-10)
+
+**Read-Only Team Visibility Feature:**
+- feat: add `BusinessTripTeamListView` endpoint for managers to view subordinates' business trips
+- feat: add defensive `.exclude(user=request.user)` filter to prevent self-inclusion
+- feat: implement frontend `BusinessTripTickets.jsx` page with pagination and detail modal
+- feat: add sidebar menu item "Business Trip Ticket" (visible to MANAGER/HR/ADMIN/isApprover)
+- feat: add `getTeamBusinessTrips()` API function in frontend
+- feat: add route `/business-trip-tickets` in App.jsx
+- feat: consistent styling with existing pages (Card wrapper, geekblue Tag for destinations)
+- feat: empty state handling with "No business trips found for your team."
+- feat: detail modal shows employee name, city, country, date range, note, attachment link
+- security: approver-relationship-based access control (server-side enforcement)
+- security: read-only interface (no approve/deny/cancel buttons)
+- security: attachment links open in new tab with `rel="noopener noreferrer"`
 
 #### Security Fixes (Batch 2 - 2026-02-08)
 

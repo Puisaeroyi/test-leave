@@ -115,3 +115,32 @@ class BusinessTripCancelView(generics.GenericAPIView):
         trip.delete()
 
         return Response({'message': 'Business trip cancelled successfully'}, status=status.HTTP_200_OK)
+
+
+class BusinessTripTeamListView(generics.ListAPIView):
+    """List business trips for manager's subordinates (read-only)"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        """GET /api/v1/leaves/business-trips/team/ - List subordinates' business trips"""
+        queryset = BusinessTrip.objects.filter(
+            user__approver=request.user
+        ).exclude(
+            user=request.user
+        ).select_related('user').order_by('-start_date')
+
+        # Pagination with DoS protection
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+            page_size = min(100, max(1, int(request.query_params.get('page_size', DEFAULT_PAGE_SIZE))))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = DEFAULT_PAGE_SIZE
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total = queryset.count()
+        items = queryset[start:end]
+
+        serializer = BusinessTripSerializer(items, many=True)
+        return Response({'count': total, 'results': serializer.data})
