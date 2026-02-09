@@ -100,8 +100,8 @@ class FileUploadView(APIView):
         file_path = os.path.join('attachments', unique_filename)
         saved_path = default_storage.save(file_path, uploaded_file)
 
-        # Return the URL to access the file
-        file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+        # Return relative URL - reverse proxy provides the correct domain
+        file_url = settings.MEDIA_URL + saved_path
 
         return Response({
             'url': file_url,
