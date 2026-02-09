@@ -54,7 +54,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=https://leave.oanhhong.xyz/api/v1
+      - VITE_API_URL=https://leave.oanhhong.xyz
     depends_on:
       - backend
 
