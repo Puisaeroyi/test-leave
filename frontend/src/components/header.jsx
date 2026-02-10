@@ -247,7 +247,7 @@ export default function AppHeader() {
         </Dropdown>
 
         {/* PROFILE */}
-        <Dropdown trigger={["hover"]} menu={{ items: menuItems }}>
+        <Dropdown trigger={["click"]} menu={{ items: menuItems }}>
           <Avatar
             src={user.avatar}
             size={40}

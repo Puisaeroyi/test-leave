@@ -8,7 +8,7 @@ import {
   Checkbox,
 } from "antd";
 import { login as loginApi } from "@api/authApi";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@auth/authContext";
 
 const { Title, Text } = Typography;
@@ -72,7 +72,7 @@ export default function Login() {
             label="Email"
             rules={[{ required: true, message: "Please input your email" }]}
           >
-            <Input placeholder="yourname@teampl.com" />
+            <Input placeholder="Enter your company email" />
           </Form.Item>
 
           <Form.Item
@@ -83,16 +83,9 @@ export default function Login() {
             <Input.Password placeholder="Enter your password" />
           </Form.Item>
 
-          {/* REMEMBER + FORGOT */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: 16,
-            }}
-          >
+          {/* REMEMBER */}
+          <div style={{ marginBottom: 16 }}>
             <Checkbox>Remember password</Checkbox>
-            <Link to="/forgot-password">Forgot password?</Link>
           </div>
 
           {/* LOGIN BUTTON */}
