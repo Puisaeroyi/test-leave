@@ -3,7 +3,7 @@
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.contrib.auth import login
+from django.utils import timezone
 
 from ..utils import build_user_response
 
@@ -47,8 +47,9 @@ class LoginView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
 
-        # Update last login
-        login(request, user)
+        # Update last login (no session needed — JWT handles auth)
+        user.last_login = timezone.now()
+        user.save(update_fields=['last_login'])
 
         return Response({
             'user': build_user_response(user, include_tokens=True)

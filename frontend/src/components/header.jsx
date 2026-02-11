@@ -15,6 +15,7 @@ import {
   LogoutOutlined,
   BellOutlined,
   CheckOutlined,
+  CloseOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
@@ -28,7 +29,7 @@ dayjs.extend(relativeTime);
 const { Header } = Layout;
 
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick }) => {
+const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick, dismissNotification, dismissAll }) => {
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
@@ -50,16 +51,29 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
         }}
       >
         <Typography.Text strong>Notifications</Typography.Text>
-        {hasUnread && (
-          <Button
-            type="link"
-            size="small"
-            icon={<CheckOutlined />}
-            onClick={markAllAsRead}
-          >
-            Mark all read
-          </Button>
-        )}
+        <Space size={4}>
+          {hasUnread && (
+            <Button
+              type="link"
+              size="small"
+              icon={<CheckOutlined />}
+              onClick={markAllAsRead}
+            >
+              Mark all read
+            </Button>
+          )}
+          {notifications.length > 0 && (
+            <Button
+              type="link"
+              size="small"
+              icon={<CloseOutlined />}
+              onClick={dismissAll}
+              style={{ color: "#999" }}
+            >
+              Dismiss all
+            </Button>
+          )}
+        </Space>
       </div>
       <Divider style={{ margin: "8px 0" }} />
 
@@ -89,6 +103,18 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
                   : "#f0f7ff")
               }
               onClick={() => onNotificationClick(item)}
+              extra={
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloseOutlined />}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissNotification(item.id);
+                  }}
+                  style={{ color: "#999", fontSize: 12 }}
+                />
+              }
             >
               <List.Item.Meta
                 avatar={
@@ -131,7 +157,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { notifications, unreadCount, markAsRead, markAllAsRead } =
+  const { notifications, unreadCount, markAsRead, markAllAsRead, dismissNotification, dismissAll } =
     useNotifications();
 
   if (!user) return null;
@@ -231,6 +257,8 @@ export default function AppHeader() {
               markAsRead={markAsRead}
               markAllAsRead={markAllAsRead}
               onNotificationClick={handleNotificationClick}
+              dismissNotification={dismissNotification}
+              dismissAll={dismissAll}
             />
           )}
           placement="bottomRight"

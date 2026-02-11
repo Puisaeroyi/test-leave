@@ -306,18 +306,17 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-# CSRF Trusted Origins
+# CSRF Trusted Origins — always include ALLOWED_HOSTS with HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    f'https://{host}' for host in ALLOWED_HOSTS
+    if host not in ('localhost', '127.0.0.1', '[::1]', 'backend')
+]
 if DEBUG:
-    # Dev: allow all localhost origins with any port
-    CSRF_TRUSTED_ORIGINS = [
+    # Dev: also allow localhost origins with any port
+    CSRF_TRUSTED_ORIGINS += [
         'http://localhost:*',
         'http://127.0.0.1:*',
         'http://[::1]:*',
-    ]
-else:
-    # Prod: generate from ALLOWED_HOSTS with HTTPS
-    CSRF_TRUSTED_ORIGINS = [
-        f'https://{host}' for host in ALLOWED_HOSTS
     ]
 
 # Secure Cookie Settings

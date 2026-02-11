@@ -53,6 +53,23 @@ export function useNotifications() {
     }
   }, []);
 
+  // Dismiss notification from view (client-side only, no DB change)
+  const dismissNotification = useCallback((id) => {
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.id === id);
+      if (target && !target.is_read) {
+        setUnreadCount((c) => Math.max(0, c - 1));
+      }
+      return prev.filter((n) => n.id !== id);
+    });
+  }, []);
+
+  // Dismiss all notifications from view (client-side only, no DB change)
+  const dismissAll = useCallback(() => {
+    setNotifications([]);
+    setUnreadCount(0);
+  }, []);
+
   // Mark all as read
   const handleMarkAllAsRead = useCallback(async () => {
     try {
@@ -84,5 +101,7 @@ export function useNotifications() {
     fetchNotifications,
     markAsRead: handleMarkAsRead,
     markAllAsRead: handleMarkAllAsRead,
+    dismissNotification,
+    dismissAll,
   };
 }
