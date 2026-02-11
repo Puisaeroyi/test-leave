@@ -7,13 +7,28 @@ const http = axios.create({
   },
 });
 
-// Request interceptor: add Bearer token to all requests
+// Generate UUID v4 for idempotency keys
+const generateIdempotencyKey = () => {
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+// Request interceptor: add Bearer token and idempotency key
 http.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("access");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Add idempotency key for mutating requests (prevents duplicate submissions)
+    if (["post", "put", "patch"].includes(config.method?.toLowerCase())) {
+      config.headers["X-Idempotency-Key"] = generateIdempotencyKey();
+    }
+
     return config;
   },
   (error) => Promise.reject(error)

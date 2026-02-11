@@ -27,7 +27,6 @@ services:
       sh -c "
         python manage.py migrate --noinput &&
         python manage.py collectstatic --noinput &&
-        python manage.py seed_data &&
         gunicorn --bind 0.0.0.0:8000 --workers 4 --threads 4 --timeout 60 --access-logfile - --error-logfile - backend.wsgi:application
       "
     volumes:
@@ -54,7 +53,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=https://leave.oanhhong.xyz
+      - VITE_API_URL=https://mana.oanhhong.xyz
     depends_on:
       - backend
 

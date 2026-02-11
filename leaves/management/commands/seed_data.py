@@ -135,11 +135,13 @@ class Command(BaseCommand):
         if created:
             hr_user.set_password('Hr123456!')
             hr_user.save()
-            LeaveBalance.objects.get_or_create(
-                user=hr_user,
-                year=2026,
-                defaults={'allocated_hours': Decimal('96.00')}
-            )
+            for balance_type in LeaveBalance.BalanceType.values:
+                LeaveBalance.objects.get_or_create(
+                    user=hr_user,
+                    year=2026,
+                    balance_type=balance_type,
+                    defaults={'allocated_hours': Decimal('96.00')}
+                )
             self.stdout.write(self.style.SUCCESS(f'  HR: {hr_user.email} (password: Hr123456!)'))
         else:
             self.stdout.write(f'  HR: {hr_user.email} (already exists)')
@@ -160,11 +162,13 @@ class Command(BaseCommand):
         if created:
             manager.set_password('Manager123!')
             manager.save()
-            LeaveBalance.objects.get_or_create(
-                user=manager,
-                year=2026,
-                defaults={'allocated_hours': Decimal('96.00')}
-            )
+            for balance_type in LeaveBalance.BalanceType.values:
+                LeaveBalance.objects.get_or_create(
+                    user=manager,
+                    year=2026,
+                    balance_type=balance_type,
+                    defaults={'allocated_hours': Decimal('96.00')}
+                )
             self.stdout.write(self.style.SUCCESS(f'  Manager: {manager.email} (password: Manager123!)'))
         else:
             self.stdout.write(f'  Manager: {manager.email} (already exists)')
@@ -185,11 +189,13 @@ class Command(BaseCommand):
         if created:
             employee.set_password('Employee123!')
             employee.save()
-            LeaveBalance.objects.get_or_create(
-                user=employee,
-                year=2026,
-                defaults={'allocated_hours': Decimal('96.00')}
-            )
+            for balance_type in LeaveBalance.BalanceType.values:
+                LeaveBalance.objects.get_or_create(
+                    user=employee,
+                    year=2026,
+                    balance_type=balance_type,
+                    defaults={'allocated_hours': Decimal('96.00')}
+                )
             self.stdout.write(self.style.SUCCESS(f'  Employee: {employee.email} (password: Employee123!)'))
         else:
             self.stdout.write(f'  Employee: {employee.email} (already exists)')
