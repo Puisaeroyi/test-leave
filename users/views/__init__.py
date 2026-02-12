@@ -1,6 +1,6 @@
 """User management views."""
 
-from .auth import RegisterView, LoginView, ChangePasswordView, LogoutView
+from .auth import RegisterView, LoginView, ChangePasswordView, LogoutView, GoogleOAuthView
 from .profile import UserMeView
 from .management import get_entity_options
 from .balance import UserBalanceAdjustView
@@ -11,6 +11,7 @@ __all__ = [
     'LoginView',
     'ChangePasswordView',
     'LogoutView',
+    'GoogleOAuthView',
     'UserMeView',
     'get_entity_options',
     'UserBalanceAdjustView',

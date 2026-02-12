@@ -10,6 +10,7 @@ from .views import (
     LoginView,
     ChangePasswordView,
     LogoutView,
+    GoogleOAuthView,
     UserMeView,
     UserBalanceAdjustView,
     AvatarUpdateView,
@@ -27,6 +28,7 @@ urlpatterns = [
     # Authentication
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('google/', GoogleOAuthView.as_view(), name='google_oauth'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),
     path('logout/', LogoutView.as_view(), name='logout'),

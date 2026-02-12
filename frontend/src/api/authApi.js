@@ -102,3 +102,21 @@ export async function getDepartments(locationId) {
   const res = await http.get(`${ORG_API_URL}/departments/?location_id=${locationId}`);
   return res.data;
 }
+
+export async function googleLogin(idToken) {
+  const res = await http.post(`${API_URL}/google/`, {
+    id_token: idToken,
+  });
+
+  if (!res.data.user) {
+    throw new Error("Google authentication failed");
+  }
+
+  // Store tokens in localStorage
+  if (res.data.user.tokens) {
+    localStorage.setItem("access", res.data.user.tokens.access);
+    localStorage.setItem("refresh", res.data.user.tokens.refresh);
+  }
+
+  return res.data.user;
+}
