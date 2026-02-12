@@ -182,8 +182,8 @@ CACHES = {
 # Security Settings
 # https://docs.djangoproject.com/en/6.0/topics/security/
 
-# Proxy SSL Header (behind reverse proxy like nginx, Caddy, AWS ELB, Cloudflare)
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Proxy SSL Header (DISABLED - no reverse proxy)
+# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SSL Redirect Exemptions (for health checks)
 if not DEBUG:
@@ -315,6 +315,15 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-idempotency-key',
+]
 
 # CSRF Trusted Origins — always include ALLOWED_HOSTS with HTTPS
 CSRF_TRUSTED_ORIGINS = [
@@ -332,7 +341,7 @@ if DEBUG:
 # Secure Cookie Settings
 if not DEBUG:
     # Production: HTTPS-only cookies
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False  # DISABLED - No reverse proxy
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 

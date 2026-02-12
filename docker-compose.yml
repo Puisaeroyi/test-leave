@@ -53,9 +53,20 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=https://mana.oanhhong.xyz
+      - VITE_API_URL=https://api.oanhhong.xyz
     depends_on:
       - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: leave_cloudflared
+    env_file:
+      - .env.docker
+    command: tunnel --no-autoupdate run
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
 
 volumes:
   postgres_data:
