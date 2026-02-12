@@ -111,6 +111,7 @@ const EntityManagement = () => {
       title: 'Entity Name',
       dataIndex: 'entity_name',
       key: 'entity_name',
+      width: 150,
       sorter: (a, b) => a.entity_name.localeCompare(b.entity_name),
     },
     {

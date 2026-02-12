@@ -49,8 +49,9 @@ urlpatterns = [
     path('holidays/', PublicHolidayListView.as_view(), name='public_holiday_list'),
 
     # Business Trips (auto-approved, no balance deduction)
-    path('business-trips/', BusinessTripListCreateView.as_view(), name='business_trip_list'),
+    # IMPORTANT: More specific patterns must come before generic ones
     path('business-trips/team/', BusinessTripTeamListView.as_view(), name='business_trip_team_list'),
-    path('business-trips/<uuid:pk>/', BusinessTripDetailView.as_view(), name='business_trip_detail'),
     path('business-trips/<uuid:pk>/cancel/', BusinessTripCancelView.as_view(), name='business_trip_cancel'),
+    path('business-trips/<uuid:pk>/', BusinessTripDetailView.as_view(), name='business_trip_detail'),
+    path('business-trips/', BusinessTripListCreateView.as_view(), name='business_trip_list'),
 ]

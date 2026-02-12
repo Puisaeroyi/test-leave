@@ -387,8 +387,9 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       onCancel={onCancel}
       okText={mode === 'create' ? 'Create' : 'Update'}
       confirmLoading={submitting}
-      width={700}
-      bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
+      width={800}
+      bodyStyle={{ maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' }}
+      centered
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         {/* Entity Details */}

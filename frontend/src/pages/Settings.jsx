@@ -278,7 +278,7 @@ const Settings = () => {
       title: "Entity",
       dataIndex: "entity",
       key: "entity",
-      width: 60,
+      width: 150,
       render: (entity) => entity?.entity_name || "-",
       filters: Array.from(new Set(users.map(u => u.entity?.entity_name).filter(Boolean)))
         .sort()
