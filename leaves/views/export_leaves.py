@@ -35,14 +35,15 @@ class ExportApprovedLeavesView(APIView):
                 "Invalid date format. Use YYYY-MM-DD.", status=400
             )
 
-        # Scope to HR user's entity for multi-tenant isolation
+        # Build query filters - HR and ADMIN both have global access for export
+        filters = {
+            "status": "APPROVED",
+            "start_date__gte": start,
+            "start_date__lte": end,
+        }
+
         queryset = (
-            LeaveRequest.objects.filter(
-                status="APPROVED",
-                start_date__gte=start,
-                start_date__lte=end,
-                user__entity=request.user.entity,
-            )
+            LeaveRequest.objects.filter(**filters)
             .select_related(
                 "user",
                 "leave_category",
@@ -128,7 +129,7 @@ class ExportApprovedLeavesView(APIView):
             ws.cell(
                 row=row_idx,
                 column=7,
-                value=getattr(lr.leave_category, "name", "") or "",
+                value=getattr(lr.leave_category, "category_name", "") or "",
             )
             ws.cell(row=row_idx, column=8, value=lr.exempt_type)
             ws.cell(
