@@ -25,3 +25,15 @@ export const markAllAsRead = async () => {
   const res = await http.post(`${API_URL}/mark-all-read/`);
   return res.data;
 };
+
+/* ================= DELETE NOTIFICATION ================= */
+export const deleteNotification = async (id) => {
+  const res = await http.delete(`${API_URL}/${id}/`);
+  return res.data;
+};
+
+/* ================= DISMISS ALL NOTIFICATIONS ================= */
+export const dismissAllNotifications = async () => {
+  const res = await http.delete(`${API_URL}/dismiss-all/`);
+  return res.data;
+};

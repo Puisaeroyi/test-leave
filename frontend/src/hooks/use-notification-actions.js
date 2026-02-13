@@ -4,7 +4,9 @@ import {
   getUnreadCount,
   markAsRead,
   markAllAsRead,
-} from "@api/notificationApi";
+  deleteNotification,
+  dismissAllNotifications,
+} from "@api/notification-api";
 
 const POLLING_INTERVAL = 30000; // 30 seconds
 
@@ -53,21 +55,30 @@ export function useNotifications() {
     }
   }, []);
 
-  // Dismiss notification from view (client-side only, no DB change)
-  const dismissNotification = useCallback((id) => {
-    setNotifications((prev) => {
-      const target = prev.find((n) => n.id === id);
-      if (target && !target.is_read) {
-        setUnreadCount((c) => Math.max(0, c - 1));
-      }
-      return prev.filter((n) => n.id !== id);
-    });
+  // Dismiss notification - deletes from DB and removes from local view
+  const dismissNotification = useCallback(async (id) => {
+    try {
+      // Delete from DB
+      await deleteNotification(id);
+      // Then remove from local state
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Failed to dismiss notification:", err);
+    }
   }, []);
 
-  // Dismiss all notifications from view (client-side only, no DB change)
-  const dismissAll = useCallback(() => {
-    setNotifications([]);
-    setUnreadCount(0);
+  // Dismiss all notifications - deletes all from DB and clears local view
+  const dismissAll = useCallback(async () => {
+    try {
+      // Delete all from DB
+      await dismissAllNotifications();
+      // Then clear local state
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (err) {
+      console.error("Failed to dismiss all notifications:", err);
+    }
   }, []);
 
   // Mark all as read

@@ -61,7 +61,7 @@ class NotificationListView(generics.GenericAPIView):
 
 
 class NotificationMarkReadView(generics.GenericAPIView):
-    """Mark a notification as read"""
+    """Mark a notification as read or delete it"""
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, *args, **kwargs):
@@ -83,6 +83,23 @@ class NotificationMarkReadView(generics.GenericAPIView):
                 'error': 'Notification not found'
             }, status=status.HTTP_404_NOT_FOUND)
 
+    def delete(self, request, *args, **kwargs):
+        """Delete a specific notification"""
+        notification_id = kwargs.get('pk')
+
+        try:
+            notification = Notification.objects.get(id=notification_id, user=request.user)
+            notification.delete()
+
+            return Response({
+                'deleted': True
+            }, status=status.HTTP_200_OK)
+
+        except Notification.DoesNotExist:
+            return Response({
+                'error': 'Notification not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
 
 class NotificationMarkAllReadView(generics.GenericAPIView):
     """Mark all notifications as read"""
@@ -97,6 +114,19 @@ class NotificationMarkAllReadView(generics.GenericAPIView):
 
         return Response({
             'updated_count': updated_count
+        }, status=status.HTTP_200_OK)
+
+
+class NotificationDismissAllView(generics.GenericAPIView):
+    """Delete all notifications for current user"""
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, *args, **kwargs):
+        """Delete all notifications for current user"""
+        deleted_count, _ = Notification.objects.filter(user=request.user).delete()
+
+        return Response({
+            'deleted_count': deleted_count
         }, status=status.HTTP_200_OK)
 
 
