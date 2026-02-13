@@ -4,105 +4,18 @@ Serializers for User Authentication and Management
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.core.cache import cache
 from organizations.models import Entity, Location, Department
 
 from .utils import validate_active_relationship
 
 User = get_user_model()
 
+# Account lockout settings
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION = 3600  # 1 hour in seconds
 
-class RegisterSerializer(serializers.Serializer):
-    """Serializer for user registration with onboarding data"""
-    email = serializers.EmailField(required=True)
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    password_confirm = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    first_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
-    last_name = serializers.CharField(required=False, allow_blank=True, max_length=150)
-    employee_code = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=50)
-    # Onboarding fields
-    entity = serializers.UUIDField(required=True)
-    location = serializers.UUIDField(required=True)
-    department = serializers.UUIDField(required=True)
-
-    def validate_email(self, value):
-        """Check if email already exists"""
-        if User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
-        return value
-
-    def validate_entity(self, value):
-        """Validate entity exists and is active"""
-        return validate_active_relationship(Entity, value, 'entity')
-
-    def validate_location(self, value):
-        """Validate location exists and is active"""
-        return validate_active_relationship(Location, value, 'location')
-
-    def validate_department(self, value):
-        """Validate department exists and is active"""
-        return validate_active_relationship(Department, value, 'department')
-
-    def validate(self, attrs):
-        """Validate passwords match and organization relationships"""
-        if attrs['password'] != attrs['password_confirm']:
-            raise serializers.ValidationError({
-                "password_confirm": "Password fields didn't match."
-            })
-
-        # Validate password using Django's password validators
-        validate_password(attrs['password'])
-
-        # Validate entity/location/department relationships
-        entity = attrs.get('entity')
-        location = attrs.get('location')
-        department = attrs.get('department')
-
-        if location and entity and location.entity != entity:
-            raise serializers.ValidationError({
-                "location": "Selected location does not belong to the selected entity."
-            })
-
-        if department and entity and department.entity != entity:
-            raise serializers.ValidationError({
-                "department": "Selected department does not belong to the selected entity."
-            })
-
-        return attrs
-
-    def create(self, validated_data):
-        """Create new user with onboarding data"""
-        from datetime import date
-
-        validated_data.pop('password_confirm')
-
-        # Extract fields
-        first_name = validated_data.pop('first_name', '')
-        last_name = validated_data.pop('last_name', '')
-        employee_code = validated_data.pop('employee_code', None)
-        entity = validated_data.pop('entity')
-        location = validated_data.pop('location')
-        department = validated_data.pop('department')
-
-        user = User.objects.create_user(
-            email=validated_data['email'],
-            password=validated_data['password'],
-            first_name=first_name,
-            last_name=last_name,
-            employee_code=employee_code,
-            entity=entity,
-            location=location,
-            department=department,
-            join_date=date.today(),
-        )
-        return user
+GENERIC_LOGIN_ERROR = "Invalid credentials."
 
 
 class LoginSerializer(serializers.Serializer):
@@ -115,31 +28,36 @@ class LoginSerializer(serializers.Serializer):
     )
 
     def validate(self, attrs):
-        """Validate credentials"""
+        """Validate credentials with account lockout protection."""
         email = attrs.get('email')
         password = attrs.get('password')
 
-        if email and password:
-            # Try to authenticate user
-            from django.contrib.auth import authenticate
-            user = authenticate(username=email, password=password)
+        if not (email and password):
+            raise serializers.ValidationError(GENERIC_LOGIN_ERROR)
 
-            if not user:
-                raise serializers.ValidationError(
-                    "Unable to log in with provided credentials."
-                )
+        # Check if account is locked out
+        cache_key = f"login_fail_{email.lower()}"
+        fail_count = cache.get(cache_key, 0)
 
-            if not user.is_active:
-                raise serializers.ValidationError(
-                    "This user account has been disabled."
-                )
+        if fail_count >= MAX_LOGIN_ATTEMPTS:
+            raise serializers.ValidationError(
+                "Account temporarily locked due to too many failed attempts. Try again later."
+            )
 
-            attrs['user'] = user
-            return attrs
+        # Try to authenticate user
+        from django.contrib.auth import authenticate
+        user = authenticate(username=email, password=password)
 
-        raise serializers.ValidationError(
-            "Must include email and password."
-        )
+        if not user or not user.is_active:
+            # Increment failed attempts
+            cache.set(cache_key, fail_count + 1, LOCKOUT_DURATION)
+            raise serializers.ValidationError(GENERIC_LOGIN_ERROR)
+
+        # Reset failed attempts on success
+        cache.delete(cache_key)
+
+        attrs['user'] = user
+        return attrs
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -295,11 +213,11 @@ class UserCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from datetime import date
-        from users.resources import DEFAULT_IMPORT_PASSWORD
+        from users.resources import get_default_import_password
 
         user = User.objects.create_user(
             email=validated_data['email'],
-            password=DEFAULT_IMPORT_PASSWORD,
+            password=get_default_import_password(),
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
             employee_code=validated_data.get('employee_code') or None,

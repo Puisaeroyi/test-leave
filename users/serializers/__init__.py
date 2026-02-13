@@ -1,7 +1,6 @@
 """User serializers module."""
 
 from .serializers import (
-    RegisterSerializer,
     LoginSerializer,
     ChangePasswordSerializer,
     UserSerializer,
@@ -10,7 +9,6 @@ from .serializers import (
 )
 
 __all__ = [
-    'RegisterSerializer',
     'LoginSerializer',
     'ChangePasswordSerializer',
     'UserSerializer',

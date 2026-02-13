@@ -21,30 +21,6 @@ class GoogleOAuthRateThrottle(AnonRateThrottle):
     rate = '10/minute'
 
 
-class RegisterView(generics.CreateAPIView):
-    """
-    User registration endpoint (includes onboarding)
-    POST /api/v1/auth/register/
-    """
-
-    permission_classes = [AllowAny]
-
-    def post(self, request, *args, **kwargs):
-        from users.serializers import RegisterSerializer
-        from users.utils import create_initial_leave_balance
-
-        serializer = RegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-
-        # Create initial leave balances (all 4 types)
-        create_initial_leave_balance(user)
-
-        return Response({
-            'user': build_user_response(user, include_tokens=True)
-        }, status=status.HTTP_201_CREATED)
-
-
 class LoginView(generics.GenericAPIView):
     """
     User login endpoint

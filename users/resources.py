@@ -2,6 +2,7 @@
 Django import-export resources for User model with validation.
 Supports CSV/XLSX import with organization references.
 """
+import os
 from import_export import resources, fields
 from import_export.widgets import ForeignKeyWidget, BooleanWidget, Widget
 from django.core.exceptions import ValidationError
@@ -178,7 +179,12 @@ class ApproverByEmailWidget(ForeignKeyWidget):
             raise ValidationError(f"Approver with email '{value}' not found or inactive")
 
 
-DEFAULT_IMPORT_PASSWORD = 'Timpl.com'
+def get_default_import_password():
+    """Get import password from env. Fails fast if not set."""
+    password = os.environ.get('DEFAULT_IMPORT_PASSWORD')
+    if not password:
+        raise ValueError("DEFAULT_IMPORT_PASSWORD environment variable must be set.")
+    return password
 
 
 class PasswordWidget(Widget):
@@ -187,7 +193,7 @@ class PasswordWidget(Widget):
     def clean(self, value, row=None, **kwargs):
         if value and str(value).strip():
             return str(value).strip()
-        return DEFAULT_IMPORT_PASSWORD
+        return get_default_import_password()
 
     def render(self, value, obj=None):
         # Never export actual passwords
@@ -253,7 +259,7 @@ class UserResource(resources.ModelResource):
     def after_save_instance(self, instance, row, **kwargs):
         """Hash password and ensure first_login after save."""
         # Get password from row (cleaned by PasswordWidget)
-        raw_password = row.get('Password', '').strip() or DEFAULT_IMPORT_PASSWORD
+        raw_password = row.get('Password', '').strip() or get_default_import_password()
         # set_password hashes properly — Model.save() stores plain text
         instance.set_password(raw_password)
         instance.first_login = True

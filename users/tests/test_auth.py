@@ -1,5 +1,5 @@
 """
-Tests for User Authentication (Register, Login, Logout, Onboarding)
+Tests for User Authentication (Login, Logout, Onboarding)
 """
 import pytest
 from django.contrib.auth import get_user_model
@@ -12,49 +12,6 @@ User = get_user_model()
 @pytest.mark.django_db
 class TestAuthentication:
     """Test authentication endpoints"""
-
-    def test_register_user_success(self):
-        """Test successful user registration"""
-        client = APIClient()
-
-        response = client.post('/api/v1/auth/register/', {
-            'email': 'test@example.com',
-            'password': 'TestPass123!',
-            'password_confirm': 'TestPass123!',
-            'first_name': 'Test',
-            'last_name': 'User',
-        })
-
-        assert response.status_code == 201
-        assert 'access' in response.data['tokens']
-        assert 'refresh' in response.data['tokens']
-        assert response.data['user']['email'] == 'test@example.com'
-        assert User.objects.filter(email='test@example.com').exists()
-
-    def test_register_user_password_mismatch(self):
-        """Test registration with mismatched passwords"""
-        client = APIClient()
-
-        response = client.post('/api/v1/auth/register/', {
-            'email': 'test@example.com',
-            'password': 'TestPass123!',
-            'password_confirm': 'DifferentPass123!',
-        })
-
-        assert response.status_code == 400
-
-    def test_register_user_duplicate_email(self):
-        """Test registration with duplicate email"""
-        User.objects.create_user(email='test@example.com', password='TestPass123!')
-
-        client = APIClient()
-        response = client.post('/api/v1/auth/register/', {
-            'email': 'test@example.com',
-            'password': 'TestPass123!',
-            'password_confirm': 'TestPass123!',
-        })
-
-        assert response.status_code == 400
 
     def test_login_success(self):
         """Test successful login"""
