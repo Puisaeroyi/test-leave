@@ -1,7 +1,6 @@
 """Leave request list and create views."""
 
 from datetime import datetime
-from decimal import Decimal
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -10,7 +9,7 @@ from django.db.models import Q
 
 from ...models import LeaveRequest, LeaveBalance, LeaveCategory
 from ...serializers import LeaveRequestSerializer
-from ...services import LeaveApprovalService, calculate_exempt_vacation_hours
+from ...services import LeaveApprovalService, calculate_exempt_vacation_hours, BalanceCalculationService
 from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
@@ -18,6 +17,7 @@ from ...utils import (
     validate_leave_request_dates,
     validate_attachment_url
 )
+from users.models import User
 from core.services.notification_service import create_leave_pending_notification
 import logging
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             queryset = LeaveRequest.objects.filter(user=user)
         else:
             # HR/Admin see requests within their entity only
-            if user.role in ['HR', 'ADMIN']:
+            if user.role in [User.Role.HR, User.Role.ADMIN]:
                 queryset = LeaveRequest.objects.filter(user__entity=user.entity)
             else:
                 queryset = LeaveRequest.objects.filter(user=user)
@@ -151,31 +151,14 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         # Determine balance type from exempt_type and leave_category
         exempt_type = data.get('exempt_type', 'EXEMPT').upper()
         category_id = data.get('leave_category') or data.get('leave_category_id')
-        is_vacation = False
-        if category_id:
-            cat = LeaveCategory.objects.filter(id=category_id).first()
-            is_vacation = cat and cat.code.upper() == 'VACATION'
-
-        if is_vacation:
-            balance_type = 'EXEMPT_VACATION' if exempt_type == 'EXEMPT' else 'NON_EXEMPT_VACATION'
-        else:
-            balance_type = 'EXEMPT_SICK' if exempt_type == 'EXEMPT' else 'NON_EXEMPT_SICK'
+        leave_category = LeaveCategory.objects.filter(id=category_id).first() if category_id else None
+        balance_type = BalanceCalculationService.calculate_balance_type(exempt_type, leave_category)
 
         # Check balance + create request inside transaction to prevent race conditions
         year = start_date.year
 
-        # Calculate proper default allocation (YoS-based for EXEMPT_VACATION)
-        if balance_type == 'EXEMPT_VACATION':
-            from datetime import date
-            reference_date = date(year, 1, 1)
-            default_hours = calculate_exempt_vacation_hours(user.join_date, reference_date)
-        else:
-            default_allocation = {
-                'NON_EXEMPT_VACATION': Decimal('40.00'),
-                'EXEMPT_SICK': Decimal('40.00'),
-                'NON_EXEMPT_SICK': Decimal('40.00'),
-            }
-            default_hours = default_allocation.get(balance_type, Decimal('40.00'))
+        # Calculate default allocation using service
+        default_hours = BalanceCalculationService.calculate_default_allocation(balance_type, user, year)
 
         try:
             with transaction.atomic():

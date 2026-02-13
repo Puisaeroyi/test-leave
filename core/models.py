@@ -6,11 +6,20 @@ from django.db import models
 from django.conf import settings
 
 
+class NotificationType(models.TextChoices):
+    """Notification type choices"""
+    LEAVE_APPROVED = 'LEAVE_APPROVED', 'Leave Approved'
+    LEAVE_PENDING = 'LEAVE_PENDING', 'Leave Pending'
+    LEAVE_REJECTED = 'LEAVE_REJECTED', 'Leave Rejected'
+    LEAVE_CANCELLED = 'LEAVE_CANCELLED', 'Leave Cancelled'
+    BALANCE_LOW = 'BALANCE_LOW', 'Balance Low'
+
+
 class Notification(models.Model):
     """In-app notification for users"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')
-    type = models.CharField(max_length=50)  # e.g., 'LEAVE_APPROVED', 'LEAVE_PENDING', 'LEAVE_REJECTED'
+    type = models.CharField(max_length=50, choices=NotificationType.choices)  # e.g., 'LEAVE_APPROVED', 'LEAVE_PENDING', 'LEAVE_REJECTED'
     title = models.CharField(max_length=200)
     message = models.TextField()
     link = models.URLField(max_length=500, blank=True)
@@ -29,12 +38,31 @@ class Notification(models.Model):
         return f"{self.user.email} - {self.title}"
 
 
+class AuditAction(models.TextChoices):
+    """Audit log action choices"""
+    CREATE = 'CREATE', 'Create'
+    UPDATE = 'UPDATE', 'Update'
+    DELETE = 'DELETE', 'Delete'
+    APPROVE = 'APPROVE', 'Approve'
+    REJECT = 'REJECT', 'Reject'
+
+
+class AuditEntityType(models.TextChoices):
+    """Audit log entity type choices"""
+    LEAVE_REQUEST = 'LeaveRequest', 'Leave Request'
+    USER = 'User', 'User'
+    LEAVE_BALANCE = 'LeaveBalance', 'Leave Balance'
+    ENTITY = 'Entity', 'Entity'
+    LOCATION = 'Location', 'Location'
+    DEPARTMENT = 'Department', 'Department'
+
+
 class AuditLog(models.Model):
     """Audit log for tracking all actions in the system"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='audit_logs')
-    action = models.CharField(max_length=50)  # e.g., 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT'
-    entity_type = models.CharField(max_length=50)  # e.g., 'LeaveRequest', 'User', 'LeaveBalance'
+    action = models.CharField(max_length=50, choices=AuditAction.choices)  # e.g., 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT'
+    entity_type = models.CharField(max_length=50, choices=AuditEntityType.choices)  # e.g., 'LeaveRequest', 'User', 'LeaveBalance'
     entity_id = models.UUIDField()
     old_values = models.JSONField(null=True, blank=True)
     new_values = models.JSONField(null=True, blank=True)
