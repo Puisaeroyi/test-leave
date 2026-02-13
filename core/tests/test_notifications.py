@@ -123,3 +123,35 @@ class TestNotifications:
         response = client.patch('/api/v1/notifications/00000000-0000-0000-0000-000000000000/')
 
         assert response.status_code == 404
+
+    def test_delete_notification(self, setup_user_with_notifications):
+        """Test deleting a single notification"""
+        user = setup_user_with_notifications['user']
+        notifications = setup_user_with_notifications['notifications']
+        notification = notifications[0]
+
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.delete(f'/api/v1/notifications/{notification.id}/')
+
+        assert response.status_code == 200
+        assert response.data['deleted'] is True
+
+        # Verify notification no longer exists
+        assert not Notification.objects.filter(id=notification.id).exists()
+
+    def test_dismiss_all_notifications(self, setup_user_with_notifications):
+        """Test deleting all notifications for current user"""
+        user = setup_user_with_notifications['user']
+
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.delete('/api/v1/notifications/dismiss-all/')
+
+        assert response.status_code == 200
+        assert response.data['deleted_count'] == 3
+
+        # Verify all notifications are deleted
+        assert Notification.objects.filter(user=user).count() == 0

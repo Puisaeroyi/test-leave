@@ -20,7 +20,7 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { useNavigate } from "react-router-dom";
-import { useNotifications } from "@hooks/use-notifications";
+import { useNotifications } from "@hooks/use-notification-actions";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
