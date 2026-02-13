@@ -139,13 +139,14 @@ Notifications:
 
 ## Documentation
 
-See `/docs` directory:
-- [codebase-summary.md](./docs/codebase-summary.md) - Codebase structure
-- [code-standards/](./docs/code-standards/) - Coding conventions & patterns
-- [system-architecture.md](./docs/system-architecture.md) - System design
-- [project-overview-pdr.md](./docs/project-overview-pdr.md) - Business requirements
-- [development-roadmap.md](./docs/development-roadmap.md) - Phases & timeline
-- [project-changelog.md](./docs/project-changelog.md) - Release notes
+Comprehensive documentation in `/docs` directory:
+- **[project-overview-pdr.md](./docs/project-overview-pdr.md)** - Product requirements, user roles, core features
+- **[codebase-summary.md](./docs/codebase-summary.md)** - Project structure, Django apps, frontend architecture
+- **[code-standards.md](./docs/code-standards.md)** - Coding conventions, API patterns, testing guidelines
+- **[system-architecture.md](./docs/system-architecture.md)** - Complete technical reference (database schema, ALL API routes, business logic)
+- **[deployment-guide.md](./docs/deployment-guide.md)** - Docker setup, environment variables, production checklist
+- **[development-roadmap.md](./docs/development-roadmap.md)** - Phases, milestones, progress tracking
+- **[project-changelog.md](./docs/project-changelog.md)** - Version history, changes, migration guides
 
 ---
 

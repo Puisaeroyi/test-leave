@@ -103,12 +103,12 @@ export const getTeamCalendar = async (month, year, memberIds = []) => {
 };
 
 /* ================= UPCOMING EVENTS (for Dashboard widget) ================= */
-export const getUpcomingEvents = async () => {
+export const getUpcomingEvents = async (month, year) => {
   const now = new Date();
-  const month = now.getMonth() + 1;
-  const year = now.getFullYear();
+  const currentMonth = month || now.getMonth() + 1;
+  const currentYear = year || now.getFullYear();
 
-  const data = await getTeamCalendar(month, year);
+  const data = await getTeamCalendar(currentMonth, currentYear);
 
   const events = [];
 
@@ -155,10 +155,10 @@ export const getUpcomingEvents = async () => {
     });
   }
 
-  // Sort by date
+  // Sort by start date (nearest first)
   events.sort((a, b) => new Date(a.from) - new Date(b.from));
 
-  return events.slice(0, 10); // Limit to 10 events
+  return events;
 };
 
 /* ================= GET LEAVE CATEGORIES (for dropdown) ================= */

@@ -13,11 +13,22 @@ import {
   Space,
   Progress,
 } from "antd";
-import { PaperClipOutlined } from "@ant-design/icons";
+import { PaperClipOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import dayjs from "dayjs";
+import isoWeek from "dayjs/plugin/isoWeek";
+import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
+import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
 import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
+
+dayjs.extend(isoWeek);
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
+
+// Build a dayjs for the Monday of a given ISO week/year
+const weekOf = (week, year) => dayjs(`${year}-01-04`).isoWeek(week);
 
 const { Text } = Typography;
 
@@ -55,19 +66,22 @@ export default function Dashboard() {
   const [openDetail, setOpenDetail] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Week navigation state
+  const [currentWeek, setCurrentWeek] = useState(dayjs().isoWeek());
+  const [currentYear, setCurrentYear] = useState(dayjs().isoWeekYear());
+  const [eventCache, setEventCache] = useState({});
+
   // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [historyData, balanceData, eventsData] = await Promise.all([
+        const [historyData, balanceData] = await Promise.all([
           getLeaveHistory(sort),
           getLeaveBalance(),
-          getUpcomingEvents(),
         ]);
         setHistory(historyData);
         setBalance(balanceData);
-        setUpcomingEvents(eventsData);
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
         message.error("Failed to load dashboard data");
@@ -77,6 +91,72 @@ export default function Dashboard() {
     };
     fetchData();
   }, [sort]);
+
+  // Fetch events for selected week
+  useEffect(() => {
+    const fetchEventsForWeek = async () => {
+      try {
+        const weekStart = weekOf(currentWeek, currentYear).startOf("isoWeek");
+        const weekEnd = weekOf(currentWeek, currentYear).endOf("isoWeek");
+
+        const startMonth = weekStart.month() + 1;
+        const startYear = weekStart.year();
+        const endMonth = weekEnd.month() + 1;
+        const endYear = weekEnd.year();
+
+        // Fetch both months if week spans month boundary
+        const monthsToFetch = [];
+        const cacheKey1 = `${startYear}-${String(startMonth).padStart(2, "0")}`;
+        if (!eventCache[cacheKey1]) {
+          monthsToFetch.push({ month: startMonth, year: startYear, key: cacheKey1 });
+        }
+
+        if (startMonth !== endMonth || startYear !== endYear) {
+          const cacheKey2 = `${endYear}-${String(endMonth).padStart(2, "0")}`;
+          if (!eventCache[cacheKey2]) {
+            monthsToFetch.push({ month: endMonth, year: endYear, key: cacheKey2 });
+          }
+        }
+
+        // Fetch uncached months
+        if (monthsToFetch.length > 0) {
+          const results = await Promise.all(
+            monthsToFetch.map(({ month, year }) => getUpcomingEvents(month, year))
+          );
+
+          const newCache = { ...eventCache };
+          monthsToFetch.forEach(({ key }, idx) => {
+            newCache[key] = results[idx];
+          });
+          setEventCache(newCache);
+        }
+
+        // Combine events from both months
+        const allEvents = [
+          ...(eventCache[cacheKey1] || []),
+          ...(startMonth !== endMonth || startYear !== endYear ? eventCache[`${endYear}-${String(endMonth).padStart(2, "0")}`] || [] : []),
+        ];
+
+        // Filter events within selected week
+        const weekEvents = allEvents.filter((e) => {
+          const eventStart = dayjs(e.from);
+          const eventEnd = dayjs(e.to);
+          return (
+            (eventStart.isSameOrAfter(weekStart, "day") && eventStart.isSameOrBefore(weekEnd, "day")) ||
+            (eventEnd.isSameOrAfter(weekStart, "day") && eventEnd.isSameOrBefore(weekEnd, "day")) ||
+            (eventStart.isBefore(weekStart, "day") && eventEnd.isAfter(weekEnd, "day"))
+          );
+        });
+
+        setUpcomingEvents(weekEvents);
+      } catch (error) {
+        console.error("Failed to fetch events for week:", error);
+        message.error("Failed to load events");
+      }
+    };
+
+    fetchEventsForWeek();
+  }, [currentWeek, currentYear, eventCache]);
 
   // Auto-open request detail modal from notification click
   useEffect(() => {
@@ -108,13 +188,14 @@ export default function Dashboard() {
       await createLeaveRequest(data);
       message.success("Request submitted");
 
-      // Refresh data
+      // Refresh data and clear event cache
       const [historyData, balanceData] = await Promise.all([
         getLeaveHistory(sort),
         getLeaveBalance(),
       ]);
       setHistory(historyData);
       setBalance(balanceData);
+      setEventCache({}); // Clear cache to refetch events
     } catch (error) {
       // Extract detailed error message
       let errorMsg = "Failed to submit request";
@@ -134,6 +215,18 @@ export default function Dashboard() {
 
       message.error(errorMsg);
     }
+  };
+
+  const handlePrevWeek = () => {
+    const prevWeek = weekOf(currentWeek, currentYear).subtract(1, "week");
+    setCurrentWeek(prevWeek.isoWeek());
+    setCurrentYear(prevWeek.isoWeekYear());
+  };
+
+  const handleNextWeek = () => {
+    const nextWeek = weekOf(currentWeek, currentYear).add(1, "week");
+    setCurrentWeek(nextWeek.isoWeek());
+    setCurrentYear(nextWeek.isoWeekYear());
   };
 
   const columns = [
@@ -240,73 +333,104 @@ export default function Dashboard() {
           </Card>
 
           {/* ===== UPCOMING ===== */}
-          <Card title="Upcoming Events" style={{ borderRadius: 16 }}>
-            {loading ? (
-              <p style={{ textAlign: "center", padding: 20 }}>Loading...</p>
-            ) : upcomingEvents.length === 0 ? (
-              <p style={{ textAlign: "center", padding: 20, color: "#999" }}>No upcoming events</p>
-            ) : (
-              upcomingEvents.map((e) => {
-              const style = EVENT_STYLE[e.type];
-              const date = new Date(e.from);
+          <Card
+            title="Upcoming Events"
+            extra={
+              <Space>
+                <Button type="text" size="small" icon={<LeftOutlined />} onClick={handlePrevWeek} />
+                <Text strong style={{ fontSize: 13 }}>
+                  W{currentWeek}
+                </Text>
+                <Button type="text" size="small" icon={<RightOutlined />} onClick={handleNextWeek} />
+              </Space>
+            }
+            style={{ borderRadius: 16 }}
+          >
+            {(() => {
+              const weekStart = weekOf(currentWeek, currentYear).startOf("isoWeek");
+              const weekEnd = weekOf(currentWeek, currentYear).endOf("isoWeek");
+
+              const startMonth = weekStart.format("MMM");
+              const endMonth = weekEnd.format("MMM");
+              const startDay = weekStart.format("DD");
+              const endDay = weekEnd.format("DD");
+              const year = weekEnd.year();
+
+              const dateRange = startMonth === endMonth
+                ? `${startMonth} ${startDay} – ${endDay}, ${year}`
+                : `${startMonth} ${startDay} – ${endMonth} ${endDay}, ${year}`;
 
               return (
-                <div
-                  key={e.id}
-                  onClick={() =>
-                    navigate("/calendar", {
-                      state: {
-                        date: e.from,
-                        type: e.type,
-                        eventId: e.id,
-                      },
-                    })
-                  }
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    padding: 12,
-                    marginBottom: 12,
-                    borderRadius: 12,
-                    background: style.bg,
-                    cursor: "pointer",
-                    transition: "0.2s",
-                  }}
-                >
-                  {/* DATE */}
-                  <div
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 10,
-                      background: style.badge,
-                      color: "#fff",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <div style={{ fontSize: 12 }}>
-                      {date.toLocaleString("en", { month: "short" })}
-                    </div>
-                    <div style={{ fontSize: 16 }}>{date.getDate()}</div>
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {dateRange}
+                    </Text>
                   </div>
-
-                  {/* INFO */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>{e.title}</div>
-                    <div style={{ fontSize: 12, color: "#595959" }}>
-                      {e.from} → {e.to}
+                  {loading ? (
+                    <p style={{ textAlign: "center", padding: 20 }}>Loading...</p>
+                  ) : upcomingEvents.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: 20, color: "#999" }}>
+                      No events this week
+                    </p>
+                  ) : (
+                    <div style={{ maxHeight: 280, overflowY: "auto" }}>
+                      {upcomingEvents.map((e) => {
+                        const style = EVENT_STYLE[e.type];
+                        const date = new Date(e.from);
+                        return (
+                          <div
+                            key={e.id}
+                            onClick={() =>
+                              navigate("/calendar", {
+                                state: { date: e.from, type: e.type, eventId: e.id },
+                              })
+                            }
+                            style={{
+                              display: "flex",
+                              gap: 12,
+                              padding: 12,
+                              marginBottom: 8,
+                              borderRadius: 12,
+                              background: style.bg,
+                              cursor: "pointer",
+                              transition: "0.2s",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 48,
+                                height: 48,
+                                borderRadius: 10,
+                                background: style.badge,
+                                color: "#fff",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <div style={{ fontSize: 12 }}>
+                                {date.toLocaleString("en", { month: "short" })}
+                              </div>
+                              <div style={{ fontSize: 16 }}>{date.getDate()}</div>
+                            </div>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: 600 }}>{e.title}</div>
+                              <div style={{ fontSize: 12, color: "#595959" }}>
+                                {e.from} → {e.to}
+                              </div>
+                            </div>
+                            <Tag color={style.tag}>{style.label}</Tag>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-
-                  <Tag color={style.tag}>{style.label}</Tag>
-                </div>
+                  )}
+                </>
               );
-              })
-            )}
+            })()}
           </Card>
         </Col>
       </Row>
