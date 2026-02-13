@@ -4,6 +4,7 @@ Custom User model with email authentication and role-based access
 import uuid
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.core.exceptions import ValidationError
 
 
 class UserManager(BaseUserManager):
@@ -86,6 +87,41 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
 
+    def clean(self):
+        """Validate user fields according to Django best practices."""
+        super().clean()
+
+        # Validate entity and location match
+        if self.entity and self.location:
+            if self.location.entity != self.entity:
+                raise ValidationError({
+                    'location': ValidationError(
+                        f"Location '{self.location.location_name}' belongs to entity "
+                        f"'{self.location.entity.entity_name}', not '{self.entity.entity_name}'. "
+                        f"Please select a location within {self.entity.entity_name}."
+                    )
+                })
+
+        # Validate entity and department match
+        if self.entity and self.department:
+            if self.department.entity != self.entity:
+                raise ValidationError({
+                    'department': ValidationError(
+                        f"Department '{self.department.department_name}' belongs to entity "
+                        f"'{self.department.entity.entity_name}', not '{self.entity.entity_name}'. "
+                        f"Please select a department within {self.entity.entity_name}."
+                    )
+                })
+
+        # Validate approver is not self (circular reference prevention)
+        if self.approver and self.approver == self:
+            raise ValidationError({
+                'approver': ValidationError(
+                    "A user cannot be their own approver. "
+                    "Please select a different approver or leave the field blank."
+                )
+            })
+
     def save(self, *args, **kwargs):
         # Set username to email if not set
         if not self.username:
@@ -93,30 +129,9 @@ class User(AbstractUser):
         elif self.username != self.email:
             self.username = self.email
 
-        # Validate entity and location match
-        if self.entity and self.location:
-            if self.location.entity != self.entity:
-                raise ValueError(
-                    f"Location '{self.location.location_name}' belongs to entity "
-                    f"'{self.location.entity.entity_name}', not '{self.entity.entity_name}'. "
-                    f"Please select a location within {self.entity.entity_name}."
-                )
-
-        # Validate entity and department match
-        if self.entity and self.department:
-            if self.department.entity != self.entity:
-                raise ValueError(
-                    f"Department '{self.department.department_name}' belongs to entity "
-                    f"'{self.department.entity.entity_name}', not '{self.entity.entity_name}'. "
-                    f"Please select a department within {self.entity.entity_name}."
-                )
-
-        # Validate approver is not self (circular reference prevention)
-        if self.approver and self.approver == self:
-            raise ValueError(
-                "A user cannot be their own approver. "
-                "Please select a different approver or leave the field blank."
-            )
+        # Call full_clean() to trigger clean() validation
+        # This maintains backwards compatibility while using Django's proper validation
+        self.full_clean()
 
         super().save(*args, **kwargs)
 

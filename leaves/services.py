@@ -42,6 +42,58 @@ FIRST_YEAR_PRORATE = {
 # Default fallback when join_date is None
 DEFAULT_EXEMPT_VACATION_HOURS = Decimal('80.00')
 
+# Default allocations for non-exempt and sick leave types
+DEFAULT_BALANCE_ALLOCATION = Decimal('40.00')
+
+
+class BalanceCalculationService:
+    """Service for calculating leave balance types and allocations"""
+
+    @staticmethod
+    def calculate_balance_type(exempt_type: str, leave_category) -> str:
+        """
+        Determine balance type from exempt_type and leave_category.
+
+        Args:
+            exempt_type: 'EXEMPT' or 'NON_EXEMPT'
+            leave_category: LeaveCategory instance or None
+
+        Returns:
+            str: Balance type key (e.g., 'EXEMPT_VACATION')
+        """
+        is_vacation = leave_category and hasattr(leave_category, 'code') and leave_category.code and leave_category.code.lower() == 'vacation'
+        is_exempt = exempt_type.upper() == 'EXEMPT'
+
+        if is_vacation:
+            return 'EXEMPT_VACATION' if is_exempt else 'NON_EXEMPT_VACATION'
+        else:
+            return 'EXEMPT_SICK' if is_exempt else 'NON_EXEMPT_SICK'
+
+    @staticmethod
+    def calculate_default_allocation(balance_type: str, user, year: int) -> Decimal:
+        """
+        Calculate default allocation including YoS-based exempt vacation.
+
+        Args:
+            balance_type: Balance type key (e.g., 'EXEMPT_VACATION')
+            user: User instance
+            year: Balance year
+
+        Returns:
+            Decimal: Default allocated hours
+        """
+        if balance_type == 'EXEMPT_VACATION':
+            reference_date = date(year, 1, 1)
+            return calculate_exempt_vacation_hours(user.join_date, reference_date)
+
+        # Default allocations for other types
+        default_allocations = {
+            'NON_EXEMPT_VACATION': DEFAULT_BALANCE_ALLOCATION,
+            'EXEMPT_SICK': DEFAULT_BALANCE_ALLOCATION,
+            'NON_EXEMPT_SICK': DEFAULT_BALANCE_ALLOCATION,
+        }
+        return default_allocations.get(balance_type, DEFAULT_BALANCE_ALLOCATION)
+
 
 def get_year_of_service(join_date: date, reference_date: date) -> int:
     """
