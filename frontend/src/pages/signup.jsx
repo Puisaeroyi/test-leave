@@ -54,7 +54,9 @@ export default function Signup() {
     >
       <Card
         style={{
-          width: 480,
+          width: "100%",
+          maxWidth: 480,
+          margin: "0 16px",
           borderRadius: 12,
           boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
         }}
@@ -75,12 +77,12 @@ export default function Signup() {
 
         <Form layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="firstName" label="First Name" rules={[{ required: true, message: "Please enter your first name" }]}>
                 <Input placeholder="Your first name" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item name="lastName" label="Last Name" rules={[{ required: true, message: "Please enter your last name" }]}>
                 <Input placeholder="Your last name" />
               </Form.Item>

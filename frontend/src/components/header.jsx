@@ -17,6 +17,7 @@ import {
   CheckOutlined,
   CloseOutlined,
   SettingOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { useNavigate } from "react-router-dom";
@@ -29,13 +30,14 @@ dayjs.extend(relativeTime);
 const { Header } = Layout;
 
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick, dismissNotification, dismissAll }) => {
+const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick, dismissNotification, dismissAll, isMobile }) => {
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
     <div
       style={{
-        width: 380,
+        width: isMobile ? "calc(100vw - 32px)" : 380,
+        maxWidth: 380,
         background: "#fff",
         borderRadius: 8,
         boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
@@ -51,7 +53,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
         }}
       >
         <Typography.Text strong>Notifications</Typography.Text>
-        <Space size={4}>
+        <Space size={4} wrap>
           {hasUnread && (
             <Button
               type="link"
@@ -154,7 +156,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
 };
 
 /* ================= HEADER ================= */
-export default function AppHeader() {
+export default function AppHeader({ isMobile, onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { notifications, unreadCount, markAsRead, markAllAsRead, dismissNotification, dismissAll } =
@@ -168,26 +170,20 @@ export default function AppHeader() {
   };
 
   const handleNotificationClick = async (notification) => {
-    // Mark as read if unread
     if (!notification.is_read) {
       await markAsRead(notification.id);
     }
 
-    // Navigate based on notification type
     if (notification.type === "LEAVE_PENDING") {
-      // Approver clicks pending request → navigate to Manager Ticket page
       navigate("/manager");
     } else if (
       (notification.type === "LEAVE_APPROVED" || notification.type === "LEAVE_REJECTED") &&
       notification.related_object_id
     ) {
-      // User clicks approved/rejected notification → navigate to dashboard with state
-      // Include timestamp to ensure React Router triggers re-render even if same request
       navigate("/dashboard", {
         state: { openRequestId: notification.related_object_id, _ts: Date.now() }
       });
     } else {
-      // For other notification types, navigate to dashboard
       navigate("/dashboard");
     }
   };
@@ -199,7 +195,6 @@ export default function AppHeader() {
       label: "Profile",
       onClick: () => navigate("/profile"),
     },
-    // Only show Settings for HR and Admin
     ...(user?.role === "HR" || user?.role === "ADMIN"
       ? [
           {
@@ -225,7 +220,7 @@ export default function AppHeader() {
     <Header
       style={{
         background: "#fff",
-        padding: "0 24px",
+        padding: isMobile ? "0 12px" : "0 24px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -234,19 +229,39 @@ export default function AppHeader() {
       }}
     >
       {/* LEFT */}
-      <h2 style={{ margin: 0 }}>LEAVE MANAGEMENT SYSTEM</h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+        {isMobile && (
+          <MenuOutlined
+            style={{ fontSize: 20, cursor: "pointer" }}
+            onClick={onMenuClick}
+          />
+        )}
+        <h2
+          style={{
+            margin: 0,
+            fontSize: isMobile ? 14 : undefined,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {isMobile ? "LMS" : "LEAVE MANAGEMENT SYSTEM"}
+        </h2>
+      </div>
 
       {/* RIGHT */}
-      <Space size={16} align="center">
-        {/* USER INFO */}
-        <div style={{ textAlign: "right", lineHeight: "18px" }}>
-          <div style={{ fontWeight: 600 }}>
-            Hello, {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()}
+      <Space size={isMobile ? 8 : 16} align="center">
+        {/* USER INFO - hidden on mobile */}
+        {!isMobile && (
+          <div style={{ textAlign: "right", lineHeight: "18px" }}>
+            <div style={{ fontWeight: 600 }}>
+              Hello, {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()}
+            </div>
+            <div style={{ fontSize: 12, color: "#888" }}>
+              {user.department?.name || user.department} – {user.location?.name || user.location}
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: "#888" }}>
-            {user.department?.name || user.department} – {user.location?.name || user.location}
-          </div>
-        </div>
+        )}
 
         {/* NOTIFICATION ICON */}
         <Dropdown
@@ -259,6 +274,7 @@ export default function AppHeader() {
               onNotificationClick={handleNotificationClick}
               dismissNotification={dismissNotification}
               dismissAll={dismissAll}
+              isMobile={isMobile}
             />
           )}
           placement="bottomRight"
@@ -278,7 +294,7 @@ export default function AppHeader() {
         <Dropdown trigger={["click"]} menu={{ items: menuItems }}>
           <Avatar
             src={user.avatar}
-            size={40}
+            size={isMobile ? 32 : 40}
             style={{ cursor: "pointer" }}
           />
         </Dropdown>

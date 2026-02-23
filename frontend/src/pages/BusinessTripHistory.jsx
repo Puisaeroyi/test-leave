@@ -101,6 +101,7 @@ export default function BusinessTripHistory() {
         dataSource={data}
         loading={loading}
         pagination={false}
+        scroll={{ x: 600 }}
       />
 
       {/* DETAIL MODAL */}

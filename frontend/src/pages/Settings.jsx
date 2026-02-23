@@ -369,7 +369,7 @@ const Settings = () => {
       children: (
         <div>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Card>
                 <Statistic
                   title="Total Users"
@@ -378,7 +378,7 @@ const Settings = () => {
                 />
               </Card>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Card>
                 <Statistic
                   title="Active Users"
@@ -387,7 +387,7 @@ const Settings = () => {
                 />
               </Card>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Card>
                 <Statistic
                   title="Users Without Approver"
@@ -448,7 +448,7 @@ const Settings = () => {
   ];
 
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <Card
         title={
           <Space>
@@ -565,7 +565,7 @@ const Settings = () => {
       >
         <Form form={addForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="First Name"
                 name="first_name"
@@ -574,7 +574,7 @@ const Settings = () => {
                 <Input placeholder="John" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Last Name"
                 name="last_name"
@@ -586,7 +586,7 @@ const Settings = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Email"
                 name="email"
@@ -598,7 +598,7 @@ const Settings = () => {
                 <Input placeholder="john.doe@example.com" />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item label="Employee Code" name="employee_code">
                 <Input placeholder="EMP-001 (Optional)" />
               </Form.Item>
@@ -606,7 +606,7 @@ const Settings = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Role"
                 name="role"
@@ -621,7 +621,7 @@ const Settings = () => {
                 </Select>
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col xs={24} sm={12}>
               <Form.Item
                 label="Join Date"
                 name="join_date"
@@ -633,7 +633,7 @@ const Settings = () => {
           </Row>
 
           <Row gutter={16}>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 label="Entity"
                 name="entity"
@@ -653,7 +653,7 @@ const Settings = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 label="Location"
                 name="location"
@@ -674,7 +674,7 @@ const Settings = () => {
                 />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col xs={24} sm={8}>
               <Form.Item
                 label="Department"
                 name="department"

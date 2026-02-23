@@ -95,6 +95,7 @@ export default function BusinessTripTickets() {
           dataSource={data}
           rowKey="id"
           loading={loading}
+          scroll={{ x: 700 }}
           pagination={{
             current: pagination.current,
             pageSize: pagination.pageSize,

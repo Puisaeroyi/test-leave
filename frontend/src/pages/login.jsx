@@ -135,7 +135,9 @@ export default function Login() {
     >
       <Card
         style={{
-          width: 420,
+          width: "100%",
+          maxWidth: 420,
+          margin: "0 16px",
           padding: "16px 8px",
           borderRadius: 12,
           boxShadow: "0 10px 40px rgba(0,0,0,0.2)",

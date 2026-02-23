@@ -261,6 +261,7 @@ export default function ManagerTickets() {
           rowKey="id"
           loading={loading}
           pagination={false}
+          scroll={{ x: 800 }}
         />
       </Card>
 

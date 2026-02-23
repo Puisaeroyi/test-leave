@@ -106,7 +106,7 @@ export default function Profile() {
         }}
       >
         {/* HEADER */}
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
           <div style={{ position: "relative", display: "inline-block" }}>
             <Avatar
               size={96}
@@ -191,7 +191,7 @@ export default function Profile() {
         {/* INFO */}
         <Descriptions
           bordered
-          column={2}
+          column={{ xs: 1, sm: 1, md: 2 }}
           style={{ marginTop: 32 }}
           labelStyle={{ fontWeight: 500 }}
         >

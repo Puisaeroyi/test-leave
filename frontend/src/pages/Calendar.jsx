@@ -6,6 +6,10 @@ import {
   Typography,
   Select,
   Spin,
+  Grid,
+  Space,
+  Tag,
+  Empty,
   message,
 } from "antd";
 import dayjs from "dayjs";
@@ -15,6 +19,7 @@ import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
 import NewBusinessTripModal from "@components/NewBusinessTripModal";
 
 const { Text } = Typography;
+const { useBreakpoint } = Grid;
 
 /* =======================
    STYLE MAP
@@ -64,9 +69,12 @@ const mapCategoryToType = (category) => {
 
 export default function TeamCalendar() {
   const today = dayjs().format("YYYY-MM-DD");
+  const screens = useBreakpoint();
+  const isMobile = !screens.md;
 
   const [filter, setFilter] = useState("all");
   const [currentDate, setCurrentDate] = useState(dayjs());
+  const [selectedDate, setSelectedDate] = useState(dayjs());
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState([]);
   const [balance, setBalance] = useState([]);
@@ -185,11 +193,9 @@ export default function TeamCalendar() {
   ======================= */
   const getCellLabel = (item) => {
     if (item.type === "holiday") return item.note;
-    // Custom hours leave: show name + time range
     if (!item.is_full_day && item.start_time && item.end_time) {
       return `${item.user} (${item.start_time} - ${item.end_time})`;
     }
-    // Business trip: show name + city, country
     if (item.type === "business") {
       return `${item.user} - ${item.city}, ${item.country}`;
     }
@@ -197,7 +203,28 @@ export default function TeamCalendar() {
   };
 
   /* =======================
-     RENDER DAY CELL
+     HANDLE DATE SELECT
+  ======================= */
+  const handleDateSelect = (date, info) => {
+    setSelectedDate(date);
+
+    // On mobile, also update month when selecting a date from a different month
+    if (isMobile && date.month() !== currentDate.month()) {
+      setCurrentDate(date);
+    }
+
+    // Open create modal for future dates (desktop uses source check, mobile always on tap)
+    const source = info?.source;
+    if (!date.isBefore(dayjs(), "day")) {
+      if (isMobile || source === "date") {
+        setSelectedClickDate(date);
+        setOpenCreate(true);
+      }
+    }
+  };
+
+  /* =======================
+     RENDER DAY CELL (desktop only)
   ======================= */
   const dateCellRender = (value) => {
     const list = getEventsByDate(value);
@@ -236,7 +263,6 @@ export default function TeamCalendar() {
           const style = TYPE_STYLE[item.type];
           const isCustomHours = !item.is_full_day && item.start_time && item.end_time;
 
-          // Custom hours: render as bullet legend instead of bar
           if (isCustomHours) {
             return (
               <Badge
@@ -252,7 +278,6 @@ export default function TeamCalendar() {
             );
           }
 
-          // Full day / holiday / business trip: colored bar
           return (
             <div
               key={index}
@@ -280,42 +305,215 @@ export default function TeamCalendar() {
     );
   };
 
+  /* =======================
+     MOBILE: event list for selected date
+  ======================= */
+  const selectedDateEvents = getEventsByDate(selectedDate);
+
+  /* =======================
+     MOBILE: dot indicators on calendar cells
+  ======================= */
+  const mobileCellRender = (value) => {
+    const list = getEventsByDate(value);
+    if (list.length === 0) return null;
+
+    // Show colored dots for event types present on this day
+    const types = [...new Set(list.map((e) => e.type))];
+    return (
+      <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 2 }}>
+        {types.slice(0, 3).map((type) => (
+          <span
+            key={type}
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: TYPE_STYLE[type]?.border || "#999",
+            }}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  /* =======================
+     LEGEND BADGES
+  ======================= */
+  const legendBadges = ["holiday", "vacation", "sick", "business"].map((type) => (
+    <Badge key={type} color={TYPE_STYLE[type].border} text={TYPE_STYLE[type].label} />
+  ));
+
   return (
     <>
       <Card
         title="Team Leave Calendar"
         style={{ borderRadius: 16 }}
         extra={
-          <div style={{ display: "flex", gap: 12 }}>
+          isMobile ? (
+            // Mobile: only filter dropdown
             <Select
               value={filter}
               onChange={setFilter}
-              style={{ width: 200 }}
+              style={{ width: 140 }}
+              size="small"
               options={[
-                { value: "all", label: "All leave types" },
-                { value: "business", label: "Business Trip only" },
-                { value: "vacation", label: "Vacation only" },
-                { value: "holiday", label: "Holidays only" },
+                { value: "all", label: "All types" },
+                { value: "business", label: "Business Trip" },
+                { value: "vacation", label: "Vacation" },
+                { value: "holiday", label: "Holidays" },
               ]}
             />
-            {["holiday", "vacation", "sick", "business"].map((type) => (
-              <Badge key={type} color={TYPE_STYLE[type].border} text={TYPE_STYLE[type].label} />
-            ))}
-          </div>
+          ) : (
+            // Desktop: filter + legend badges
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <Select
+                value={filter}
+                onChange={setFilter}
+                style={{ width: 200 }}
+                options={[
+                  { value: "all", label: "All leave types" },
+                  { value: "business", label: "Business Trip only" },
+                  { value: "vacation", label: "Vacation only" },
+                  { value: "holiday", label: "Holidays only" },
+                ]}
+              />
+              {legendBadges}
+            </div>
+          )
         }
       >
         <Spin spinning={loading}>
-          <Calendar
-            value={currentDate}
-            onPanelChange={(date) => setCurrentDate(date)}
-            onSelect={(date, { source }) => {
-              if (source === "date" && !date.isBefore(dayjs(), "day")) {
-                setSelectedClickDate(date);
-                setOpenCreate(true);
-              }
-            }}
-            cellRender={dateCellRender}
-          />
+          {isMobile ? (
+            /* ===== MOBILE: compact calendar + event list ===== */
+            <>
+              <Calendar
+                fullscreen={false}
+                value={selectedDate}
+                onPanelChange={(date) => {
+                  setCurrentDate(date);
+                  setSelectedDate(date);
+                }}
+                onSelect={(date) => handleDateSelect(date, { source: "date" })}
+                fullCellRender={(date, info) => {
+                  if (info.type !== "date") return info.originNode;
+                  const isSelected = date.isSame(selectedDate, "day");
+                  const isToday = date.format("YYYY-MM-DD") === today;
+                  const inMonth = date.month() === currentDate.month();
+
+                  return (
+                    <div
+                      style={{
+                        width: "100%",
+                        textAlign: "center",
+                        padding: "4px 0",
+                        opacity: inMonth ? 1 : 0.3,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          lineHeight: "28px",
+                          borderRadius: "50%",
+                          margin: "0 auto",
+                          background: isSelected ? "#1677ff" : isToday ? "rgba(22,119,255,0.15)" : "transparent",
+                          color: isSelected ? "#fff" : undefined,
+                          fontWeight: isToday || isSelected ? 600 : 400,
+                        }}
+                      >
+                        {date.date()}
+                      </div>
+                      {mobileCellRender(date)}
+                    </div>
+                  );
+                }}
+              />
+
+              {/* Legend row below compact calendar */}
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "12px 0 8px" }}>
+                {legendBadges}
+              </div>
+
+              {/* Selected date header */}
+              <div style={{ padding: "8px 0 12px", borderTop: "1px solid #f0f0f0" }}>
+                <Text strong style={{ fontSize: 15 }}>
+                  {selectedDate.format("ddd, MMM D, YYYY")}
+                </Text>
+                {!selectedDate.isBefore(dayjs(), "day") && (
+                  <Text
+                    type="link"
+                    style={{ float: "right", color: "#1677ff", cursor: "pointer", fontSize: 13 }}
+                    onClick={() => {
+                      setSelectedClickDate(selectedDate);
+                      setOpenCreate(true);
+                    }}
+                  >
+                    + Add event
+                  </Text>
+                )}
+              </div>
+
+              {/* Event list for selected date */}
+              {selectedDateEvents.length === 0 ? (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="No events on this day"
+                  style={{ padding: "16px 0" }}
+                />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {selectedDateEvents.map((item, index) => {
+                    const style = TYPE_STYLE[item.type];
+                    return (
+                      <div
+                        key={index}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: 12,
+                          borderRadius: 10,
+                          background: style.bg,
+                          border: `1px solid ${style.border}`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 4,
+                            height: 36,
+                            borderRadius: 2,
+                            background: style.border,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text strong style={{ color: style.color, fontSize: 14 }}>
+                            {getCellLabel(item)}
+                          </Text>
+                          <div>
+                            <Tag
+                              color={style.border}
+                              style={{ marginTop: 4, fontSize: 11 }}
+                            >
+                              {TYPE_STYLE[item.type]?.label}
+                            </Tag>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          ) : (
+            /* ===== DESKTOP: full-size calendar grid ===== */
+            <Calendar
+              value={currentDate}
+              onPanelChange={(date) => setCurrentDate(date)}
+              onSelect={(date, info) => handleDateSelect(date, info)}
+              cellRender={dateCellRender}
+            />
+          )}
         </Spin>
       </Card>
 

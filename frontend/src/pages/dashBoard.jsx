@@ -256,13 +256,13 @@ export default function Dashboard() {
 
   return (
     <>
-      <Row gutter={24}>
+      <Row gutter={[24, 24]}>
         {/* ================= LEFT ================= */}
-        <Col span={16}>
+        <Col xs={24} lg={16}>
           <Card
             title="Leave History"
             extra={
-              <>
+              <Space wrap>
                 <Select
                   value={sort}
                   onChange={setSort}
@@ -273,12 +273,11 @@ export default function Dashboard() {
                 />
                 <Button
                   type="primary"
-                  style={{ marginLeft: 8 }}
                   onClick={() => setOpenModal(true)}
                 >
                   + New request
                 </Button>
-              </>
+              </Space>
             }
             style={{ borderRadius: 16 }}
           >
@@ -287,6 +286,7 @@ export default function Dashboard() {
               columns={columns}
               dataSource={history}
               loading={loading}
+              scroll={{ x: 500 }}
               pagination={{ pageSize: 6 }}
               onRow={(record) => ({
                 onClick: () => {
@@ -300,7 +300,7 @@ export default function Dashboard() {
         </Col>
 
         {/* ================= RIGHT ================= */}
-        <Col span={8}>
+        <Col xs={24} lg={8}>
           {/* ===== BALANCE ===== */}
           <Card
             title="Your Balance"
