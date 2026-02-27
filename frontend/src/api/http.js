@@ -72,4 +72,14 @@ http.interceptors.response.use(
   }
 );
 
+// Convert relative media paths to full backend URLs
+// e.g. "/media/attachments/uuid.pdf" → "https://api.example.com/media/attachments/uuid.pdf"
+export const getMediaUrl = (path) => {
+  if (!path) return null;
+  // Already a full URL — return as-is
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
 export default http;

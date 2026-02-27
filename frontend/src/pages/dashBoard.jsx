@@ -22,6 +22,7 @@ import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
 import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
+import { getMediaUrl } from "../api/http";
 
 dayjs.extend(isoWeek);
 dayjs.extend(isSameOrAfter);
@@ -507,7 +508,7 @@ export default function Dashboard() {
                   <PaperClipOutlined />
                   <Text underline>
                     <a
-                      href={selectedRequest.attachment}
+                      href={getMediaUrl(selectedRequest.attachment)}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

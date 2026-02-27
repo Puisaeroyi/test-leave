@@ -24,6 +24,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getPendingRequests, approveLeaveRequest, rejectLeaveRequest } from "../api/dashboardApi";
+import { getMediaUrl } from "../api/http";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -360,7 +361,7 @@ export default function ManagerTickets() {
                     <PaperClipOutlined />
                     <Text underline>
                       <a
-                        href={selectedTicket.attachment}
+                        href={getMediaUrl(selectedTicket.attachment)}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

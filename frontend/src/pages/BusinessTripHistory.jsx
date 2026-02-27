@@ -12,6 +12,7 @@ import {
 import { EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getBusinessTrips, cancelBusinessTrip } from "@api/businessTripApi";
+import { getMediaUrl } from "@api/http";
 import NewBusinessTripModal from "@components/NewBusinessTripModal";
 
 const { Title } = Typography;
@@ -132,7 +133,7 @@ export default function BusinessTripHistory() {
 
             {selected.attachment_url && (
               <Descriptions.Item label="Attachment">
-                <a href={selected.attachment_url} target="_blank" rel="noopener noreferrer">
+                <a href={getMediaUrl(selected.attachment_url)} target="_blank" rel="noopener noreferrer">
                   View Attachment
                 </a>
               </Descriptions.Item>

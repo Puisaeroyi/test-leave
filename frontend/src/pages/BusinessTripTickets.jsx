@@ -13,6 +13,7 @@ import {
 import { EyeOutlined, ReloadOutlined, PaperClipOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getTeamBusinessTrips } from "@api/businessTripApi";
+import { getMediaUrl } from "@api/http";
 
 const { Text } = Typography;
 
@@ -146,7 +147,7 @@ export default function BusinessTripTickets() {
                   <PaperClipOutlined />
                   <Text underline>
                     <a
-                      href={selected.attachment_url}
+                      href={getMediaUrl(selected.attachment_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
