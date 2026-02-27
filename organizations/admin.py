@@ -9,7 +9,7 @@ from import_export.admin import ImportExportModelAdmin
 from import_export.formats import base_formats
 import tablib
 
-from .models import Entity, Location, Department, DepartmentManager, UnifiedImportPlaceholder
+from .models import Entity, Location, Department, UnifiedImportPlaceholder
 from .resources import (
     EntityResource,
     LocationResource,
@@ -46,14 +46,6 @@ class DepartmentAdmin(ImportExportModelAdmin):
     list_filter = ['is_active', 'entity']
     search_fields = ['department_name', 'code']
     formats = [base_formats.CSV, base_formats.XLSX, base_formats.JSON]
-
-
-@admin.register(DepartmentManager)
-class DepartmentManagerAdmin(admin.ModelAdmin):
-    """Admin for DepartmentManager."""
-    list_display = ['manager', 'entity', 'department', 'location', 'is_active']
-    list_filter = ['is_active', 'entity', 'department', 'location']
-    search_fields = ['manager__email']
 
 
 class UnifiedOrganizationImportAdmin(admin.ModelAdmin):

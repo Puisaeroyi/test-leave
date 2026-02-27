@@ -1,5 +1,5 @@
 """
-Organization models: Entity, Location, Department, DepartmentManager
+Organization models: Entity, Location, Department
 """
 import uuid
 from django.db import models
@@ -68,53 +68,6 @@ class Department(models.Model):
         if self.location:
             return f"{self.department_name} ({self.code}) @ {self.location.location_name}"
         return f"{self.department_name} ({self.code})"
-
-
-class DepartmentManager(models.Model):
-    """Junction table for manager-department-location assignments"""
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    entity = models.ForeignKey(Entity, on_delete=models.CASCADE, null=True, blank=True)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    location = models.ForeignKey(Location, on_delete=models.CASCADE)
-    manager = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='managed_departments')
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'department_managers'
-        unique_together = [['entity', 'department', 'location', 'manager'], ['department', 'location', 'manager']]
-        verbose_name_plural = 'department managers'
-
-    def __str__(self):
-        entity_part = f" ({self.entity.code})" if self.entity else ""
-        return f"{self.manager.email} - {self.department.department_name} @ {self.location.location_name}{entity_part}"
-
-    def clean(self):
-        """Validate entity consistency."""
-        if self.entity and self.department and self.department.entity != self.entity:
-            raise ValidationError({
-                'department': ValidationError(
-                    f"Department '{self.department.department_name}' belongs to entity "
-                    f"'{self.department.entity.entity_name}', not '{self.entity.entity_name}'"
-                )
-            })
-        if self.entity and self.location and self.location.entity != self.entity:
-            raise ValidationError({
-                'location': ValidationError(
-                    f"Location '{self.location.location_name}' belongs to entity "
-                    f"'{self.location.entity.entity_name}', not '{self.entity.entity_name}'"
-                )
-            })
-
-    def save(self, *args, **kwargs):
-        # Auto-set entity from department if not set
-        if not self.entity and self.department:
-            self.entity = self.department.entity
-        # Validate using clean() for proper validation framework integration
-        self.full_clean()
-        super().save(*args, **kwargs)
-
 
 class UnifiedImportPlaceholder(models.Model):
     """Placeholder model for unified organization import interface."""

@@ -79,14 +79,6 @@ class DepartmentListView(APIView):
         return Response(data)
 
 
-class DepartmentManagerListView(generics.ListAPIView):
-    """List department managers"""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        return Response({'message': 'Department manager list - coming in Phase 2'}, status=status.HTTP_501_NOT_IMPLEMENTED)
-
-
 class EntityCreateView(generics.GenericAPIView):
     """Create new Entity (HR/Admin only)"""
     permission_classes = [IsAuthenticated, IsHRAdmin]

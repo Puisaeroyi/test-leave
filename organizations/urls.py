@@ -6,7 +6,6 @@ from .views import (
     EntityListView,
     LocationListView,
     DepartmentListView,
-    DepartmentManagerListView,
     EntityCreateView,
     EntityUpdateView,
     EntitySoftDeleteView,
@@ -28,7 +27,4 @@ urlpatterns = [
 
     # Departments
     path('departments/', DepartmentListView.as_view(), name='department_list'),
-
-    # Department Managers
-    path('managers/', DepartmentManagerListView.as_view(), name='department_manager_list'),
 ]

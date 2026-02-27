@@ -210,22 +210,15 @@ class TestLeaveApprovals:
         """Test manager approving a leave request"""
         user = setup_user_with_balance['user']
         category = setup_user_with_balance['category']
-        department = setup_user_with_balance['department']
 
-        # Create manager
+        # Create manager and assign as user's approver
         manager = User.objects.create_user(
             email='manager@example.com',
             password='Manager123!',
             role=User.Role.MANAGER
         )
-
-        # Assign manager to department
-        from organizations.models import DepartmentManager
-        DepartmentManager.objects.create(
-            department=department,
-            location=department.entity.locations.first(),
-            manager=manager
-        )
+        user.approver = manager
+        user.save()
 
         # Create leave request
         leave_request = LeaveRequest.objects.create(
@@ -319,21 +312,15 @@ class TestLeaveApprovals:
         """Test rejecting a leave request"""
         user = setup_user_with_balance['user']
         category = setup_user_with_balance['category']
-        department = setup_user_with_balance['department']
 
-        # Create manager
+        # Create manager and assign as user's approver
         manager = User.objects.create_user(
             email='manager@example.com',
             password='Manager123!',
             role=User.Role.MANAGER
         )
-
-        from organizations.models import DepartmentManager
-        DepartmentManager.objects.create(
-            department=department,
-            location=department.entity.locations.first(),
-            manager=manager
-        )
+        user.approver = manager
+        user.save()
 
         # Create leave request
         leave_request = LeaveRequest.objects.create(
