@@ -55,7 +55,7 @@ class LocationResource(resources.ModelResource):
 
     class Meta:
         model = Location
-        import_id_fields = ['entity', 'location_name']
+        import_id_fields = ['Entity_Code', 'Location_Name']
         fields = ('location_name', 'Entity_Code', 'city', 'state', 'country', 'timezone', 'is_active')
         export_order = ('location_name', 'Entity_Code', 'city', 'state', 'country', 'timezone', 'is_active')
         skip_unchanged = True
@@ -88,7 +88,7 @@ class DepartmentResource(resources.ModelResource):
 
     class Meta:
         model = Department
-        import_id_fields = ['entity', 'location', 'code']
+        import_id_fields = ['Entity_Code', 'Location_Name', 'Department_Code']
         fields = ('department_name', 'code', 'Entity_Code', 'Location_Name', 'is_active')
         export_order = ('department_name', 'code', 'Entity_Code', 'Location_Name', 'is_active')
         skip_unchanged = True
