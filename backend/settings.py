@@ -182,8 +182,8 @@ CACHES = {
 # Security Settings
 # https://docs.djangoproject.com/en/6.0/topics/security/
 
-# Proxy SSL Header (DISABLED - no reverse proxy)
-# SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# Proxy SSL Header (behind reverse proxy like nginx, Caddy, AWS ELB, Cloudflare)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SSL Redirect Exemptions (for health checks)
 if not DEBUG:
@@ -330,6 +330,11 @@ CSRF_TRUSTED_ORIGINS = [
     f'https://{host}' for host in ALLOWED_HOSTS
     if host not in ('localhost', '127.0.0.1', '[::1]', 'backend')
 ]
+# Extra origins (e.g. self-signed HTTPS on non-default ports) via env
+# Example: CSRF_TRUSTED_ORIGINS_EXTRA=https://10.10.11.246:8443
+_extra_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS_EXTRA', '')
+if _extra_csrf:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra_csrf.split(',') if o.strip()]
 if DEBUG:
     # Dev: also allow localhost origins with any port
     CSRF_TRUSTED_ORIGINS += [
@@ -341,7 +346,7 @@ if DEBUG:
 # Secure Cookie Settings
 if not DEBUG:
     # Production: HTTPS-only cookies
-    SECURE_SSL_REDIRECT = False  # DISABLED - No reverse proxy
+    SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 

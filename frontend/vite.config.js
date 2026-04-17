@@ -25,13 +25,7 @@ export default defineConfig({
       'localhost',
       '127.0.0.1',
       '10.10.73.5',
-      'test.oanhhong.xyz'
-    ],
-    headers: {
-      // Prevent Cloudflare CDN from caching dev server responses
-      'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-      'CDN-Cache-Control': 'no-store',
-      'Cloudflare-CDN-Cache-Control': 'no-store',
-    }
+      'leave.oanhhong.xyz'
+    ]
   }
 })

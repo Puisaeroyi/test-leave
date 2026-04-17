@@ -18,7 +18,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       const fetchData = async () => {
         try {
           const token = localStorage.getItem('access');
-          const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+          const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
           const [locResponse, deptResponse] = await Promise.all([
             fetch(`${baseURL}/api/v1/organizations/locations/?entity_id=${entity.id}`, {

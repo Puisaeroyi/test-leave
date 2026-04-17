@@ -87,3 +87,7 @@ media/
 .claude/
 .opencode/docs/
 CLAUDE.md
+
+# Local TLS material (self-signed)
+certs/
+exports/

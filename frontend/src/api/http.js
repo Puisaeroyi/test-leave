@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const http = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL || "http://localhost:8000") + "/api/v1",
+  baseURL: (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api/v1",
   headers: {
     "Content-Type": "application/json",
   },
@@ -47,7 +47,7 @@ http.interceptors.response.use(
       if (refreshToken) {
         try {
           const res = await axios.post(
-            (import.meta.env.VITE_API_URL || "http://localhost:8000") + "/api/v1/auth/token/refresh/",
+            (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api/v1/auth/token/refresh/",
             { refresh: refreshToken }
           );
           const newAccess = res.data.access;
@@ -78,7 +78,7 @@ export const getMediaUrl = (path) => {
   if (!path) return null;
   // Already a full URL — return as-is
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  const base = import.meta.env.VITE_API_URL || "http://localhost:8000";
+  const base = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
