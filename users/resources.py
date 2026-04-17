@@ -29,7 +29,7 @@ class NullableDateWidget(Widget):
             return parsed
         raise ValidationError(f"Invalid date format: '{value}'. Expected YYYY-MM-DD.")
 
-    def render(self, value, obj=None):
+    def render(self, value, obj=None, **kwargs):
         if value is None:
             return ''
         return value.strftime('%Y-%m-%d') if value else ''
@@ -195,7 +195,7 @@ class PasswordWidget(Widget):
             return str(value).strip()
         return get_default_import_password()
 
-    def render(self, value, obj=None):
+    def render(self, value, obj=None, **kwargs):
         # Never export actual passwords
         return ''
 
@@ -244,14 +244,15 @@ class UserResource(resources.ModelResource):
     class Meta:
         model = User
         import_id_fields = ['email']
-        # Use column names (case-sensitive from CSV headers)
+        # django-import-export matches these against the declared field attribute
+        # names on this class (column headers come from each field's column_name).
         fields = (
-            'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Entity_Code', 'Location_Name',
-            'Department_Code', 'Role', 'Status', 'Approver_Email', 'Join_Date', 'is_active', 'Password'
+            'email', 'first_name', 'last_name', 'employee_code', 'entity', 'location',
+            'department', 'role', 'status', 'approver', 'join_date', 'is_active', 'password',
         )
         export_order = (
-            'Email', 'First_Name', 'Last_Name', 'Employee_Code', 'Role', 'Status', 'Entity_Code',
-            'Location_Name', 'Department_Code', 'Approver_Email', 'Join_Date', 'is_active'
+            'email', 'first_name', 'last_name', 'employee_code', 'role', 'status', 'entity',
+            'location', 'department', 'approver', 'join_date', 'is_active',
         )
         skip_unchanged = True
         report_skipped = True
