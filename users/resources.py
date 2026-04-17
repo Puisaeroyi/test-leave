@@ -281,6 +281,11 @@ class UserResource(resources.ModelResource):
         if 'role' not in row or not row.get('role'):
             row['role'] = 'EMPLOYEE'
 
+        # Inject default password if column missing or blank — required because
+        # PasswordWidget only fires when the column exists in the CSV.
+        if not row.get('Password'):
+            row['Password'] = get_default_import_password()
+
     def import_row(self, row, instance_loader, dry_run=False, raise_errors=False, use_transactions=None, **kwargs):
         """Override to collect validation errors properly. Matches django-import-export 4.0+ API."""
         try:
