@@ -11,6 +11,7 @@ from ...models import LeaveRequest
 from ...serializers import LeaveRequestApproveSerializer
 from ...services import LeaveApprovalService
 from core.services.notification_service import create_leave_approved_notification
+from core.services.email_service import send_leave_approved_email
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,7 @@ class LeaveRequestApproveView(generics.GenericAPIView):
 
             # Create notification outside transaction for performance
             create_leave_approved_notification(approved_request)
+            send_leave_approved_email(approved_request)
 
             return Response({
                 'id': str(approved_request.id),

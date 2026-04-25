@@ -11,6 +11,7 @@ from ...models import LeaveRequest
 from ...serializers import LeaveRequestRejectSerializer
 from ...services import LeaveApprovalService
 from core.services.notification_service import create_leave_rejected_notification
+from core.services.email_service import send_leave_rejected_email
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class LeaveRequestRejectView(generics.GenericAPIView):
 
             # Create notification outside transaction for performance
             create_leave_rejected_notification(rejected_request)
+            send_leave_rejected_email(rejected_request)
 
             return Response({
                 'id': str(rejected_request.id),

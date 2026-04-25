@@ -19,6 +19,7 @@ from ...utils import (
 )
 from users.models import User
 from core.services.notification_service import create_leave_pending_notification
+from core.services.email_service import send_leave_pending_email
 import logging
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         # Notify the assigned approver (outside transaction for performance)
         if user.approver:
             create_leave_pending_notification(user.approver, leave_request)
+            send_leave_pending_email(user.approver, leave_request)
         else:
             logger.warning(f"User {user.email} has no approver assigned - no notification sent for leave request {leave_request.id}")
 
