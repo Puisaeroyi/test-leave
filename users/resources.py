@@ -257,14 +257,11 @@ class UserResource(resources.ModelResource):
         skip_unchanged = True
         report_skipped = True
 
-    def after_save_instance(self, instance, row, **kwargs):
-        """Hash password and ensure first_login after save."""
-        # Get password from row (cleaned by PasswordWidget)
+    def before_save_instance(self, instance, row, **kwargs):
+        """Set password before save so full_clean() passes."""
         raw_password = row.get('Password', '').strip() or get_default_import_password()
-        # set_password hashes properly — Model.save() stores plain text
         instance.set_password(raw_password)
         instance.first_login = True
-        instance.save(update_fields=['password', 'first_login'])
 
     def before_import_row(self, row, **kwargs):
         """Clean up None values and set defaults before import."""
