@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0; padding:0; background-color:#f4f4f7; font-family:Arial,Helvetica,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7; padding:32px 0;">
+    <tr>
+      <td align="center">
+
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#16a34a; padding:24px 32px;">
+              <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:600;">Leave Request Approved</h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:24px 32px;">
+              <p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.5;">
+                Your leave request has been approved. Details below:
+              </p>
+
+              <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                <tr>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:35%;">Leave Type</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ category }}</td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">From</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ start_date }}</td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">To</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ end_date }}</td>
+                </tr>
+                <tr>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Approved By</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ approver_name }}</td>
+                </tr>
+              </table>
+
+              <p style="margin:24px 0 0; text-align:center;">
+                <a href="{{ dashboard_url }}" style="display:inline-block; padding:10px 24px; background-color:#16a34a; color:#ffffff; text-decoration:none; border-radius:6px; font-size:14px; font-weight:600;">View Your Requests</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
+              <p style="margin:0; color:#9ca3af; font-size:12px; text-align:center;">
+                Leave Management System &mdash; This is an automated notification.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
