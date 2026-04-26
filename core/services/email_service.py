@@ -107,6 +107,11 @@ def send_leave_rejected_email(leave_request):
         if leave_request.leave_category
         else "Leave"
     )
+    rejected_by_name = (
+        leave_request.approved_by.get_full_name()
+        if leave_request.approved_by
+        else "Your manager"
+    )
     rejection_reason = (
         leave_request.rejection_reason
         if leave_request.rejection_reason
@@ -120,13 +125,15 @@ def send_leave_rejected_email(leave_request):
         f"Your leave request has been rejected:\n\n"
         f"Type: {category}\n"
         f"From: {leave_request.start_date}\n"
-        f"To: {leave_request.end_date}{reason_text}\n\n"
+        f"To: {leave_request.end_date}\n"
+        f"Rejected by: {rejected_by_name}{reason_text}\n\n"
         f"View your requests: {dashboard_url}"
     )
     html_body = render_to_string("email/leave_rejected.html", {
         "category": category,
         "start_date": leave_request.start_date,
         "end_date": leave_request.end_date,
+        "rejected_by_name": rejected_by_name,
         "rejection_reason": rejection_reason,
         "dashboard_url": dashboard_url,
     })
