@@ -21,28 +21,6 @@ export async function login({ email, password }) {
   return res.data.user;
 }
 
-export async function signup(data) {
-  const res = await http.post(`${API_URL}/register/`, {
-    email: data.email,
-    password: data.password,
-    password_confirm: data.password_confirm || data.password,
-    first_name: data.firstName || data.first_name || "",
-    last_name: data.lastName || data.last_name || "",
-    employee_code: data.employeeCode || data.employee_code || null,
-    entity: data.entity,
-    location: data.location,
-    department: data.department,
-  });
-
-  // Store tokens in localStorage
-  if (res.data.user.tokens) {
-    localStorage.setItem("access", res.data.user.tokens.access);
-    localStorage.setItem("refresh", res.data.user.tokens.refresh);
-  }
-
-  return res.data.user;
-}
-
 export async function logout() {
   const refreshToken = localStorage.getItem("refresh");
   if (refreshToken) {
