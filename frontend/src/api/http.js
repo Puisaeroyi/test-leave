@@ -1,7 +1,17 @@
 import axios from "axios";
 
+const rawBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ??
+  import.meta.env.VITE_API_URL ??
+  "/api/v1";
+const normalizedBaseUrl = rawBaseUrl.replace(/\/$/, "");
+const apiBaseUrl = normalizedBaseUrl.endsWith("/api/v1")
+  ? normalizedBaseUrl
+  : `${normalizedBaseUrl}/api/v1`;
+const backendBaseUrl = normalizedBaseUrl.replace(/\/api\/v1$/, "");
+
 const http = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api/v1",
+  baseURL: apiBaseUrl,
   headers: {
     "Content-Type": "application/json",
   },
@@ -47,7 +57,7 @@ http.interceptors.response.use(
       if (refreshToken) {
         try {
           const res = await axios.post(
-            (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api/v1/auth/token/refresh/",
+            `${apiBaseUrl}/auth/token/refresh/`,
             { refresh: refreshToken }
           );
           const newAccess = res.data.access;
@@ -57,7 +67,7 @@ http.interceptors.response.use(
           }
           originalRequest.headers.Authorization = `Bearer ${newAccess}`;
           return http(originalRequest);
-        } catch (refreshError) {
+        } catch {
           // Refresh failed - clear and redirect
         }
       }
@@ -78,8 +88,7 @@ export const getMediaUrl = (path) => {
   if (!path) return null;
   // Already a full URL — return as-is
   if (path.startsWith("http://") || path.startsWith("https://")) return path;
-  const base = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
-  return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+  return `${backendBaseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
 export default http;

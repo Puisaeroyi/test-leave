@@ -30,17 +30,15 @@ dayjs.extend(relativeTime);
 const { Header } = Layout;
 
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotificationClick, dismissNotification, dismissAll, isMobile }) => {
+const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, dismissNotification, dismissAll, isMobile }) => {
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
     <div
+      className="notification-popup"
       style={{
         width: isMobile ? "calc(100vw - 32px)" : 380,
         maxWidth: 380,
-        background: "#fff",
-        borderRadius: 8,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
         padding: 12,
       }}
     >
@@ -52,7 +50,9 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
           marginBottom: 8,
         }}
       >
-        <Typography.Text strong>Notifications</Typography.Text>
+        <Typography.Text strong style={{ color: "var(--color-text)" }}>
+          Notifications
+        </Typography.Text>
         <Space size={4} wrap>
           {hasUnread && (
             <Button
@@ -70,7 +70,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
               size="small"
               icon={<CloseOutlined />}
               onClick={dismissAll}
-              style={{ color: "#999" }}
+              style={{ color: "var(--color-muted)" }}
             >
               Dismiss all
             </Button>
@@ -90,20 +90,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
           dataSource={notifications}
           renderItem={(item) => (
             <List.Item
-              style={{
-                padding: "8px",
-                cursor: "pointer",
-                borderRadius: 6,
-                background: item.is_read ? "#fff" : "#f0f7ff",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#f5f5f5")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = item.is_read
-                  ? "#fff"
-                  : "#f0f7ff")
-              }
+              className={`notification-item${item.is_read ? "" : " notification-item--unread"}`}
               onClick={() => onNotificationClick(item)}
               extra={
                 <Button
@@ -114,7 +101,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
                     e.stopPropagation();
                     dismissNotification(item.id);
                   }}
-                  style={{ color: "#999", fontSize: 12 }}
+                  style={{ color: "var(--color-muted)", fontSize: 12 }}
                 />
               }
             >
@@ -124,7 +111,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
                     <Avatar
                       size={36}
                       icon={<BellOutlined />}
-                      style={{ backgroundColor: "#1677ff" }}
+                      style={{ backgroundColor: "var(--color-accent-strong)" }}
                     />
                   </Badge>
                 }
@@ -141,7 +128,7 @@ const NotificationPopup = ({ notifications, markAsRead, markAllAsRead, onNotific
                     >
                       {item.message}
                     </Typography.Text>
-                    <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>
+                    <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
                       {dayjs(item.created_at).fromNow()}
                     </div>
                   </>
@@ -211,53 +198,44 @@ export default function AppHeader({ isMobile, onMenuClick }) {
     {
       key: "logout",
       icon: <LogoutOutlined />,
-      label: <span style={{ color: "red" }}>Logout</span>,
+      label: <span style={{ color: "var(--color-danger)" }}>Logout</span>,
       onClick: handleLogout,
     },
   ];
 
   return (
     <Header
-      style={{
-        background: "#fff",
-        padding: isMobile ? "0 12px" : "0 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        lineHeight: "normal",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-      }}
+      className="app-header"
     >
       {/* LEFT */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+      <div className="header-left">
         {isMobile && (
-          <MenuOutlined
-            style={{ fontSize: 20, cursor: "pointer" }}
+          <button
+            type="button"
+            className="header-menu-button"
+            aria-label="Open navigation menu"
             onClick={onMenuClick}
-          />
+          >
+            <MenuOutlined style={{ fontSize: 18 }} />
+          </button>
         )}
-        <h2
-          style={{
-            margin: 0,
-            fontSize: isMobile ? 14 : undefined,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {isMobile ? "LMS" : "LEAVE MANAGEMENT SYSTEM"}
-        </h2>
+        <div>
+          {!isMobile && <div className="header-title-kicker"></div>}
+          <h2 className="header-title">
+            {isMobile ? "LMS" : "Leave Management System"}
+          </h2>
+        </div>
       </div>
 
       {/* RIGHT */}
       <Space size={isMobile ? 8 : 16} align="center">
         {/* USER INFO - hidden on mobile */}
         {!isMobile && (
-          <div style={{ textAlign: "right", lineHeight: "18px" }}>
-            <div style={{ fontWeight: 600 }}>
+          <div className="header-user">
+            <div className="header-user__name">
               Hello, {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()}
             </div>
-            <div style={{ fontSize: 12, color: "#888" }}>
+            <div className="header-user__meta">
               {user.department?.name || user.department} – {user.location?.name || user.location}
             </div>
           </div>
@@ -269,7 +247,6 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           dropdownRender={() => (
             <NotificationPopup
               notifications={notifications}
-              markAsRead={markAsRead}
               markAllAsRead={markAllAsRead}
               onNotificationClick={handleNotificationClick}
               dismissNotification={dismissNotification}
@@ -280,13 +257,13 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           placement="bottomRight"
         >
           <Badge count={unreadCount} size="small">
-            <BellOutlined
-              style={{
-                fontSize: 20,
-                cursor: "pointer",
-                color: "#555",
-              }}
-            />
+            <button
+              type="button"
+              className="header-icon-button"
+              aria-label="Open notifications"
+            >
+              <BellOutlined style={{ fontSize: 18 }} />
+            </button>
           </Badge>
         </Dropdown>
 
@@ -295,7 +272,8 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           <Avatar
             src={user.avatar}
             size={isMobile ? 32 : 40}
-            style={{ cursor: "pointer" }}
+            aria-label="Open profile menu"
+            style={{ cursor: "pointer", background: "var(--color-accent-soft)", border: "1px solid var(--color-border)" }}
           />
         </Dropdown>
       </Space>

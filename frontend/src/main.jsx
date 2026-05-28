@@ -2,27 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ConfigProvider } from "antd";
+import { antdTheme } from "./styles/antd-theme";
 import "antd/dist/reset.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <ConfigProvider
-      theme={{
-        token: {
-          fontFamily:
-            "Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        },
-        components: {
-          Menu: {
-            itemSelectedBg: "#FFF8DE",
-            itemSelectedColor: "#000000",
-            itemHoverBg: "#FFF8DE",
-            itemHoverColor: "#000000",
-            itemColor: "#FFFFFF",
-          },
-        },
-      }}
-    >
+    <ConfigProvider theme={antdTheme}>
       <App />
     </ConfigProvider>
   </React.StrictMode>

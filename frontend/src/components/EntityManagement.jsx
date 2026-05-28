@@ -55,7 +55,7 @@ const EntityManagement = () => {
         message.success('Entity updated successfully');
       }
       setFormVisible(false);
-      fetchEntities();
+      await fetchEntities();
     } catch (error) {
       const errData = error.response?.data;
       const errMsg = errData?.error || errData?.entity_name?.[0] || errData?.code?.[0] || error.message;
@@ -95,7 +95,7 @@ const EntityManagement = () => {
             message.success(
               `Deactivated ${result.entity_name} (${result.locations_deactivated} locations, ${result.departments_deactivated} departments)`
             );
-            fetchEntities();
+            await fetchEntities();
           } catch (error) {
             message.error('Failed to deactivate: ' + (error.response?.data?.error || error.message));
           }
@@ -142,7 +142,11 @@ const EntityManagement = () => {
       key: 'is_active',
       width: 100,
       render: (active) => (
-        <Tag color={active ? 'green' : 'red'}>
+        <Tag
+          style={active
+            ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
+            : { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }}
+        >
           {active ? 'Active' : 'Inactive'}
         </Tag>
       ),

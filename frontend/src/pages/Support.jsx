@@ -1,133 +1,90 @@
-import { Card, Typography, Space, Divider, Row, Col, Tag } from "antd";
+import { Card, Typography, Space } from "antd";
 import {
   CustomerServiceOutlined,
   MailOutlined,
   PhoneOutlined,
   ClockCircleOutlined,
-  EnvironmentOutlined,
 } from "@ant-design/icons";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Paragraph } = Typography;
 
 export default function Support() {
   return (
-    <div
-      style={{
-        maxWidth: 900,
-        margin: "32px auto",
-        padding: "0 16px",
-      }}
-    >
+    <div className="page-shell">
+      <section>
+        <div className="page-kicker">Help & Support</div>
+        <h1 className="page-title">Support Center</h1>
+        <p className="page-subtitle">
+          Need help or found an issue? Contact support and we will guide you through the next step.
+        </p>
+      </section>
+
       <Card
+        className="page-panel"
         title={
           <Space>
             <CustomerServiceOutlined style={{ fontSize: 24 }} />
-            <Title level={3} style={{ margin: 0 }}>
-              Support Center
+            <Title level={3} style={{ margin: 0, color: "var(--color-text)" }}>
+              Contact Desk
             </Title>
           </Space>
         }
-        style={{
-          borderRadius: 12,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-        }}
       >
         {/* Help Message */}
-        <Paragraph
-          style={{
-            fontSize: 16,
-            marginBottom: 24,
-            color: "#555",
-          }}
-        >
+        <Paragraph style={{ color: "var(--color-muted)", fontSize: 16 }}>
           For technical assistance or to report a bug, please reach out to our
           support team at:
         </Paragraph>
 
-        <Divider />
-
         {/* Support Contact Card */}
-        <Card
-          type="inner"
-          title="Contact Information"
-          style={{
-            marginBottom: 24,
-            borderRadius: 8,
-            background: "rgb(87, 106, 143)",
-          }}
-          headStyle={{
-            color: "#fff",
-            borderBottom: "1px solid rgba(255,255,255,0.2)",
-            fontSize: 24,
-            fontWeight: 600,
-            paddingTop: 16,
-            paddingBottom: 12,
-          }}
-          bodyStyle={{ background: "rgba(255,255,255,0.95)" }}
-        >
-          <Row gutter={[24, 24]}>
+        <div className="contact-grid">
             {/* Name */}
-            <Col xs={24} md={12}>
-              <Space direction="vertical" size={6}>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Support Contact
-                </Text>
-                <Title level={3} style={{ margin: 0, fontSize: 22 }}>
-                  Silver Bui
-                </Title>
-              </Space>
-            </Col>
+            <div className="contact-tile">
+              <div className="contact-tile__label">Support Contact</div>
+              <div className="contact-tile__value">Silver Bui</div>
+            </div>
 
             {/* Email */}
-            <Col xs={24} md={12}>
-              <Space direction="vertical" size={6}>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Email
-                </Text>
+            <div className="contact-tile">
+              <div className="contact-tile__label">Email</div>
+              <div className="contact-tile__value">
                 <Space>
-                  <MailOutlined style={{ color: "#1677ff", fontSize: 16 }} />
+                  <MailOutlined style={{ color: "var(--color-accent)" }} />
                   <a
                     href="mailto:silver@teampl.com"
-                    style={{ fontSize: 18, fontWeight: 500 }}
                   >
                     silver@teampl.com
                   </a>
                 </Space>
-              </Space>
-            </Col>
+              </div>
+            </div>
 
             {/* Phone */}
-            <Col xs={24} md={12}>
-              <Space direction="vertical" size={6}>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Phone (Kakao Talk)
-                </Text>
+            <div className="contact-tile">
+              <div className="contact-tile__label">Phone (Kakao Talk)</div>
+              <div className="contact-tile__value">
                 <Space>
-                  <PhoneOutlined style={{ color: "#52c41a", fontSize: 16 }} />
+                  <PhoneOutlined style={{ color: "var(--color-success)" }} />
                   <a
                     href="tel:+84902713536"
-                    style={{ fontSize: 18, fontWeight: 500 }}
                   >
                     (+84) 902 713 536
                   </a>
                 </Space>
-              </Space>
-            </Col>
+              </div>
+            </div>
 
             {/* Response Time */}
-            <Col xs={24} md={12}>
-              <Space direction="vertical" size={6}>
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Response Time
-                </Text>
+            <div className="contact-tile">
+              <div className="contact-tile__label">Response Time</div>
+              <div className="contact-tile__value">
                 <Space>
-                  <ClockCircleOutlined style={{ color: "#faad14", fontSize: 16 }} />
-                  <Text style={{ fontSize: 18 }}>Within 24 hours</Text>
+                  <ClockCircleOutlined style={{ color: "var(--color-warning)" }} />
+                  <span>Within 24 hours</span>
                 </Space>
-              </Space>
-            </Col>
-          </Row>
-        </Card>
+              </div>
+            </div>
+        </div>
       </Card>
     </div>
   );

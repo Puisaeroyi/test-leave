@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react-swc'
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
@@ -12,7 +15,6 @@ export default defineConfig({
       '@api': path.resolve(__dirname, './src/api'),
       '@hooks': path.resolve(__dirname, './src/hooks'),
       '@router': path.resolve(__dirname, './src/router'),
-      '@routes': path.resolve(__dirname, './src/routes'),
       '@layouts': path.resolve(__dirname, './src/layouts'),
       '@components': path.resolve(__dirname, './src/components'),
       '@pages': path.resolve(__dirname, './src/pages'),
@@ -21,6 +23,18 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://127.0.0.1:8443',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/media': {
+        target: 'https://127.0.0.1:8443',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     allowedHosts: [
       'localhost',
       '127.0.0.1',

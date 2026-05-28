@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Table,
@@ -23,12 +23,7 @@ export default function BusinessTripTickets() {
   const [selected, setSelected] = useState(null);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
-  // Fetch team business trips on mount
-  useEffect(() => {
-    fetchTrips();
-  }, []);
-
-  const fetchTrips = async (page = 1, pageSize = 10) => {
+  const fetchTrips = useCallback(async (page = 1, pageSize = 10) => {
     try {
       setLoading(true);
       const response = await getTeamBusinessTrips({ page, page_size: pageSize });
@@ -40,7 +35,12 @@ export default function BusinessTripTickets() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch team business trips on mount
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
 
   const columns = [
     {
@@ -51,7 +51,7 @@ export default function BusinessTripTickets() {
     },
     {
       title: "Destination",
-      render: (_, r) => <Tag color="geekblue">{r.city}, {r.country}</Tag>,
+      render: (_, r) => <Tag style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{r.city}, {r.country}</Tag>,
     },
     {
       title: "Date Range",
@@ -77,10 +77,18 @@ export default function BusinessTripTickets() {
   ];
 
   return (
-    <>
+    <div className="page-shell">
+      <section>
+        <div className="page-kicker">Team Travel Review</div>
+        <h1 className="page-title">Business Trip Reviews</h1>
+        <p className="page-subtitle">
+          Review team business trips with destination, attachment, and date details.
+        </p>
+      </section>
+
       <Card
-        title="Business Trip Tickets"
-        style={{ borderRadius: 16 }}
+        className="page-panel table-card"
+        title="Business Trip Reviews"
         extra={
           <Button
             icon={<ReloadOutlined />}
@@ -160,6 +168,6 @@ export default function BusinessTripTickets() {
           </Descriptions>
         )}
       </Modal>
-    </>
+    </div>
   );
 }

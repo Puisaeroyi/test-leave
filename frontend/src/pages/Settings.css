@@ -13,25 +13,26 @@
 }
 
 .settings-table {
-  background: #fff;
+  background: transparent;
 }
 
-.ant-statistic-title {
+.settings-page .ant-statistic-title {
   font-size: 14px;
-  color: #888;
+  color: var(--color-muted);
 }
 
-.ant-statistic-content {
+.settings-page .ant-statistic-content {
+  color: var(--color-text);
   font-size: 24px;
   font-weight: 600;
 }
 
-.ant-table-tbody > tr:hover {
-  background-color: #f5f5f5;
+.settings-page .ant-table-tbody > tr:hover {
+  background-color: rgba(31, 138, 120, 0.07);
 }
 
 /* Approver tag styling */
-.ant-tag-purple {
+.settings-page .approver-tag {
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,6 +1,7 @@
 import { Modal, Form, Input, Switch, Button, Row, Col, Divider } from 'antd';
 import { useEffect, useState } from 'react';
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import http from '@api/http';
 
 const MAX_LOCATIONS = 5;
 const MAX_DEPARTMENTS_PER_LOCATION = 5;
@@ -17,20 +18,13 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       // Load entity's existing data
       const fetchData = async () => {
         try {
-          const token = localStorage.getItem('access');
-          const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
           const [locResponse, deptResponse] = await Promise.all([
-            fetch(`${baseURL}/api/v1/organizations/locations/?entity_id=${entity.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            }),
-            fetch(`${baseURL}/api/v1/organizations/departments/?entity_id=${entity.id}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            })
+            http.get(`/organizations/locations/?entity_id=${entity.id}`),
+            http.get(`/organizations/departments/?entity_id=${entity.id}`),
           ]);
 
-          const locationsData = await locResponse.json();
-          const departmentsData = await deptResponse.json();
+          const locationsData = locResponse.data.results || locResponse.data;
+          const departmentsData = deptResponse.data.results || deptResponse.data;
 
           const formValues = {
             entity_name: entity.entity_name,
@@ -149,7 +143,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       };
 
       onSuccess(payload);
-    } catch (error) {
+    } catch {
       // Form validation errors are handled by Ant Design
     }
   };
@@ -204,7 +198,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       const deptCount = departmentsPerLocation[i] || 0;
 
       locations.push (
-        <div key={`location-${i}`} style={{ marginBottom: 24, padding: 16, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
+        <div key={`location-${i}`} style={{ marginBottom: 24, padding: 16, backgroundColor: 'var(--color-surface-muted)', borderRadius: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontWeight: 600, fontSize: 14 }}>📍 Location {i} {i === 1 ? '(Required)' : '(Optional)'}</span>
             {i > 1 && (
@@ -261,7 +255,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
           </Row>
 
           {/* Departments for this Location */}
-          <div style={{ marginTop: 16, padding: 12, backgroundColor: '#fff', borderRadius: 6 }}>
+          <div style={{ marginTop: 16, padding: 12, backgroundColor: 'var(--color-surface-solid)', borderRadius: 6 }}>
             <div style={{ fontWeight: 500, marginBottom: 8, fontSize: 13 }}>
               Departments for {form.getFieldValue(`location_name_${i}`) || `Location ${i}`}
             </div>
@@ -323,9 +317,9 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
     if (entityDeptCount === 0 && locationCount < MAX_LOCATIONS) return null;
 
     return (
-      <div style={{ padding: 16, backgroundColor: '#e6f7ff', borderRadius: 8, border: '1px solid #91d5ff' }}>
+      <div style={{ padding: 16, backgroundColor: 'var(--color-info-soft)', borderRadius: 8, border: '1px solid var(--color-info)' }}>
         <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>🏢 Entity-Wide Departments</div>
-        <div style={{ fontSize: 12, color: '#666', marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 12 }}>
           These departments are not tied to any specific location
         </div>
 
@@ -388,7 +382,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       okText={mode === 'create' ? 'Create' : 'Update'}
       confirmLoading={submitting}
       width={800}
-      bodyStyle={{ maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' }}
+      styles={{ body: { maxHeight: '85vh', overflowY: 'auto', overflowX: 'hidden' } }}
       centered
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>

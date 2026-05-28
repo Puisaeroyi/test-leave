@@ -24,7 +24,7 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
+import { uploadFile } from "../api/dashboardApi";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -43,8 +43,6 @@ export default function NewLeaveRequestModal({
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [fileList, setFileList] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
 
   // Pre-fill date from calendar click
   useEffect(() => {
@@ -52,23 +50,6 @@ export default function NewLeaveRequestModal({
       form.setFieldsValue({ date: [initialDate, initialDate] });
     }
   }, [open, initialDate, form]);
-
-  // Fetch leave categories on mount
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setCategoriesLoading(true);
-        const data = await getLeaveCategories();
-        setCategories(data);
-      } catch (error) {
-        console.error("Failed to fetch categories:", error);
-        message.error("Failed to load leave categories");
-      } finally {
-        setCategoriesLoading(false);
-      }
-    };
-    fetchCategories();
-  }, []);
 
   const values = Form.useWatch([], form);
   const leaveCategory = Form.useWatch("leaveCategory", form);
@@ -275,11 +256,11 @@ export default function NewLeaveRequestModal({
               {sameDay && dayType === "custom" && (
                 <>
                   <Space>
-                    <Form.Item name="startTime" rules={[{ required: true }]}>
-                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} />
+                    <Form.Item name="startTime" label="Start Time" rules={[{ required: true }]}>
+                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} aria-label="Start time" />
                     </Form.Item>
-                    <Form.Item name="endTime" rules={[{ required: true }]}>
-                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} />
+                    <Form.Item name="endTime" label="End Time" rules={[{ required: true }]}>
+                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} aria-label="End time" />
                     </Form.Item>
                   </Space>
 
@@ -343,7 +324,7 @@ export default function NewLeaveRequestModal({
                 style={{
                   marginTop: 24,
                   borderRadius: 16,
-                  background: "#fafafa",
+                  background: "var(--color-surface-muted)",
                 }}
               >
                 <Title level={5}>Information Confirm</Title>
@@ -363,7 +344,13 @@ export default function NewLeaveRequestModal({
                     style={{ display: "flex", justifyContent: "space-between" }}
                   >
                     <Text type="secondary">Leave Category</Text>
-                    <Tag color={confirmData.leaveCategory === "vacation" ? "blue" : "red"}>
+                    <Tag
+                      style={{
+                        color: confirmData.leaveCategory === "vacation" ? "var(--color-accent)" : "var(--color-danger)",
+                        background: confirmData.leaveCategory === "vacation" ? "var(--color-accent-soft)" : "var(--color-danger-soft)",
+                        border: "1px solid currentColor",
+                      }}
+                    >
                       {confirmData.leaveCategory === "vacation" ? "Vacation" : "Sick Leave"}
                     </Tag>
                   </div>
@@ -373,7 +360,13 @@ export default function NewLeaveRequestModal({
                     style={{ display: "flex", justifyContent: "space-between" }}
                   >
                     <Text type="secondary">Leave Type</Text>
-                    <Tag color="geekblue">
+                    <Tag
+                      style={{
+                        color: "var(--color-info)",
+                        background: "var(--color-info-soft)",
+                        border: "1px solid var(--color-info)",
+                      }}
+                    >
                       {confirmData.exemptType === "exempt" ? "Exempt" : "Non-Exempt"}
                     </Tag>
                   </div>
@@ -429,12 +422,12 @@ export default function NewLeaveRequestModal({
                       borderRadius: 12,
                       background:
                         confirmData.totalHours > (confirmData.remainingHours || 0)
-                          ? "rgba(255,77,79,0.12)"
-                          : "rgba(22,119,255,0.12)",
+                          ? "var(--color-danger-soft)"
+                          : "var(--color-accent-soft)",
                       border:
                         confirmData.totalHours > (confirmData.remainingHours || 0)
-                          ? "1px solid #ff4d4f"
-                          : "1px solid #91caff",
+                          ? "1px solid var(--color-danger)"
+                          : "1px solid var(--color-border-strong)",
                     }}
                   >
                     <Text
@@ -442,8 +435,8 @@ export default function NewLeaveRequestModal({
                       style={{
                         color:
                           confirmData.totalHours > (confirmData.remainingHours || 0)
-                            ? "#ff4d4f"
-                            : "#1677ff",
+                            ? "var(--color-danger)"
+                            : "var(--color-accent)",
                         fontSize: 16,
                       }}
                     >
@@ -468,8 +461,8 @@ export default function NewLeaveRequestModal({
                         marginTop: 8,
                         padding: 12,
                         borderRadius: 8,
-                        background: "#fff",
-                        border: "1px solid #f0f0f0",
+                        background: "var(--color-surface-muted)",
+                        border: "1px solid var(--color-border-strong)",
                       }}
                     >
                       {confirmData.reason}
@@ -482,7 +475,14 @@ export default function NewLeaveRequestModal({
                       <Text type="secondary">Attachment</Text>
                       <div style={{ marginTop: 8 }}>
                         {fileList.map((f) => (
-                          <Tag key={f.uid} color="processing">
+                          <Tag
+                            key={f.uid}
+                            style={{
+                              color: "var(--color-accent)",
+                              background: "var(--color-accent-soft)",
+                              border: "1px solid var(--color-accent)",
+                            }}
+                          >
                             {f.name}
                           </Tag>
                         ))}
@@ -506,12 +506,10 @@ export default function NewLeaveRequestModal({
                   icon={<CheckCircleOutlined />}
                   loading={loading}
                   onClick={handleConfirm}
+                  className="app-button-primary"
                   style={{
                     borderRadius: 10,
                     paddingInline: 32,
-                    background: "linear-gradient(135deg, #1677ff, #4096ff)",
-                    border: "none",
-                    boxShadow: "0 6px 16px rgba(22,119,255,0.3)",
                   }}
                 >
                   Confirm Request

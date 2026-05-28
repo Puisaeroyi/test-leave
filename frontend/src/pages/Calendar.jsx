@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Calendar,
   Badge,
@@ -26,33 +26,33 @@ const { useBreakpoint } = Grid;
 ======================= */
 const TYPE_STYLE = {
   holiday: {
-    color: "#cf1322",
-    bg: "rgba(255,77,79,0.15)",
-    border: "#ff4d4f",
+    color: "var(--color-danger)",
+    bg: "var(--color-danger-soft)",
+    border: "var(--color-danger)",
     label: "Holiday",
   },
   vacation: {
-    color: "#0958d9",
-    bg: "rgba(22,119,255,0.12)",
-    border: "#1677ff",
+    color: "var(--color-accent)",
+    bg: "var(--color-accent-soft)",
+    border: "var(--color-accent)",
     label: "Vacation",
   },
   sick: {
-    color: "#ad4e00",
-    bg: "rgba(250,140,22,0.15)",
-    border: "#fa8c16",
+    color: "var(--color-warning)",
+    bg: "var(--color-warning-soft)",
+    border: "var(--color-warning)",
     label: "Sick Leave",
   },
   business: {
-    color: "#531dab",
-    bg: "rgba(114,46,209,0.15)",
-    border: "#722ed1",
+    color: "var(--color-info)",
+    bg: "var(--color-info-soft)",
+    border: "var(--color-info)",
     label: "Business Trip",
   },
   remote: {
-    color: "#237804",
-    bg: "rgba(82,196,26,0.15)",
-    border: "#52c41a",
+    color: "var(--color-success)",
+    bg: "var(--color-success-soft)",
+    border: "var(--color-success)",
     label: "Remote",
   },
 };
@@ -66,6 +66,75 @@ const mapCategoryToType = (category) => {
   if (cat.includes("remote")) return "remote";
   return "vacation";
 };
+
+const getEventKey = (item, index) =>
+  [item.id, item.date, item.type, item.user, item.note, item.city, item.country, index]
+    .filter(Boolean)
+    .join("-");
+
+/* =======================
+   TRANSFORM API DATA TO EVENTS
+======================= */
+function transformToEvents(data) {
+  const evts = [];
+
+  // 1. Holidays (multi-day)
+  if (data.holidays) {
+    data.holidays.forEach((h) => {
+      const start = dayjs(h.start_date);
+      const end = dayjs(h.end_date);
+      for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
+        evts.push({
+          date: d.format("YYYY-MM-DD"),
+          type: "holiday",
+          user: "Company",
+          note: h.name,
+        });
+      }
+    });
+  }
+
+  // 2. Leaves (multi-day)
+  if (data.leaves) {
+    data.leaves.forEach((leave) => {
+      const member = data.team_members?.find((m) => m.id === leave.member_id);
+      const start = dayjs(leave.start_date);
+      const end = dayjs(leave.end_date);
+      for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
+        evts.push({
+          date: d.format("YYYY-MM-DD"),
+          type: mapCategoryToType(leave.category),
+          user: member?.name || "Unknown",
+          note: leave.category,
+          start_time: leave.start_time,
+          end_time: leave.end_time,
+          is_full_day: leave.is_full_day,
+        });
+      }
+    });
+  }
+
+  // 3. Business trips
+  if (data.business_trips) {
+    data.business_trips.forEach((trip) => {
+      const member = data.team_members?.find((m) => m.id === trip.member_id);
+      const start = dayjs(trip.start_date);
+      const end = dayjs(trip.end_date);
+      for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
+        evts.push({
+          date: d.format("YYYY-MM-DD"),
+          type: "business",
+          user: member?.name || "Unknown",
+          city: trip.city,
+          country: trip.country,
+          note: `${trip.city}, ${trip.country}`,
+        });
+      }
+    });
+  }
+
+  return evts;
+}
 
 export default function TeamCalendar() {
   const today = dayjs().format("YYYY-MM-DD");
@@ -88,7 +157,7 @@ export default function TeamCalendar() {
   /* =======================
      FETCH CALENDAR DATA
   ======================= */
-  const fetchCalendarData = async () => {
+  const fetchCalendarData = useCallback(async () => {
     setLoading(true);
     try {
       const month = currentDate.month() + 1;
@@ -108,75 +177,11 @@ export default function TeamCalendar() {
     } finally {
       setLoading(false);
     }
-  };
-
-  /* =======================
-     TRANSFORM API DATA TO EVENTS
-  ======================= */
-  const transformToEvents = (data) => {
-    const evts = [];
-
-    // 1. Holidays (multi-day)
-    if (data.holidays) {
-      data.holidays.forEach((h) => {
-        const start = dayjs(h.start_date);
-        const end = dayjs(h.end_date);
-        for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
-          evts.push({
-            date: d.format("YYYY-MM-DD"),
-            type: "holiday",
-            user: "Company",
-            note: h.name,
-          });
-        }
-      });
-    }
-
-    // 2. Leaves (multi-day)
-    if (data.leaves) {
-      data.leaves.forEach((leave) => {
-        const member = data.team_members?.find((m) => m.id === leave.member_id);
-        const start = dayjs(leave.start_date);
-        const end = dayjs(leave.end_date);
-        for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
-          evts.push({
-            date: d.format("YYYY-MM-DD"),
-            type: mapCategoryToType(leave.category),
-            user: member?.name || "Unknown",
-            note: leave.category,
-            start_time: leave.start_time,
-            end_time: leave.end_time,
-            is_full_day: leave.is_full_day,
-          });
-        }
-      });
-    }
-
-    // 3. Business trips
-    if (data.business_trips) {
-      data.business_trips.forEach((trip) => {
-        const member = data.team_members?.find((m) => m.id === trip.member_id);
-        const start = dayjs(trip.start_date);
-        const end = dayjs(trip.end_date);
-        for (let d = start; d.isSame(end) || d.isBefore(end); d = d.add(1, "day")) {
-          evts.push({
-            date: d.format("YYYY-MM-DD"),
-            type: "business",
-            user: member?.name || "Unknown",
-            city: trip.city,
-            country: trip.country,
-            note: `${trip.city}, ${trip.country}`,
-          });
-        }
-      });
-    }
-
-    return evts;
-  };
+  }, [currentDate]);
 
   useEffect(() => {
     fetchCalendarData();
-  }, [currentDate]);
+  }, [fetchCalendarData]);
 
   /* =======================
      FILTER BY DATE & TYPE
@@ -233,31 +238,17 @@ export default function TeamCalendar() {
 
     return (
       <div
+        className="calendar-cell"
         style={{
-          padding: 6,
-          borderRadius: 10,
           cursor: isPast ? "default" : "pointer",
           opacity: isPast ? 0.4 : 1,
           pointerEvents: isPast ? "none" : "auto",
           background: isToday
-            ? "linear-gradient(180deg, rgba(22,119,255,0.15), transparent)"
+            ? "linear-gradient(180deg, var(--color-accent-soft), transparent)"
             : "transparent",
-          position: "relative",
         }}
       >
-        {isToday && (
-          <span
-            style={{
-              position: "absolute",
-              top: 4,
-              right: 6,
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "#1677ff",
-            }}
-          />
-        )}
+        {isToday && <span className="calendar-today-dot" />}
 
         {list.map((item, index) => {
           const style = TYPE_STYLE[item.type];
@@ -266,7 +257,7 @@ export default function TeamCalendar() {
           if (isCustomHours) {
             return (
               <Badge
-                key={index}
+                key={getEventKey(item, index)}
                 color={style.border}
                 text={
                   <Text style={{ fontSize: 11, color: style.color }}>
@@ -280,13 +271,11 @@ export default function TeamCalendar() {
 
           return (
             <div
-              key={index}
+              key={getEventKey(item, index)}
+              className="calendar-event-chip"
               style={{
-                marginBottom: 4,
-                padding: "2px 6px",
-                borderRadius: 6,
                 background: style.bg,
-                border: `1px solid ${style.border}`,
+                color: style.border,
               }}
             >
               <Text
@@ -320,14 +309,12 @@ export default function TeamCalendar() {
     // Show colored dots for event types present on this day
     const types = [...new Set(list.map((e) => e.type))];
     return (
-      <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 2 }}>
+      <div className="calendar-mobile-dots">
         {types.slice(0, 3).map((type) => (
           <span
             key={type}
+            className="calendar-mobile-dot"
             style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
               background: TYPE_STYLE[type]?.border || "#999",
             }}
           />
@@ -344,10 +331,18 @@ export default function TeamCalendar() {
   ));
 
   return (
-    <>
+    <div className="page-shell">
+      <section>
+        <div className="page-kicker">Team Availability</div>
+        <h1 className="page-title">Team Leave Calendar</h1>
+        <p className="page-subtitle">
+          See holidays, leave plans, and business trips together so the team can plan smoothly.
+        </p>
+      </section>
+
       <Card
+        className="page-panel"
         title="Team Leave Calendar"
-        style={{ borderRadius: 16 }}
         extra={
           isMobile ? (
             // Mobile: only filter dropdown
@@ -365,7 +360,7 @@ export default function TeamCalendar() {
             />
           ) : (
             // Desktop: filter + legend badges
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div className="calendar-filter-row">
               <Select
                 value={filter}
                 onChange={setFilter}
@@ -416,7 +411,7 @@ export default function TeamCalendar() {
                           lineHeight: "28px",
                           borderRadius: "50%",
                           margin: "0 auto",
-                          background: isSelected ? "#1677ff" : isToday ? "rgba(22,119,255,0.15)" : "transparent",
+                          background: isSelected ? "var(--color-accent)" : isToday ? "var(--color-accent-soft)" : "transparent",
                           color: isSelected ? "#fff" : undefined,
                           fontWeight: isToday || isSelected ? 600 : 400,
                         }}
@@ -430,26 +425,25 @@ export default function TeamCalendar() {
               />
 
               {/* Legend row below compact calendar */}
-              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", padding: "12px 0 8px" }}>
+              <div className="calendar-filter-row" style={{ padding: "12px 0 8px" }}>
                 {legendBadges}
               </div>
 
               {/* Selected date header */}
-              <div style={{ padding: "8px 0 12px", borderTop: "1px solid #f0f0f0" }}>
+              <div className="calendar-selected-day">
                 <Text strong style={{ fontSize: 15 }}>
                   {selectedDate.format("ddd, MMM D, YYYY")}
                 </Text>
                 {!selectedDate.isBefore(dayjs(), "day") && (
-                  <Text
-                    type="link"
-                    style={{ float: "right", color: "#1677ff", cursor: "pointer", fontSize: 13 }}
+                  <Typography.Link
+                    style={{ float: "right", color: "var(--color-accent)", cursor: "pointer", fontSize: 13 }}
                     onClick={() => {
                       setSelectedClickDate(selectedDate);
                       setOpenCreate(true);
                     }}
                   >
                     + Add event
-                  </Text>
+                  </Typography.Link>
                 )}
               </div>
 
@@ -461,29 +455,22 @@ export default function TeamCalendar() {
                   style={{ padding: "16px 0" }}
                 />
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div className="calendar-event-list">
                   {selectedDateEvents.map((item, index) => {
                     const style = TYPE_STYLE[item.type];
                     return (
                       <div
-                        key={index}
+                        key={getEventKey(item, index)}
+                        className="calendar-mobile-event"
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 12,
-                          padding: 12,
-                          borderRadius: 10,
                           background: style.bg,
-                          border: `1px solid ${style.border}`,
+                          color: style.border,
                         }}
                       >
                         <div
+                          className="calendar-mobile-event__bar"
                           style={{
-                            width: 4,
-                            height: 36,
-                            borderRadius: 2,
                             background: style.border,
-                            flexShrink: 0,
                           }}
                         />
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -554,6 +541,6 @@ export default function TeamCalendar() {
         }}
         initialDate={selectedClickDate}
       />
-    </>
+    </div>
   );
 }

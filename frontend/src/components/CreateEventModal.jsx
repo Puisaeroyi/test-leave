@@ -20,7 +20,7 @@ export default function CreateEventModal({ open, onClose, onSelect, allowLeave =
           <Card
             hoverable
             onClick={() => onSelect("leave")}
-            style={{ borderLeft: "5px solid #1677ff" }}
+            style={{ borderLeft: "5px solid var(--color-accent)" }}
           >
             <Title level={5}>Leave Request</Title>
             <Text type="secondary">
@@ -31,7 +31,7 @@ export default function CreateEventModal({ open, onClose, onSelect, allowLeave =
           <Tooltip title="Leave requests must be submitted at least 3 days in advance">
             <Card
               style={{
-                borderLeft: "5px solid #d9d9d9",
+                borderLeft: "5px solid var(--color-border-strong)",
                 opacity: 0.45,
                 cursor: "not-allowed",
               }}
@@ -47,7 +47,7 @@ export default function CreateEventModal({ open, onClose, onSelect, allowLeave =
         <Card
           hoverable
           onClick={() => onSelect("business")}
-          style={{ borderLeft: "5px solid #722ed1" }}
+          style={{ borderLeft: "5px solid var(--color-peach)" }}
         >
           <Title level={5}>Business Trip</Title>
           <Text type="secondary">

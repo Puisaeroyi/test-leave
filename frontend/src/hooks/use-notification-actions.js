@@ -60,13 +60,16 @@ export function useNotifications() {
     try {
       // Delete from DB
       await deleteNotification(id);
+      const removed = notifications.find((n) => n.id === id);
       // Then remove from local state
       setNotifications((prev) => prev.filter((n) => n.id !== id));
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (removed && !removed.is_read) {
+        setUnreadCount((count) => Math.max(0, count - 1));
+      }
     } catch (err) {
       console.error("Failed to dismiss notification:", err);
     }
-  }, []);
+  }, [notifications]);
 
   // Dismiss all notifications - deletes all from DB and clears local view
   const dismissAll = useCallback(async () => {

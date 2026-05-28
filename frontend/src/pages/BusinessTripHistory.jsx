@@ -1,21 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
+  Card,
   Table,
   Tag,
   Button,
   Modal,
   Descriptions,
-  Typography,
   Space,
   message,
 } from "antd";
 import { EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { getBusinessTrips, cancelBusinessTrip } from "@api/businessTripApi";
+import { getBusinessTrips } from "@api/businessTripApi";
 import { getMediaUrl } from "@api/http";
 import NewBusinessTripModal from "@components/NewBusinessTripModal";
-
-const { Title } = Typography;
 
 export default function BusinessTripHistory() {
   const [data, setData] = useState([]);
@@ -23,12 +21,7 @@ export default function BusinessTripHistory() {
   const [selected, setSelected] = useState(null);
   const [openNew, setOpenNew] = useState(false);
 
-  // Fetch business trips on mount
-  useEffect(() => {
-    fetchTrips();
-  }, []);
-
-  const fetchTrips = async () => {
+  const fetchTrips = useCallback(async () => {
     try {
       setLoading(true);
       const response = await getBusinessTrips();
@@ -39,29 +32,22 @@ export default function BusinessTripHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch business trips on mount
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
 
   const handleCreate = async () => {
     // Modal handles API call, just refresh list
     await fetchTrips();
   };
 
-  const handleCancel = async (id) => {
-    try {
-      await cancelBusinessTrip(id);
-      message.success("Business trip cancelled");
-      setSelected(null);
-      fetchTrips(); // Refresh list
-    } catch (error) {
-      console.error("Failed to cancel business trip:", error);
-      message.error(error.response?.data?.error || "Failed to cancel business trip");
-    }
-  };
-
   const columns = [
     {
       title: "Destination",
-      render: (_, r) => <Tag color="geekblue">{r.city}, {r.country}</Tag>,
+      render: (_, r) => <Tag style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{r.city}, {r.country}</Tag>,
     },
     {
       title: "Date",
@@ -81,29 +67,36 @@ export default function BusinessTripHistory() {
   ];
 
   return (
-    <>
-      <Space
-        style={{ width: "100%", justifyContent: "space-between" }}
-      >
-        <Title level={4}>Business Trip History</Title>
+    <div className="page-shell">
+      <section className="page-toolbar">
+        <div>
+          <div className="page-kicker">My Travel Plans</div>
+          <h1 className="page-title">Business Trip History</h1>
+          <p className="page-subtitle">
+            Keep business trip dates, destinations, attachments, and changes in one place.
+          </p>
+        </div>
 
         <Button
           type="primary"
+          className="app-button-primary"
           icon={<PlusOutlined />}
           onClick={() => setOpenNew(true)}
         >
           New Business Trip
         </Button>
-      </Space>
+      </section>
 
-      <Table
-        rowKey="id"
-        columns={columns}
-        dataSource={data}
-        loading={loading}
-        pagination={false}
-        scroll={{ x: 600 }}
-      />
+      <Card className="page-panel table-card">
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          pagination={false}
+          scroll={{ x: 600 }}
+        />
+      </Card>
 
       {/* DETAIL MODAL */}
       <Modal
@@ -148,6 +141,6 @@ export default function BusinessTripHistory() {
         onCancel={() => setOpenNew(false)}
         onSubmit={handleCreate}
       />
-    </>
+    </div>
   );
 }

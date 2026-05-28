@@ -1,4 +1,4 @@
-import { Layout, Menu, ConfigProvider, Drawer, Grid } from "antd";
+import { Layout, Menu, Drawer, Grid } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@auth/authContext";
 import {
@@ -13,23 +13,6 @@ import logo from "@/assets/logo.png";
 
 const { Sider } = Layout;
 const { useBreakpoint } = Grid;
-
-// Menu theme config shared between Sider and Drawer
-const menuTheme = {
-  components: {
-    Menu: {
-      itemBg: "#576A8F",
-      itemColor: "#FFFFFF",
-      itemHoverBg: "#FFF8DE",
-      itemHoverColor: "#000000",
-      itemSelectedBg: "#FFF8DE",
-      itemSelectedColor: "#000000",
-      iconColor: "#FFFFFF",
-      iconHoverColor: "#000000",
-      iconSelectedColor: "#000000",
-    },
-  },
-};
 
 export default function Sidebar({ mobileOpen, onMobileClose }) {
   const { user } = useAuth();
@@ -64,12 +47,12 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
     items.push({
       key: "/manager",
       icon: <TeamOutlined />,
-      label: "Manager Ticket",
+      label: "Manager Reviews",
     });
     items.push({
       key: "/business-trip-tickets",
       icon: <SendOutlined />,
-      label: "Business Trip Ticket",
+      label: "Trip Reviews",
     });
   }
 
@@ -87,40 +70,26 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
 
   const logoBlock = (
     <div
-      style={{
-        height: 64,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "#4A5C80",
-        cursor: "pointer",
-      }}
+      className="sidebar-brand"
       onClick={() => {
         navigate("/dashboard");
         if (isMobile) onMobileClose?.();
       }}
     >
-      <img
-        src={logo}
-        alt="logo"
-        style={{ height: 36, objectFit: "contain" }}
-      />
+      <div className="sidebar-brand__mark">
+        <img src={logo} alt="Leave Management" />
+      </div>
     </div>
   );
 
   const menuBlock = (
-    <ConfigProvider theme={menuTheme}>
-      <Menu
-        mode="inline"
-        selectedKeys={[location.pathname]}
-        items={items}
-        onClick={handleMenuClick}
-        style={{
-          background: "#576A8F",
-          borderRight: "none",
-        }}
-      />
-    </ConfigProvider>
+    <Menu
+      className="app-sidebar-menu"
+      mode="inline"
+      selectedKeys={[location.pathname]}
+      items={items}
+      onClick={handleMenuClick}
+    />
   );
 
   // Mobile: render as Drawer overlay
@@ -130,12 +99,13 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         placement="left"
         open={mobileOpen}
         onClose={onMobileClose}
-        width={220}
-        styles={{ body: { padding: 0, background: "#576A8F" } }}
-        closable={false}
+        width={248}
+        styles={{ body: { padding: 0 } }}
       >
-        {logoBlock}
-        {menuBlock}
+        <div className="app-sidebar">
+          {logoBlock}
+          {menuBlock}
+        </div>
       </Drawer>
     );
   }
@@ -143,8 +113,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   // Desktop: standard fixed Sider
   return (
     <Sider
-      width={220}
-      style={{ background: "#576A8F" }}
+      width={248}
+      className="app-sidebar"
     >
       {logoBlock}
       {menuBlock}

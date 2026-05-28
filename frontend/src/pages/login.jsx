@@ -5,12 +5,12 @@ import {
   Card,
   message,
   Typography,
-  Checkbox,
 } from "antd";
 import { login as loginApi } from "@api/authApi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@auth/authContext";
 import { useState } from "react";
+import logo from "@/assets/logo.png";
 
 const { Title, Text } = Typography;
 
@@ -21,6 +21,7 @@ export default function Login() {
 
   const onFinish = async (values) => {
     try {
+      setLoading(true);
       const user = await loginApi(values);
       login(user);
       message.success("Login successful");
@@ -33,83 +34,64 @@ export default function Login() {
       }
     } catch (err) {
       message.error(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundImage:
-          "url(https://images.unsplash.com/photo-1521791136064-7986c2920216)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Card
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          margin: "0 16px",
-          padding: "16px 8px",
-          borderRadius: 12,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-        }}
-      >
-        {/* TITLE */}
-        <Title level={3} style={{ marginBottom: 0 }}>
-          Hello 👋
-        </Title>
-        <Text type="secondary">Login to continue</Text>
+    <main className="auth-shell">
+      <section className="auth-hero">
+        <div className="auth-kicker">Warm Office Leave</div>
+        <h1 className="auth-title">Plan time off with calm clarity.</h1>
+        <p className="auth-copy">
+          A friendly workspace for leave balances, approvals, business trips, and team availability.
+        </p>
+      </section>
 
-        {/* FORM */}
-        <Form
-          layout="vertical"
-          onFinish={onFinish}
-          style={{ marginTop: 24 }}
-        >
-          <Form.Item
-            name="email"
-            label="Email"
-            rules={[{ required: true, message: "Please input your email" }]}
-          >
-            <Input placeholder="Enter your company email" />
-          </Form.Item>
-
-          <Form.Item
-            name="password"
-            label="Password"
-            rules={[{ required: true, message: "Please input your password" }]}
-          >
-            <Input.Password placeholder="Enter your password" />
-          </Form.Item>
-
-          {/* REMEMBER */}
-          <div style={{ marginBottom: 16 }}>
-            <Checkbox>Remember password</Checkbox>
+      <Card className="auth-card login-card">
+          <div className="login-card__brand">
+            <img src={logo} alt="Company logo" className="login-card__logo" />
           </div>
+          <Title level={3} className="auth-card-title">
+            Welcome Back
+          </Title>
+          <Text className="auth-card-subtitle">Sign in to continue</Text>
 
-          {/* LOGIN BUTTON */}
-          <Button
-            htmlType="submit"
-            block
-            style={{
-              background: "#1E232C",
-              color: "#fff",
-              height: 40,
-              borderRadius: 6,
-            }}
+          <Form
+            layout="vertical"
+            onFinish={onFinish}
+            className="login-form"
           >
-            Login
-          </Button>
-        </Form>
+            <Form.Item
+              name="email"
+              label="Email"
+              rules={[{ required: true, message: "Please input your email" }]}
+            >
+              <Input placeholder="Enter your company email" />
+            </Form.Item>
 
+            <Form.Item
+              className="login-form__password"
+              name="password"
+              label="Password"
+              rules={[{ required: true, message: "Please input your password" }]}
+            >
+              <Input.Password placeholder="Enter your password" />
+            </Form.Item>
 
+            <Button
+              type="primary"
+              className="app-button-primary login-form__submit"
+              htmlType="submit"
+              block
+              loading={loading}
+            >
+              Login
+            </Button>
+          </Form>
       </Card>
-    </div>
+    </main>
   );
 }

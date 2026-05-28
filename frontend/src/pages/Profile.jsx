@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, Avatar, Typography, Descriptions, Tag, Button, message } from "antd";
 import { UserOutlined, CameraOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
@@ -15,11 +15,7 @@ export default function Profile() {
   const [avatarLoading, setAvatarLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
-
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getCurrentUser();
@@ -34,7 +30,11 @@ export default function Profile() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [fetchUserProfile]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -76,38 +76,40 @@ export default function Profile() {
   };
 
   if (loading) {
-    return <Text>Loading...</Text>;
+    return <Text style={{ color: "var(--color-muted)" }}>Loading...</Text>;
   }
 
   if (!user) {
-    return <Text>You are not logged in</Text>;
+    return <Text style={{ color: "var(--color-muted)" }}>You are not logged in</Text>;
   }
 
   const displayName = `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.email;
+  const roleTone = user.role === "MANAGER" ? "warning" : user.role === "ADMIN" ? "danger" : "accent";
+  const roleTagStyle = {
+    color: `var(--color-${roleTone})`,
+    background: `var(--color-${roleTone}-soft)`,
+    border: `1px solid var(--color-${roleTone})`,
+  };
+  const approverTagStyle = {
+    color: "var(--color-info)",
+    background: "var(--color-info-soft)",
+    border: "1px solid var(--color-info)",
+  };
 
   return (
-    <>
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-      <div
-        style={{
-          maxWidth: 900,
-          margin: "32px auto",
-          padding: "0 16px",
-        }}
-      >
-      <Card
-        style={{
-          borderRadius: 12,
-          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-        }}
-      >
+    <div className="page-shell">
+      <section>
+        <div className="page-kicker">My Workplace Profile</div>
+        <h1 className="page-title">Profile</h1>
+        <p className="page-subtitle">
+          Review your organization details, approver, and avatar used across the leave planner.
+        </p>
+      </section>
+
+      <Card className="page-panel">
         {/* HEADER */}
-        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", display: "inline-block" }}>
+        <div className="profile-hero">
+          <div className="profile-avatar-wrap">
             <Avatar
               size={96}
               src={user.avatar_url}
@@ -120,50 +122,15 @@ export default function Profile() {
             />
             {!avatarLoading && (
               <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  background: "#1890ff",
-                  borderRadius: "50%",
-                  width: 28,
-                  height: 28,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  border: "2px solid #fff",
-                }}
+                className="profile-avatar-action"
                 onClick={handleAvatarClick}
               >
-                <CameraOutlined style={{ color: "#fff", fontSize: 14 }} />
+                <CameraOutlined style={{ fontSize: 14 }} />
               </div>
             )}
             {avatarLoading && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 0,
-                  background: "rgba(0,0,0,0.6)",
-                  borderRadius: "50%",
-                  width: 28,
-                  height: 28,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <div
-                  style={{
-                    width: 12,
-                    height: 12,
-                    border: "2px solid #fff",
-                    borderTopColor: "transparent",
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
-                  }}
-                />
+              <div className="profile-avatar-action">
+                <div className="profile-spinner" />
               </div>
             )}
           </div>
@@ -176,12 +143,12 @@ export default function Profile() {
           />
 
           <div>
-            <Title level={3} style={{ marginBottom: 4 }}>
+            <Title level={3} style={{ marginBottom: 4, color: "var(--color-text)" }}>
               {displayName}
             </Title>
-            <Text type="secondary">{user.email}</Text>
+            <Text style={{ color: "var(--color-muted)" }}>{user.email}</Text>
             <div style={{ marginTop: 8 }}>
-              <Tag color={user.role === "MANAGER" ? "gold" : user.role === "ADMIN" ? "red" : "blue"}>
+              <Tag style={roleTagStyle}>
                 {user.role}
               </Tag>
             </div>
@@ -214,7 +181,7 @@ export default function Profile() {
           </Descriptions.Item>
 
           <Descriptions.Item label="Role">
-            <Tag color={user.role === "MANAGER" ? "gold" : user.role === "ADMIN" ? "red" : "blue"}>
+            <Tag style={roleTagStyle}>
               {user.role}
             </Tag>
           </Descriptions.Item>
@@ -225,7 +192,7 @@ export default function Profile() {
 
           <Descriptions.Item label="Approver">
             {user.approver ? (
-              <Tag color="purple">{user.approver.full_name}</Tag>
+              <Tag style={approverTagStyle}>{user.approver.full_name}</Tag>
             ) : ["MANAGER", "ADMIN", "HR"].includes(user.role) ? (
               <Text type="secondary">N/A</Text>
             ) : (
@@ -240,6 +207,5 @@ export default function Profile() {
         </div>
       </Card>
     </div>
-    </>
   );
 }

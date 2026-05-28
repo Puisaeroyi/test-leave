@@ -32,32 +32,20 @@ export default function ChangePassword() {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundImage:
-          "url(https://images.unsplash.com/photo-1521791136064-7986c2920216)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Card
-        style={{
-          width: "100%",
-          maxWidth: 420,
-          margin: "0 16px",
-          padding: "16px 8px",
-          borderRadius: 12,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-        }}
-      >
-        <Title level={3} style={{ marginBottom: 4 }}>
+    <main className="auth-shell">
+      <section className="auth-hero">
+        <div className="auth-kicker">Account Safety</div>
+        <h1 className="auth-title">Set a password you can trust.</h1>
+        <p className="auth-copy">
+          Before you continue, choose a fresh password to keep your leave and profile data safe.
+        </p>
+      </section>
+
+      <Card className="auth-card">
+        <Title level={3} className="auth-card-title">
           Change Password
         </Title>
-        <Text type="secondary">
+        <Text className="auth-card-subtitle">
           {user?.firstLogin
             ? "This is your first login. Please set a new password."
             : "Enter a new password for your account."}
@@ -95,20 +83,15 @@ export default function ChangePassword() {
           </Form.Item>
 
           <Button
+            type="primary"
+            className="app-button-primary"
             htmlType="submit"
             block
-            style={{
-              background: "#1E232C",
-              color: "#fff",
-              height: 40,
-              borderRadius: 6,
-              marginTop: 8,
-            }}
           >
             Update Password
           </Button>
         </Form>
       </Card>
-    </div>
+    </main>
   );
 }

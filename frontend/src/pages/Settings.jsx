@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Table,
@@ -23,7 +23,6 @@ import dayjs from "dayjs";
 import {
   SettingOutlined,
   EditOutlined,
-  SaveOutlined,
   ReloadOutlined,
   DeleteOutlined,
   DownloadOutlined,
@@ -59,18 +58,11 @@ const Settings = () => {
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [creating, setCreating] = useState(false);
+  const hasSettingsAccess = user?.role === "HR" || user?.role === "ADMIN";
 
-  // Check if user has access (HR or Admin only)
-  if (!user || (user.role !== "HR" && user.role !== "ADMIN")) {
-    return (
-      <div style={{ padding: 24, textAlign: "center" }}>
-        <Title level={3}>Access Denied</Title>
-        <Text type="secondary">You don't have permission to access this page.</Text>
-      </div>
-    );
-  }
+  const fetchUsers = useCallback(async () => {
+    if (!hasSettingsAccess) return;
 
-  const fetchUsers = async () => {
     setLoading(true);
     try {
       const data = await getAllUsers();
@@ -80,11 +72,21 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [hasSettingsAccess]);
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
+
+  // Check if user has access (HR or Admin only)
+  if (!hasSettingsAccess) {
+    return (
+      <div className="page-shell" style={{ textAlign: "center" }}>
+        <Title level={3}>Access Denied</Title>
+        <Text type="secondary">You don't have permission to access this page.</Text>
+      </div>
+    );
+  }
 
   const handleEdit = (userData) => {
     setSelectedUser(userData);
@@ -113,7 +115,7 @@ const Settings = () => {
 
       message.success("User updated successfully");
       setEditModalVisible(false);
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       message.error("Failed to update user: " + (error.response?.data?.error || error.message));
     } finally {
@@ -125,7 +127,7 @@ const Settings = () => {
     try {
       await deleteUser(userId);
       message.success("User deleted successfully");
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       message.error("Failed to delete user: " + (error.response?.data?.error || error.message));
     }
@@ -164,7 +166,7 @@ const Settings = () => {
     try {
       const data = await getEntities();
       setEntities(data.results || data);
-    } catch (error) {
+    } catch {
       message.error("Failed to load entities");
     }
   };
@@ -176,7 +178,7 @@ const Settings = () => {
     try {
       const data = await getLocations(entityId);
       setLocations(data.results || data);
-    } catch (error) {
+    } catch {
       message.error("Failed to load locations");
     }
   };
@@ -187,7 +189,7 @@ const Settings = () => {
     try {
       const data = await getDepartments(locationId);
       setDepartments(data.results || data);
-    } catch (error) {
+    } catch {
       message.error("Failed to load departments");
     }
   };
@@ -211,7 +213,7 @@ const Settings = () => {
       message.success("User created successfully");
       setAddModalVisible(false);
       addForm.resetFields();
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
       if (error.errorFields) return; // Form validation errors
       const errData = error.response?.data;
@@ -249,13 +251,13 @@ const Settings = () => {
       key: "role",
       width: 100,
       render: (role) => {
-        const colors = {
-          ADMIN: "red",
-          HR: "magenta",
-          MANAGER: "gold",
-          EMPLOYEE: "blue",
+        const roleTagStyles = {
+          ADMIN: { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" },
+          HR: { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" },
+          MANAGER: { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" },
+          EMPLOYEE: { color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)" },
         };
-        return <Tag color={colors[role]}>{role}</Tag>;
+        return <Tag style={roleTagStyles[role]}>{role}</Tag>;
       },
       filters: [
         { text: "Admin", value: "ADMIN" },
@@ -271,7 +273,13 @@ const Settings = () => {
       key: "status",
       width: 100,
       render: (status) => (
-        <Tag color={status === "ACTIVE" ? "green" : "default"}>{status}</Tag>
+        <Tag
+          style={status === "ACTIVE"
+            ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
+            : { color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}
+        >
+          {status}
+        </Tag>
       ),
     },
     {
@@ -300,10 +308,10 @@ const Settings = () => {
       render: (approver) => (
         approver ? (
           <Tooltip title={`${approver.first_name} ${approver.last_name} (${approver.email})`}>
-            <Tag color="purple">{`${approver.first_name} ${approver.last_name}`.trim() || approver.email}</Tag>
+            <Tag className="approver-tag" style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{`${approver.first_name} ${approver.last_name}`.trim() || approver.email}</Tag>
           </Tooltip>
         ) : (
-          <Tag color="default">Not assigned</Tag>
+          <Tag style={{ color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}>Not assigned</Tag>
         )
       ),
     },
@@ -349,7 +357,7 @@ const Settings = () => {
 
   // Filter users for approver dropdown (exclude self and inactive users)
   const availableApprovers = users.filter(
-    (u) => u.is_active && u.id !== selectedUser?.id
+    (u) => u.status === "ACTIVE" && u.id !== selectedUser?.id
   );
 
   // Statistics
@@ -370,7 +378,7 @@ const Settings = () => {
         <div>
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} sm={8}>
-              <Card>
+              <Card className="page-panel">
                 <Statistic
                   title="Total Users"
                   value={stats.total}
@@ -379,26 +387,27 @@ const Settings = () => {
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card>
+              <Card className="page-panel">
                 <Statistic
                   title="Active Users"
                   value={stats.active}
-                  valueStyle={{ color: "#3f8600" }}
+                  valueStyle={{ color: "var(--color-success)" }}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card>
+              <Card className="page-panel">
                 <Statistic
                   title="Users Without Approver"
                   value={stats.withoutApprover}
-                  valueStyle={{ color: stats.withoutApprover > 0 ? "#cf1322" : undefined }}
+                  valueStyle={{ color: stats.withoutApprover > 0 ? "var(--color-danger)" : undefined }}
                 />
               </Card>
             </Col>
           </Row>
 
           <Card
+            className="page-panel table-card"
             title={
               <Space>
                 <SettingOutlined />
@@ -448,15 +457,23 @@ const Settings = () => {
   ];
 
   return (
-    <div>
+    <div className="page-shell page-shell--three-row settings-page">
+      <section>
+        <div className="page-kicker">Admin Settings</div>
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">
+          Manage users, entities, exports, and approver assignments from one clear admin area.
+        </p>
+      </section>
+
       <Card
+        className="page-panel"
         title={
           <Space>
             <DownloadOutlined />
             <span>Export Approved Leave Requests</span>
           </Space>
         }
-        style={{ marginBottom: 24 }}
       >
         <Space wrap>
           <DatePicker.RangePicker
@@ -466,6 +483,7 @@ const Settings = () => {
           />
           <Button
             type="primary"
+            className="app-button-primary"
             icon={<DownloadOutlined />}
             onClick={handleExport}
             loading={exporting}
@@ -475,7 +493,7 @@ const Settings = () => {
         </Space>
       </Card>
 
-      <Card>
+      <Card className="page-panel">
         <Tabs defaultActiveKey="users" items={tabItems} />
       </Card>
 
@@ -708,7 +726,7 @@ const Settings = () => {
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
               options={users
-                .filter((u) => u.is_active)
+                .filter((u) => u.status === "ACTIVE")
                 .map((u) => ({
                   value: u.id,
                   label: `${u.first_name} ${u.last_name}`.trim() || u.email,

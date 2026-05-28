@@ -12,17 +12,17 @@ export default function MainLayout() {
   const isMobile = !screens.md;
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
+    <Layout className="app-shell">
       <Sidebar
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
-      <Layout>
+      <Layout style={{ background: "transparent" }}>
         <AppHeader
           isMobile={isMobile}
           onMenuClick={() => setMobileOpen(true)}
         />
-        <Layout.Content style={{ padding: isMobile ? 12 : 24 }}>
+        <Layout.Content className="app-content">
           <Outlet />
         </Layout.Content>
       </Layout>

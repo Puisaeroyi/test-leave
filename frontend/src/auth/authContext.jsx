@@ -6,7 +6,14 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem("user");
-    return stored ? JSON.parse(stored) : null;
+    if (!stored) return null;
+
+    try {
+      return JSON.parse(stored);
+    } catch {
+      localStorage.removeItem("user");
+      return null;
+    }
   });
 
   const normalizeUser = (userData) => ({
@@ -56,6 +63,8 @@ export function AuthProvider({ children }) {
     // Clear local state
     setUser(null);
     localStorage.removeItem("user");
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
   };
 
   return (

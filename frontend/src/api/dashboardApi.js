@@ -127,9 +127,14 @@ export const getUpcomingEvents = async (month, year) => {
 
   // Add approved leaves (my team)
   if (data.leaves) {
-    const userId = localStorage.getItem("user_id");
+    let userId = null;
+    try {
+      userId = JSON.parse(localStorage.getItem("user") || "{}")?.id;
+    } catch {
+      userId = null;
+    }
     data.leaves.forEach((l) => {
-      const displayName = l.member_id === userId ? "You" : l.member_name;
+      const displayName = String(l.member_id) === String(userId) ? "You" : l.member_name;
       events.push({
         id: l.id,
         title: displayName,
@@ -142,9 +147,14 @@ export const getUpcomingEvents = async (month, year) => {
 
   // Add business trips
   if (data.business_trips) {
-    const userId = localStorage.getItem("user_id");
+    let userId = null;
+    try {
+      userId = JSON.parse(localStorage.getItem("user") || "{}")?.id;
+    } catch {
+      userId = null;
+    }
     data.business_trips.forEach((b) => {
-      const displayName = b.member_id === userId ? "You" : b.member_name;
+      const displayName = String(b.member_id) === String(userId) ? "You" : b.member_name;
       events.push({
         id: `trip-${b.id}`,
         title: `${displayName} - ${b.city}, ${b.country}`,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Card,
   Table,
@@ -72,12 +72,7 @@ export default function ManagerTickets() {
     return { canDeny: true, text: `${text} remaining to deny` };
   };
 
-  // Fetch pending requests on mount
-  useEffect(() => {
-    fetchPendingRequests();
-  }, []);
-
-  const fetchPendingRequests = async () => {
+  const fetchPendingRequests = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getPendingRequests();
@@ -88,12 +83,39 @@ export default function ManagerTickets() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const typeColor = {
-    Vacation: "blue",
-    "Sick Leave": "red",
-    "Business Trip": "purple",
+  // Fetch pending requests on mount
+  useEffect(() => {
+    fetchPendingRequests();
+  }, [fetchPendingRequests]);
+
+  const tagStyles = {
+    Vacation: {
+      color: "var(--color-accent)",
+      background: "var(--color-accent-soft)",
+      border: "1px solid var(--color-accent)",
+    },
+    "Sick Leave": {
+      color: "var(--color-danger)",
+      background: "var(--color-danger-soft)",
+      border: "1px solid var(--color-danger)",
+    },
+    "Business Trip": {
+      color: "var(--color-info)",
+      background: "var(--color-info-soft)",
+      border: "1px solid var(--color-info)",
+    },
+    Exempt: {
+      color: "var(--color-warning)",
+      background: "var(--color-warning-soft)",
+      border: "1px solid var(--color-warning)",
+    },
+    "Non-Exempt": {
+      color: "var(--color-accent)",
+      background: "var(--color-accent-soft)",
+      border: "1px solid var(--color-accent)",
+    },
   };
 
   // =======================
@@ -110,13 +132,13 @@ export default function ManagerTickets() {
       title: "Leave Category",
       dataIndex: "type",
       align: "center",
-      render: (t) => <Tag color={typeColor[t]}>{t}</Tag>,
+      render: (t) => <Tag style={tagStyles[t]}>{t}</Tag>,
     },
     {
       title: "Leave Type",
       dataIndex: "exemptType",
       align: "center",
-      render: (t) => <Tag color={t === "Exempt" ? "geekblue" : "cyan"}>{t}</Tag>,
+      render: (t) => <Tag style={tagStyles[t]}>{t}</Tag>,
     },
     {
       title: "From - To",
@@ -134,10 +156,13 @@ export default function ManagerTickets() {
       dataIndex: "status",
       align: "center",
       render: (s) => {
-        const color =
-          s === "Approved" ? "green" : s === "Denied" ? "red" : "orange";
+        const statusStyle = s === "Approved"
+          ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
+          : s === "Denied"
+            ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
+            : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" };
 
-        return <Tag color={color}>{s}</Tag>;
+        return <Tag style={statusStyle}>{s}</Tag>;
       },
     },
     {
@@ -229,10 +254,18 @@ export default function ManagerTickets() {
   const canAct = selectedTicket ? canActOnTicket(selectedTicket) : false;
 
   return (
-    <>
+    <div className="page-shell">
+      <section>
+        <div className="page-kicker">Manager Review</div>
+        <h1 className="page-title">Manager Reviews</h1>
+        <p className="page-subtitle">
+          Review leave requests with clear timing, attachments, and notes for each decision.
+        </p>
+      </section>
+
       <Card
-        title="📝 Manager – Leave Requests"
-        style={{ borderRadius: 16 }}
+        className="page-panel table-card"
+        title="Team Leave Requests"
         extra={
           <Space>
             <Select
@@ -274,7 +307,7 @@ export default function ManagerTickets() {
         onCancel={() => setSelectedTicket(null)}
         footer={null}
         width={600}
-        title="Ticket Detail"
+        title="Request Detail"
       >
         {selectedTicket && (
           <>
@@ -284,25 +317,25 @@ export default function ManagerTickets() {
               </Descriptions.Item>
 
               <Descriptions.Item label="Leave Category">
-                <Tag color={typeColor[selectedTicket.type]}>
+                <Tag style={tagStyles[selectedTicket.type]}>
                   {selectedTicket.type}
                 </Tag>
               </Descriptions.Item>
 
               <Descriptions.Item label="Leave Type">
-                <Tag color={selectedTicket.exemptType === "Exempt" ? "geekblue" : "cyan"}>
+                <Tag style={tagStyles[selectedTicket.exemptType]}>
                   {selectedTicket.exemptType}
                 </Tag>
               </Descriptions.Item>
 
               <Descriptions.Item label="Status">
                 <Tag
-                  color={
+                  style={
                     selectedTicket.status === "Approved"
-                      ? "green"
+                      ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
                       : selectedTicket.status === "Denied"
-                        ? "red"
-                        : "orange"
+                        ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
+                        : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
                   }
                 >
                   {selectedTicket.status}
@@ -321,7 +354,7 @@ export default function ManagerTickets() {
                 <Descriptions.Item label="Denial Window">
                   <Space>
                     <ClockCircleOutlined style={{
-                      color: timeInfo.canDeny ? "#52c41a" : "#ff4d4f"
+                      color: timeInfo.canDeny ? "var(--color-success)" : "var(--color-danger)"
                     }} />
                     <Text type={timeInfo.canDeny ? "success" : "danger"}>
                       {timeInfo.text}
@@ -411,9 +444,9 @@ export default function ManagerTickets() {
                   minWidth: 140,
                   height: 44,
                   fontWeight: 600,
-                  background: "#52c41a",
-                  borderColor: "#52c41a",
-                  color: "#fff",
+                  background: "var(--color-success)",
+                  borderColor: "var(--color-success)",
+                  color: "var(--color-on-accent)",
                   opacity: selectedTicket.status === "Pending" ? 1 : 0.5,
                 }}
                 onClick={() => setConfirmType("approve")}
@@ -476,6 +509,6 @@ export default function ManagerTickets() {
           </>
         )}
       </Modal>
-    </>
+    </div>
   );
 }
