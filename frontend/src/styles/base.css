@@ -77,7 +77,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 76px;
+  height: var(--header-height);
   padding: 10px 14px;
   cursor: pointer;
   border-bottom: 1px solid var(--color-border);
@@ -1046,8 +1046,8 @@ body,
 }
 
 .sidebar-brand {
-  height: 80px;
-  padding: 12px 16px;
+  height: var(--header-height);
+  padding: 10px 16px;
 }
 
 .sidebar-brand__mark {
@@ -1168,8 +1168,8 @@ body,
   }
 
   .sidebar-brand {
-    height: 72px;
-    padding: 10px 14px;
+    height: var(--header-height);
+    padding: 8px 14px;
   }
 
   .sidebar-brand__mark {
