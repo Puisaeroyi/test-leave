@@ -17,14 +17,19 @@ class LeaveRequestDetailView(generics.RetrieveAPIView):
         """GET /api/v1/leaves/requests/{id}/"""
         request_id = kwargs.get('pk')
         try:
-            leave_request = LeaveRequest.objects.select_related('user').get(id=request_id)
+            leave_request = LeaveRequest.objects.select_related(
+                'user', 'first_approver', 'final_approver'
+            ).get(id=request_id)
         except LeaveRequest.DoesNotExist:
             return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
 
         # Permission check: owner, assigned approver, or HR/ADMIN
         user = request.user
         is_owner = leave_request.user == user
-        is_approver = leave_request.user.approver == user
+        is_approver = user in {
+            leave_request.first_approver or leave_request.user.approver,
+            leave_request.final_approver or leave_request.user.final_approver,
+        }
         is_hr_admin = user.role in ['HR', 'ADMIN']
         if not (is_owner or is_approver or is_hr_admin):
             return Response(

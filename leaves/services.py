@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import LeaveBalance, LeaveRequest
@@ -164,15 +165,51 @@ class LeaveApprovalService:
         Returns:
             QuerySet of pending LeaveRequest objects
         """
-        from users.models import User
+        pending_for_user = Q(
+            status='PENDING',
+            current_approval_step='FIRST',
+            first_approver=user,
+        ) | Q(
+            status='PENDING',
+            current_approval_step='FIRST',
+            first_approver__isnull=True,
+            user__approver=user,
+        ) | Q(
+            status='PENDING',
+            current_approval_step='FINAL',
+            final_approver=user,
+        ) | Q(
+            status='PENDING',
+            current_approval_step='FINAL',
+            final_approver__isnull=True,
+            user__final_approver=user,
+        ) | Q(
+            status='PENDING',
+            current_approval_step='FINAL',
+            first_approval_status='APPROVED',
+            first_approver=user,
+        ) | Q(
+            status='PENDING',
+            current_approval_step='FINAL',
+            first_approval_status='APPROVED',
+            first_approver__isnull=True,
+            user__approver=user,
+        )
+        acted_history = Q(
+            status__in=['APPROVED', 'REJECTED'],
+        ) & (
+            Q(first_approver=user)
+            | Q(final_approver=user)
+            | Q(approved_by=user)
+            | Q(first_approver__isnull=True, user__approver=user)
+            | Q(final_approver__isnull=True, user__final_approver=user)
+        )
 
-        # Show requests where current user is the assigned approver
-        # No role check - the approver relationship IS the permission
-        # Include PENDING, APPROVED (for 24h denial window), and REJECTED
         return LeaveRequest.objects.filter(
-            status__in=['PENDING', 'APPROVED', 'REJECTED'],
-            user__approver=user
-        ).exclude(user=user).select_related('user', 'leave_category').order_by('created_at')
+            pending_for_user | acted_history
+        ).exclude(user=user).select_related(
+            'user', 'leave_category', 'first_approver', 'final_approver'
+        ).distinct().order_by('created_at')
 
     @staticmethod
     def get_approval_history_for_manager(user):
@@ -187,11 +224,17 @@ class LeaveApprovalService:
         """
         # Get all requests that this user has approved or rejected
         queryset = LeaveRequest.objects.filter(
-            approved_by=user,
-            status__in=['APPROVED', 'REJECTED']
-        )
+            Q(first_approver=user)
+            | Q(final_approver=user)
+            | Q(approved_by=user)
+            | Q(first_approver__isnull=True, user__approver=user)
+            | Q(final_approver__isnull=True, user__final_approver=user),
+            status__in=['APPROVED', 'REJECTED'],
+        ).distinct()
 
-        return queryset.select_related('user', 'leave_category').order_by('-approved_at')
+        return queryset.select_related(
+            'user', 'leave_category', 'first_approver', 'final_approver'
+        ).order_by('-approved_at')
 
     @staticmethod
     def can_manager_approve_request(manager, leave_request):
@@ -208,9 +251,18 @@ class LeaveApprovalService:
         Returns:
             bool: True if manager can approve, False otherwise
         """
-        # User can approve if they are the assigned approver
-        # No role-based bypass - approver relationship IS the permission
-        return leave_request.user.approver == manager
+        first_approver = leave_request.first_approver or leave_request.user.approver
+        final_approver = leave_request.final_approver or leave_request.user.final_approver
+
+        if leave_request.status == 'PENDING':
+            if leave_request.current_approval_step == 'FINAL':
+                return final_approver == manager
+            return first_approver == manager
+
+        if leave_request.status == 'APPROVED':
+            return leave_request.approved_by == manager or final_approver == manager
+
+        return False
 
     @staticmethod
     @transaction.atomic
@@ -226,15 +278,48 @@ class LeaveApprovalService:
         Returns:
             LeaveRequest: Updated leave request
         """
-        from core.models import AuditLog
-
         if leave_request.status != 'PENDING':
             raise ValueError("Only pending requests can be approved")
 
-        # Update leave request
+        now = timezone.now()
+        first_approver = leave_request.first_approver or leave_request.user.approver
+        final_approver = leave_request.final_approver or leave_request.user.final_approver
+
+        if leave_request.current_approval_step == 'FIRST':
+            if first_approver != approver:
+                raise ValueError("Only the assigned first approver can approve this step")
+
+            leave_request.first_approver = first_approver
+            leave_request.final_approver = final_approver
+            leave_request.first_approval_status = 'APPROVED'
+            leave_request.first_approval_comment = comment
+            leave_request.first_approval_at = now
+
+            if final_approver and final_approver != first_approver:
+                leave_request.current_approval_step = 'FINAL'
+                leave_request.save()
+                LeaveApprovalService._create_approval_audit(
+                    leave_request, approver, 'FIRST', 'PENDING', comment, now
+                )
+                return leave_request
+
+            leave_request.final_approval_status = 'APPROVED'
+            leave_request.final_approval_comment = comment
+            leave_request.final_approval_at = now
+        elif leave_request.current_approval_step == 'FINAL':
+            if final_approver != approver:
+                raise ValueError("Only the assigned final approver can approve this step")
+            leave_request.final_approval_status = 'APPROVED'
+            leave_request.final_approval_comment = comment
+            leave_request.final_approval_at = now
+        else:
+            raise ValueError("This request has no pending approval step")
+
+        # Final approval completes the request and deducts balance.
         leave_request.status = 'APPROVED'
+        leave_request.current_approval_step = 'COMPLETED'
         leave_request.approved_by = approver
-        leave_request.approved_at = timezone.now()
+        leave_request.approved_at = now
         leave_request.approver_comment = comment
         leave_request.save()
 
@@ -254,22 +339,30 @@ class LeaveApprovalService:
         balance.used_hours += leave_request.total_hours
         balance.save()
 
-        # Create audit log
+        LeaveApprovalService._create_approval_audit(
+            leave_request, approver, 'FINAL', 'APPROVED', comment, now
+        )
+
+        return leave_request
+
+    @staticmethod
+    def _create_approval_audit(leave_request, approver, step, resulting_status, comment, acted_at):
+        from core.models import AuditLog
+
         AuditLog.objects.create(
             user=approver,
             action='APPROVE',
             entity_type='LeaveRequest',
             entity_id=leave_request.id,
-            old_values={'status': 'PENDING'},
+            old_values={'status': 'PENDING', 'step': step},
             new_values={
-                'status': 'APPROVED',
+                'status': resulting_status,
+                'step': step,
                 'approved_by': str(approver.id),
-                'approved_at': leave_request.approved_at.isoformat(),
-                'comment': comment
-            }
+                'approved_at': acted_at.isoformat(),
+                'comment': comment,
+            },
         )
-
-        return leave_request
 
     @staticmethod
     def _get_balance_type(leave_request):
@@ -345,10 +438,24 @@ class LeaveApprovalService:
         # Store old status for audit
         old_status = leave_request.status
 
+        now = timezone.now()
+        if leave_request.status == 'PENDING':
+            if leave_request.current_approval_step == 'FIRST':
+                leave_request.first_approver = leave_request.first_approver or leave_request.user.approver
+                leave_request.first_approval_status = 'REJECTED'
+                leave_request.first_approval_comment = reason
+                leave_request.first_approval_at = now
+            elif leave_request.current_approval_step == 'FINAL':
+                leave_request.final_approver = leave_request.final_approver or leave_request.user.final_approver
+                leave_request.final_approval_status = 'REJECTED'
+                leave_request.final_approval_comment = reason
+                leave_request.final_approval_at = now
+
         # Update leave request
         leave_request.status = 'REJECTED'
+        leave_request.current_approval_step = 'COMPLETED'
         leave_request.approved_by = approver
-        leave_request.approved_at = timezone.now()
+        leave_request.approved_at = now
         leave_request.rejection_reason = reason
         leave_request.save()
 

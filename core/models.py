@@ -38,6 +38,37 @@ class Notification(models.Model):
         return f"{self.user.email} - {self.title}"
 
 
+class Announcement(models.Model):
+    """Admin-authored announcement article shown to users after login."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    body_html = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    starts_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_announcements',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'announcements'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['is_active', '-created_at']),
+            models.Index(fields=['starts_at', 'expires_at']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
 class AuditAction(models.TextChoices):
     """Audit log action choices"""
     CREATE = 'CREATE', 'Create'

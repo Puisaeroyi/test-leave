@@ -43,6 +43,7 @@ export function AuthProvider({ children }) {
 
   const login = (userData) => {
     const normalizedUser = normalizeUser(userData);
+    sessionStorage.removeItem(`announcements:auto-opened:${normalizedUser.id}`);
     setUser(normalizedUser);
     localStorage.setItem("user", JSON.stringify(normalizedUser));
   };

@@ -2,6 +2,7 @@
 User ViewSet for HR/Admin user management
 """
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
@@ -33,12 +34,20 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         if user.role in [User.Role.HR, User.Role.ADMIN]:
-            return User.objects.all().select_related('entity', 'location', 'department', 'approver')
+            return User.objects.all().select_related(
+                'entity', 'location', 'department', 'approver', 'final_approver'
+            )
         elif user.role == User.Role.MANAGER:
-            return User.objects.filter(approver=user).select_related('entity', 'location', 'department', 'approver')
+            return User.objects.filter(
+                Q(approver=user) | Q(final_approver=user)
+            ).select_related(
+                'entity', 'location', 'department', 'approver', 'final_approver'
+            ).distinct()
         else:
             # Employees can only see themselves
-            return User.objects.filter(id=user.id).select_related('entity', 'location', 'department', 'approver')
+            return User.objects.filter(id=user.id).select_related(
+                'entity', 'location', 'department', 'approver', 'final_approver'
+            )
 
     def get_serializer_class(self):
         """Use appropriate serializer based on action"""
@@ -119,12 +128,12 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         GET /api/v1/users/my-subordinates/
 
-        Returns list of users who have the current user as their approver
+        Returns list of users who have the current user as first or final approver
         """
         subordinates = User.objects.filter(
-            approver=request.user,
+            Q(approver=request.user) | Q(final_approver=request.user),
             is_active=True
-        ).select_related('entity', 'location', 'department')
+        ).select_related('entity', 'location', 'department', 'approver', 'final_approver').distinct()
 
         serializer = UserSerializer(subordinates, many=True)
         return Response(serializer.data)

@@ -11,7 +11,10 @@ export function MetricCard({ label, value, meta }) {
 }
 
 export function StatusPill({ status }) {
-  const normalized = String(status || "info").toLowerCase();
+  const normalized = String(status || "info")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 
   return (
     <span className={`status-pill status-pill--${normalized}`}>

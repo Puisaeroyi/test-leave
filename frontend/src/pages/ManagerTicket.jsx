@@ -25,6 +25,7 @@ import {
 import dayjs from "dayjs";
 import { getPendingRequests, approveLeaveRequest, rejectLeaveRequest } from "../api/dashboardApi";
 import { getMediaUrl } from "../api/http";
+import ApprovalProgress from "../components/ApprovalProgress";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -42,10 +43,10 @@ export default function ManagerTickets() {
   // Check if ticket can be acted upon
   const canActOnTicket = (ticket) => {
     if (!ticket) return false;
-    // Pending tickets can always be approved/denied
-    if (ticket.status === "Pending") return true;
+    // Pending tickets can only be handled by the approver assigned to the current step.
+    if (ticket.status === "Pending") return ticket.actionRequired;
     // Approved tickets can be denied only if within 24h of start
-    if (ticket.status === "Approved") {
+    if (ticket.status === "Approved" && ticket.canManageApproved) {
       const now = dayjs();
       const leaveStart = dayjs(ticket.from).startOf("day");
       const cutoff = leaveStart.subtract(24, "hour");
@@ -155,14 +156,17 @@ export default function ManagerTickets() {
       title: "Status",
       dataIndex: "status",
       align: "center",
-      render: (s) => {
-        const statusStyle = s === "Approved"
+      render: (_, record) => {
+        const displayStatus = record.workflowStatus || record.status;
+        const statusStyle = record.status === "Approved"
           ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
-          : s === "Denied"
+          : record.status === "Denied"
             ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
-            : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" };
+            : record.actionRequired
+              ? { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
+              : { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" };
 
-        return <Tag style={statusStyle}>{s}</Tag>;
+        return <Tag style={statusStyle}>{displayStatus}</Tag>;
       },
     },
     {
@@ -187,8 +191,12 @@ export default function ManagerTickets() {
   const handleApprove = async () => {
     try {
       setActionLoading(true);
-      await approveLeaveRequest(selectedTicket.id, approveReason);
-      message.success("Ticket approved");
+      const result = await approveLeaveRequest(selectedTicket.id, approveReason);
+      message.success(
+        result.status === "PENDING"
+          ? "First approval recorded. Waiting for final approval."
+          : "Leave request fully approved."
+      );
 
       // Refresh the list
       await fetchPendingRequests();
@@ -271,10 +279,11 @@ export default function ManagerTickets() {
             <Select
               value={statusFilter}
               onChange={setStatusFilter}
-              style={{ width: 160 }}
+              style={{ width: 210 }}
               options={[
                 { value: "all", label: "All Status" },
-                { value: "Pending", label: "Pending" },
+                { value: "action-required", label: "Action Required" },
+                { value: "Awaiting Final Approval", label: "Awaiting Final Approval" },
                 { value: "Approved", label: "Approved" },
                 { value: "Denied", label: "Denied" },
               ]}
@@ -291,7 +300,15 @@ export default function ManagerTickets() {
       >
         <Table
           columns={columns}
-          dataSource={statusFilter === "all" ? tickets : tickets.filter((t) => t.status === statusFilter)}
+          dataSource={
+            statusFilter === "all"
+              ? tickets
+              : tickets.filter((ticket) => (
+                  statusFilter === "action-required"
+                    ? ticket.actionRequired
+                    : (ticket.workflowStatus || ticket.status) === statusFilter
+                ))
+          }
           rowKey="id"
           loading={loading}
           pagination={false}
@@ -306,7 +323,7 @@ export default function ManagerTickets() {
         open={!!selectedTicket}
         onCancel={() => setSelectedTicket(null)}
         footer={null}
-        width={600}
+        width={820}
         title="Request Detail"
       >
         {selectedTicket && (
@@ -335,22 +352,17 @@ export default function ManagerTickets() {
                       ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
                       : selectedTicket.status === "Denied"
                         ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
-                        : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
+                        : selectedTicket.actionRequired
+                          ? { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
+                          : { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }
                   }
                 >
-                  {selectedTicket.status}
+                  {selectedTicket.workflowStatus || selectedTicket.status}
                 </Tag>
               </Descriptions.Item>
 
-              {/* Approver Comment (for approved tickets) */}
-              {selectedTicket.status === "Approved" && selectedTicket.approverComment && (
-                <Descriptions.Item label="Approver Note">
-                  <Text type="secondary">{selectedTicket.approverComment}</Text>
-                </Descriptions.Item>
-              )}
-
               {/* Time Remaining for Approved tickets */}
-              {selectedTicket.status === "Approved" && timeInfo && (
+              {selectedTicket.status === "Approved" && selectedTicket.canManageApproved && timeInfo && (
                 <Descriptions.Item label="Denial Window">
                   <Space>
                     <ClockCircleOutlined style={{
@@ -406,6 +418,19 @@ export default function ManagerTickets() {
               )}
             </Descriptions>
 
+            {selectedTicket.approvalTimeline?.length > 0 && (
+              <section style={{ marginTop: 20 }}>
+                <Text strong style={{ display: "block", marginBottom: 10 }}>
+                  Approval progress
+                </Text>
+                <ApprovalProgress
+                  timeline={selectedTicket.approvalTimeline}
+                  currentStep={selectedTicket.currentApprovalStep}
+                  actionRequired={selectedTicket.actionRequired}
+                />
+              </section>
+            )}
+
             <Divider />
 
             <Space
@@ -417,7 +442,15 @@ export default function ManagerTickets() {
               }}
             >
               {/* Deny button - enabled for Pending and Approved (within 24h) */}
-              <Tooltip title={selectedTicket.status === "Approved" && !canAct ? "Cannot deny within 24h of leave start" : ""}>
+              <Tooltip
+                title={
+                  selectedTicket.status === "Pending" && !selectedTicket.actionRequired
+                    ? "This request is waiting for the final approver."
+                    : selectedTicket.status === "Approved" && !canAct
+                      ? "Cannot deny within 24h of leave start"
+                      : ""
+                }
+              >
                 <Button
                   size="large"
                   danger
@@ -436,23 +469,25 @@ export default function ManagerTickets() {
               </Tooltip>
 
               {/* Approve button - only for Pending tickets */}
-              <Button
-                size="large"
-                disabled={selectedTicket.status !== "Pending"}
-                icon={<CheckCircleOutlined />}
-                style={{
-                  minWidth: 140,
-                  height: 44,
-                  fontWeight: 600,
-                  background: "var(--color-success)",
-                  borderColor: "var(--color-success)",
-                  color: "var(--color-on-accent)",
-                  opacity: selectedTicket.status === "Pending" ? 1 : 0.5,
-                }}
-                onClick={() => setConfirmType("approve")}
-              >
-                Approve
-              </Button>
+              <Tooltip title={!selectedTicket.actionRequired && selectedTicket.status === "Pending" ? "Your approval step is complete." : ""}>
+                <Button
+                  size="large"
+                  disabled={selectedTicket.status !== "Pending" || !selectedTicket.actionRequired}
+                  icon={<CheckCircleOutlined />}
+                  style={{
+                    minWidth: 140,
+                    height: 44,
+                    fontWeight: 600,
+                    background: "var(--color-success)",
+                    borderColor: "var(--color-success)",
+                    color: "var(--color-on-accent)",
+                    opacity: selectedTicket.status === "Pending" && selectedTicket.actionRequired ? 1 : 0.5,
+                  }}
+                  onClick={() => setConfirmType("approve")}
+                >
+                  Approve
+                </Button>
+              </Tooltip>
             </Space>
           </>
         )}

@@ -9,11 +9,14 @@ import {
   Divider,
   Button,
   Empty,
+  Pagination,
+  Spin,
 } from "antd";
 import {
   UserOutlined,
   LogoutOutlined,
   BellOutlined,
+  ReadOutlined,
   CheckOutlined,
   CloseOutlined,
   SettingOutlined,
@@ -21,13 +24,94 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { getAnnouncements } from "@api/announcement-api";
 import { useNotifications } from "@hooks/use-notification-actions";
+import AnnouncementModal from "@components/AnnouncementModal";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 
 dayjs.extend(relativeTime);
 
 const { Header } = Layout;
+const ANNOUNCEMENT_PAGE_SIZE = 5;
+
+const AnnouncementDropdown = ({
+  announcements,
+  count,
+  loading,
+  onAnnouncementClick,
+  onPageChange,
+  page,
+  pageSize,
+  isMobile,
+}) => (
+  <div
+    className="notification-popup"
+    style={{
+      width: isMobile ? "calc(100vw - 32px)" : 380,
+      maxWidth: 380,
+      padding: 12,
+    }}
+  >
+    <Typography.Text strong style={{ color: "var(--color-text)" }}>
+      Announcements
+    </Typography.Text>
+    <Divider style={{ margin: "8px 0" }} />
+
+    <Spin spinning={loading}>
+      {announcements.length === 0 ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No announcements" />
+      ) : (
+        <>
+          <List
+            itemLayout="horizontal"
+            dataSource={announcements}
+            renderItem={(item) => (
+              <List.Item
+                className="notification-item"
+                onClick={() => onAnnouncementClick(item)}
+              >
+                <List.Item.Meta
+                  avatar={
+                    <Avatar
+                      size={36}
+                      icon={<ReadOutlined />}
+                      style={{ backgroundColor: "var(--color-accent-strong)" }}
+                    />
+                  }
+                  title={<Typography.Text strong>{item.title}</Typography.Text>}
+                  description={
+                    <>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {item.body.length > 96 ? `${item.body.slice(0, 96)}...` : item.body}
+                      </Typography.Text>
+                      <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
+                        {dayjs(item.created_at).fromNow()}
+                      </div>
+                    </>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+          {count > pageSize && (
+            <Pagination
+              align="end"
+              current={page}
+              pageSize={pageSize}
+              total={count}
+              onChange={onPageChange}
+              showSizeChanger={false}
+              size="small"
+              style={{ marginTop: 8 }}
+            />
+          )}
+        </>
+      )}
+    </Spin>
+  </div>
+);
 
 /* ================= NOTIFICATION POPUP ================= */
 const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, dismissNotification, dismissAll, isMobile }) => {
@@ -146,8 +230,65 @@ const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, 
 export default function AppHeader({ isMobile, onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [latestAnnouncement, setLatestAnnouncement] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementCount, setAnnouncementCount] = useState(0);
+  const [announcementPage, setAnnouncementPage] = useState(1);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, dismissNotification, dismissAll } =
     useNotifications();
+
+  const fetchLatestAnnouncement = useCallback(async () => {
+    try {
+      const data = await getAnnouncements({ page: 1, page_size: 1 });
+      const latest = data.results?.[0] || null;
+      setLatestAnnouncement(latest);
+      setAnnouncementCount(data.count || 0);
+    } catch (error) {
+      console.error("Failed to fetch announcements:", error);
+    }
+  }, []);
+
+  const fetchAnnouncementPage = useCallback(async (page = 1) => {
+    setAnnouncementsLoading(true);
+    try {
+      const data = await getAnnouncements({ page, page_size: ANNOUNCEMENT_PAGE_SIZE });
+      setAnnouncements(data.results || []);
+      setAnnouncementCount(data.count || 0);
+      setAnnouncementPage(page);
+    } catch (error) {
+      console.error("Failed to fetch announcements:", error);
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchLatestAnnouncement();
+  }, [fetchLatestAnnouncement, user]);
+
+  useEffect(() => {
+    if (!user || !latestAnnouncement) return;
+
+    const storageKey = `announcements:auto-opened:${user.id}`;
+    if (sessionStorage.getItem(storageKey) === latestAnnouncement.id) return;
+
+    setSelectedAnnouncement(latestAnnouncement);
+    setAnnouncementsOpen(true);
+    sessionStorage.setItem(storageKey, latestAnnouncement.id);
+  }, [latestAnnouncement, user]);
+
+  const openAnnouncementDropdown = () => {
+    fetchAnnouncementPage(1);
+  };
+
+  const handleAnnouncementClick = (announcement) => {
+    setSelectedAnnouncement(announcement);
+    setAnnouncementsOpen(true);
+  };
 
   if (!user) return null;
 
@@ -241,6 +382,37 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           </div>
         )}
 
+        {/* ANNOUNCEMENT ICON */}
+        <Dropdown
+          trigger={["click"]}
+          onOpenChange={(open) => {
+            if (open) openAnnouncementDropdown();
+          }}
+          dropdownRender={() => (
+            <AnnouncementDropdown
+              announcements={announcements}
+              count={announcementCount}
+              loading={announcementsLoading}
+              onAnnouncementClick={handleAnnouncementClick}
+              onPageChange={fetchAnnouncementPage}
+              page={announcementPage}
+              pageSize={ANNOUNCEMENT_PAGE_SIZE}
+              isMobile={isMobile}
+            />
+          )}
+          placement="bottomRight"
+        >
+          <Badge dot={announcementCount > 0} size="small">
+            <button
+              type="button"
+              className="header-icon-button"
+              aria-label="Open announcements"
+            >
+              <ReadOutlined style={{ fontSize: 18 }} />
+            </button>
+          </Badge>
+        </Dropdown>
+
         {/* NOTIFICATION ICON */}
         <Dropdown
           trigger={["click"]}
@@ -277,6 +449,11 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           />
         </Dropdown>
       </Space>
+      <AnnouncementModal
+        announcement={selectedAnnouncement}
+        open={announcementsOpen}
+        onClose={() => setAnnouncementsOpen(false)}
+      />
     </Header>
   );
 }

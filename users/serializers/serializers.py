@@ -103,6 +103,7 @@ class UserSerializer(serializers.ModelSerializer):
         department_name = serializers.CharField()
 
     approver = ApproverSerializer(read_only=True, allow_null=True)
+    final_approver = ApproverSerializer(read_only=True, allow_null=True)
     entity = EntitySerializer(read_only=True, allow_null=True)
     department = DepartmentSerializer(read_only=True, allow_null=True)
 
@@ -120,11 +121,15 @@ class UserSerializer(serializers.ModelSerializer):
             'entity',
             'location',
             'department',
-            'approver',  # New field for person-to-person approval
+            'approver',  # First approval step
+            'final_approver',  # Optional final approval step
             'join_date',
             'avatar_url',
         ]
-        read_only_fields = ['id', 'email', 'role', 'status', 'is_active', 'join_date', 'approver', 'employee_code']
+        read_only_fields = [
+            'id', 'email', 'role', 'status', 'is_active', 'join_date',
+            'approver', 'final_approver', 'employee_code'
+        ]
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -137,7 +142,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'email',
             'employee_code',
             'avatar_url',
-            'approver',  # HR/Admin can assign approver
+            'approver',  # HR/Admin can assign first approver
+            'final_approver',  # HR/Admin can assign final approver
         ]
 
     def validate_email(self, value):
@@ -159,6 +165,27 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Only HR/Admin can assign approver.")
         return value
 
+    def validate_final_approver(self, value):
+        """Only HR/Admin can assign final approver"""
+        request = self.context.get('request')
+        if request and request.user.role not in [User.Role.HR, User.Role.ADMIN]:
+            raise serializers.ValidationError("Only HR/Admin can assign final approver.")
+        return value
+
+    def validate(self, attrs):
+        approver = attrs.get('approver', getattr(self.instance, 'approver', None))
+        final_approver = attrs.get('final_approver', getattr(self.instance, 'final_approver', None))
+
+        if self.instance and approver and approver.id == self.instance.id:
+            raise serializers.ValidationError({'approver': "A user cannot be their own approver."})
+        if self.instance and final_approver and final_approver.id == self.instance.id:
+            raise serializers.ValidationError({'final_approver': "A user cannot be their own final approver."})
+        if approver and final_approver and approver.id == final_approver.id:
+            raise serializers.ValidationError({
+                'final_approver': "Final approver must be different from first approver."
+            })
+        return attrs
+
 
 class UserCreateSerializer(serializers.Serializer):
     """Serializer for HR/Admin user creation. Auto-sets password to DEFAULT_IMPORT_PASSWORD."""
@@ -174,6 +201,7 @@ class UserCreateSerializer(serializers.Serializer):
     location = serializers.UUIDField(required=True)
     department = serializers.UUIDField(required=True)
     approver = serializers.UUIDField(required=True)
+    final_approver = serializers.UUIDField(required=False, allow_null=True)
     join_date = serializers.DateField(required=False, allow_null=True)
 
     def validate_email(self, value):
@@ -196,6 +224,14 @@ class UserCreateSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError("Approver not found or inactive.")
 
+    def validate_final_approver(self, value):
+        if not value:
+            return None
+        try:
+            return User.objects.get(id=value, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Final approver not found or inactive.")
+
     def validate(self, attrs):
         entity = attrs.get('entity')
         location = attrs.get('location')
@@ -208,6 +244,12 @@ class UserCreateSerializer(serializers.Serializer):
         if department and entity and department.entity != entity:
             raise serializers.ValidationError({
                 "department": "Selected department does not belong to the selected entity."
+            })
+        approver = attrs.get('approver')
+        final_approver = attrs.get('final_approver')
+        if approver and final_approver and approver.id == final_approver.id:
+            raise serializers.ValidationError({
+                "final_approver": "Final approver must be different from first approver."
             })
         return attrs
 
@@ -226,6 +268,7 @@ class UserCreateSerializer(serializers.Serializer):
             location=validated_data['location'],
             department=validated_data['department'],
             approver=validated_data.get('approver'),
+            final_approver=validated_data.get('final_approver'),
             join_date=validated_data.get('join_date') or date.today(),
             first_login=True,
         )

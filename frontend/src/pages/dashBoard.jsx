@@ -23,6 +23,7 @@ import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
 import { BalanceMeter, EventCard, MetricCard, StatusPill } from "@components/dashboard/dashboard-widgets";
 import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
 import { getMediaUrl } from "../api/http";
+import ApprovalProgress from "../components/ApprovalProgress";
 
 dayjs.extend(isoWeek);
 dayjs.extend(isSameOrAfter);
@@ -279,8 +280,8 @@ export default function Dashboard() {
       title: "Status",
       dataIndex: "status",
       align: "center",
-      render: (s) => {
-        return <StatusPill status={s} />;
+      render: (_, record) => {
+        return <StatusPill status={record.workflowStatus || record.status} />;
       },
     },
   ];
@@ -446,9 +447,11 @@ export default function Dashboard() {
         onCancel={() => setOpenDetail(false)}
         footer={null}
         title="Leave Request Detail"
+        width={820}
       >
         {selectedRequest && (
-          <Descriptions bordered column={1} size="small">
+          <>
+            <Descriptions bordered column={1} size="small">
             <Descriptions.Item label="Type">
               <Tag
                 style={
@@ -460,6 +463,18 @@ export default function Dashboard() {
                 }
               >
                 {selectedRequest.type}
+              </Tag>
+            </Descriptions.Item>
+
+            <Descriptions.Item label="Leave Type">
+              <Tag
+                style={
+                  selectedRequest.exemptType === "Non-Exempt"
+                    ? { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }
+                    : { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
+                }
+              >
+                {selectedRequest.exemptType || "-"}
               </Tag>
             </Descriptions.Item>
 
@@ -484,10 +499,12 @@ export default function Dashboard() {
                     ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
                     : selectedRequest.status === "Rejected"
                       ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
-                      : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
+                      : selectedRequest.currentApprovalStep === "FINAL"
+                        ? { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }
+                        : { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
                 }
               >
-                {selectedRequest.status}
+                {selectedRequest.workflowStatus || selectedRequest.status}
               </Tag>
             </Descriptions.Item>
 
@@ -516,7 +533,20 @@ export default function Dashboard() {
                 </Space>
               </Descriptions.Item>
             )}
-          </Descriptions>
+            </Descriptions>
+
+            {selectedRequest.approvalTimeline?.length > 0 && (
+              <section style={{ marginTop: 20 }}>
+                <Text strong style={{ display: "block", marginBottom: 10 }}>
+                  Approval progress
+                </Text>
+                <ApprovalProgress
+                  timeline={selectedRequest.approvalTimeline}
+                  currentStep={selectedRequest.currentApprovalStep}
+                />
+              </section>
+            )}
+          </>
         )}
       </Modal>
     </div>

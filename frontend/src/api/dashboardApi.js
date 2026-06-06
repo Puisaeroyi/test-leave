@@ -3,6 +3,43 @@ import http from "./http";
 // Note: http.js baseURL already includes /api/v1, so we only add /leaves
 const API_URL = "/leaves";
 
+const getCurrentUserId = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}")?.id || null;
+  } catch {
+    return null;
+  }
+};
+
+const getEmployeeWorkflowStatus = (item) => {
+  if (item.status !== "PENDING") return null;
+  return item.current_approval_step === "FINAL"
+    ? "Awaiting Final Approval"
+    : "Awaiting First Approval";
+};
+
+const getManagerWorkflowState = (item, currentUserId) => {
+  if (item.status !== "PENDING") {
+    return {
+      workflowStatus: null,
+      actionRequired: false,
+    };
+  }
+
+  const actionRequired = String(item.current_approver_id) === String(currentUserId);
+  if (item.current_approval_step === "FINAL") {
+    return {
+      workflowStatus: actionRequired ? "Final Approval Required" : "Awaiting Final Approval",
+      actionRequired,
+    };
+  }
+
+  return {
+    workflowStatus: actionRequired ? "First Approval Required" : "Awaiting First Approval",
+    actionRequired,
+  };
+};
+
 /* ================= FILE UPLOAD ================= */
 export const uploadFile = async (file) => {
   const formData = new FormData();
@@ -25,14 +62,20 @@ export const getLeaveHistory = async (sort = "new") => {
   const mapped = data.map((item) => ({
     id: item.id,
     type: item.category?.name || item.leave_category || "Leave",
+    exemptType: item.exempt_type === "NON_EXEMPT" ? "Non-Exempt" : "Exempt",
     from: item.start_date,
     to: item.end_date,
     hours: item.total_hours,
     startTime: item.start_time || null,
     endTime: item.end_time || null,
     status: item.status.charAt(0) + item.status.slice(1).toLowerCase(), // APPROVED -> Approved
+    workflowStatus: getEmployeeWorkflowStatus(item),
     reason: item.reason,
     denyReason: item.rejection_reason,
+    approverComment: item.approver_comment || null,
+    approvalTimeline: item.approval_timeline || [],
+    currentApprovalStep: item.current_approval_step || null,
+    currentApproverName: item.current_approver_name || null,
     attachment: item.attachment_url || null,
   }));
 
@@ -190,28 +233,43 @@ export const getPendingRequests = async () => {
 
   // Backend returns paginated response: { count, next, previous, results }
   const data = res.data.results || [];
+  const currentUserId = getCurrentUserId();
 
   // Map backend response to frontend format (hide Cancelled only)
   const statusLabel = { PENDING: "Pending", APPROVED: "Approved", REJECTED: "Denied" };
   return data
     .filter(item => ['PENDING', 'APPROVED', 'REJECTED'].includes(item.status))
-    .map((item) => ({
-      id: item.id,
-    employee: item.user_email || item.user?.email || "Unknown",
-    employeeName: item.user_name || `${item.user?.first_name || ""} ${item.user?.last_name || ""}`.trim() || "Unknown",
-    type: item.category?.name || "Leave",
-    exemptType: item.exempt_type === "NON_EXEMPT" ? "Non-Exempt" : "Exempt",
-    from: item.start_date,
-    to: item.end_date,
-    hours: item.total_hours,
-    startTime: item.start_time || null,
-    endTime: item.end_time || null,
-    status: statusLabel[item.status] || item.status,
-    reason: item.reason,
-    attachment: item.attachment_url || null,
-    denyReason: item.rejection_reason,
-    approverComment: item.approver_comment || null,
-  }))
+    .map((item) => {
+      const workflowState = getManagerWorkflowState(item, currentUserId);
+      return {
+        id: item.id,
+        employee: item.user_email || item.user?.email || "Unknown",
+        employeeName: item.user_name || `${item.user?.first_name || ""} ${item.user?.last_name || ""}`.trim() || "Unknown",
+        type: item.category?.name || "Leave",
+        exemptType: item.exempt_type === "NON_EXEMPT" ? "Non-Exempt" : "Exempt",
+        from: item.start_date,
+        to: item.end_date,
+        hours: item.total_hours,
+        startTime: item.start_time || null,
+        endTime: item.end_time || null,
+        status: statusLabel[item.status] || item.status,
+        reason: item.reason,
+        attachment: item.attachment_url || null,
+        denyReason: item.rejection_reason,
+        approverComment: item.approver_comment || null,
+        approvalTimeline: item.approval_timeline || [],
+        currentApprovalStep: item.current_approval_step || null,
+        currentApproverName: item.current_approver_name || null,
+        workflowStatus: workflowState.workflowStatus,
+        actionRequired: workflowState.actionRequired,
+        canManageApproved: item.status === "APPROVED" && (
+          String(item.approved_by) === String(currentUserId)
+          || item.approval_timeline?.some(
+            (step) => step.step === "FINAL" && String(step.approver_id) === String(currentUserId)
+          )
+        ),
+      };
+    })
     .sort((a, b) => {
       // Sort: Pending first, then by date
       if (a.status === "Pending" && b.status !== "Pending") return -1;
