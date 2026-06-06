@@ -516,6 +516,13 @@ export default function Dashboard() {
                 </Descriptions.Item>
               )}
 
+            {selectedRequest.status === "Approved" &&
+              selectedRequest.approverComment && (
+                <Descriptions.Item label="Approval Note">
+                  {selectedRequest.approverComment}
+                </Descriptions.Item>
+              )}
+
             {/* ✅ ATTACHMENT */}
             {selectedRequest.attachment && (
               <Descriptions.Item label="Attachment">
