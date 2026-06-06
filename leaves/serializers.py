@@ -48,6 +48,9 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     department_name = serializers.SerializerMethodField()
     approved_by_name = serializers.SerializerMethodField()
     total_hours = serializers.SerializerMethodField()
+    approval_timeline = serializers.SerializerMethodField()
+    current_approver_id = serializers.SerializerMethodField()
+    current_approver_name = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaveRequest
@@ -58,6 +61,8 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'start_time', 'end_time', 'total_hours', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',
+            'current_approval_step', 'current_approver_id', 'current_approver_name',
+            'approval_timeline',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'total_hours', 'approved_by', 'approved_at', 'created_at', 'updated_at']
@@ -119,6 +124,57 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         if obj.approved_by:
             return f"{obj.approved_by.first_name or ''} {obj.approved_by.last_name or ''}".strip() or obj.approved_by.email
         return None
+
+    def get_current_approver(self, obj):
+        if obj.status != LeaveRequest.Status.PENDING:
+            return None
+        if obj.current_approval_step == LeaveRequest.ApprovalStep.FINAL:
+            return obj.final_approver or obj.user.final_approver
+        return obj.first_approver or obj.user.approver
+
+    def get_current_approver_id(self, obj):
+        approver = self.get_current_approver(obj)
+        return str(approver.id) if approver else None
+
+    def get_current_approver_name(self, obj):
+        approver = self.get_current_approver(obj)
+        if not approver:
+            return None
+        return f"{approver.first_name or ''} {approver.last_name or ''}".strip() or approver.email
+
+    def get_approval_timeline(self, obj):
+        return [
+            self.build_approval_step(
+                'FIRST',
+                'First Approver',
+                obj.first_approver or obj.user.approver,
+                obj.first_approval_status,
+                obj.first_approval_comment,
+                obj.first_approval_at,
+            ),
+            self.build_approval_step(
+                'FINAL',
+                'Final Approver',
+                obj.final_approver or obj.user.final_approver,
+                obj.final_approval_status,
+                obj.final_approval_comment,
+                obj.final_approval_at,
+                optional=True,
+            ),
+        ]
+
+    def build_approval_step(self, step, label, approver, decision, note, acted_at, optional=False):
+        return {
+            'step': step,
+            'label': label,
+            'approver_id': str(approver.id) if approver else None,
+            'approver_name': (
+                f"{approver.first_name or ''} {approver.last_name or ''}".strip() or approver.email
+            ) if approver else None,
+            'status': decision if approver else ('NOT_REQUIRED' if optional else 'UNASSIGNED'),
+            'note': note,
+            'acted_at': acted_at.isoformat() if acted_at else None,
+        }
 
 
 class LeaveRequestCreateSerializer(serializers.ModelSerializer):

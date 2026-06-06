@@ -190,7 +190,10 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     total_hours=total_hours,
                     reason=data.get('reason', ''),
                     attachment_url=attachment_url,
-                    status='PENDING'
+                    status='PENDING',
+                    first_approver=user.approver,
+                    final_approver=user.final_approver,
+                    current_approval_step='FIRST',
                 )
         except Exception as e:
             logger.error(f"Error creating leave request: {e}")

@@ -3,7 +3,7 @@ import {
   Input,
   Button,
   Card,
-  message,
+  App,
   Typography,
 } from "antd";
 import { login as loginApi } from "@api/authApi";
@@ -15,6 +15,7 @@ import logo from "@/assets/logo.png";
 const { Title, Text } = Typography;
 
 export default function Login() {
+  const { message } = App.useApp();
   const { login } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -33,7 +34,14 @@ export default function Login() {
         navigate("/dashboard", { replace: true });
       }
     } catch (err) {
-      message.error(err.message || "Login failed");
+      const errorData = err.response?.data;
+      const errorMessage =
+        errorData?.non_field_errors?.[0] ||
+        errorData?.detail ||
+        errorData?.error ||
+        err.message ||
+        "Login failed";
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }

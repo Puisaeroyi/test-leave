@@ -261,6 +261,195 @@ a {
   border-color: var(--color-border-strong);
 }
 
+.announcement-modal-item {
+  padding: 16px 0;
+}
+
+.announcement-modal-item__header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.announcement-article-modal .ant-modal-content {
+  padding: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(242, 176, 120, 0.14), transparent 18rem),
+    #fffdf7;
+}
+
+.announcement-article-modal .ant-modal-close {
+  top: 18px;
+  right: 18px;
+}
+
+.announcement-article {
+  max-width: 760px;
+  min-height: 520px;
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.announcement-article__header {
+  padding-bottom: 24px;
+  margin-bottom: 24px;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.announcement-article__kicker {
+  color: var(--color-accent-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.announcement-article__title.ant-typography {
+  margin: 10px auto 8px;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 52px);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+
+.announcement-article__meta {
+  display: block;
+  font-size: 13px;
+}
+
+.announcement-detail-content {
+  margin-top: 0;
+}
+
+.rich-text-editor {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.rich-text-editor__toolbar {
+  width: 100%;
+  padding: 8px;
+  background: var(--color-surface-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.rich-text-editor__surface {
+  min-height: 380px;
+  padding: 24px;
+  background:
+    linear-gradient(90deg, transparent 0, transparent calc(100% - 1px), rgba(77, 67, 48, 0.035) calc(100% - 1px)),
+    #fffefb;
+  background-size: 100% 32px;
+  outline: none;
+}
+
+.rich-text-editor__surface:empty::before {
+  color: var(--color-muted);
+  content: attr(data-placeholder);
+}
+
+.rich-content {
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.78;
+}
+
+.rich-content h1,
+.rich-content h2,
+.rich-content h3,
+.rich-content h4 {
+  margin: 0.8em 0 0.35em;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+.rich-content h1 {
+  font-size: clamp(32px, 5vw, 48px);
+  letter-spacing: -0.05em;
+}
+
+.rich-content h2 {
+  font-size: clamp(26px, 4vw, 36px);
+  letter-spacing: -0.04em;
+}
+
+.rich-content h3 {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.rich-content p {
+  margin: 0 0 0.85em;
+}
+
+.rich-content ul,
+.rich-content ol {
+  margin: 0 0 0.85em 1.4em;
+  padding-left: 1.2em;
+}
+
+.rich-content blockquote {
+  margin: 1em 0;
+  padding: 1em 1.2em;
+  color: var(--color-text-soft);
+  background: var(--color-surface-muted);
+  border-left: 4px solid var(--color-accent);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 1.16em;
+}
+
+.rich-content figure {
+  margin: 18px 0;
+}
+
+.rich-content img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(77, 67, 48, 0.14);
+}
+
+.rich-content figcaption {
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 13px;
+  font-style: italic;
+  text-align: center;
+}
+
+.rich-content hr {
+  width: min(220px, 70%);
+  margin: 28px auto;
+  border: 0;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.rich-content table {
+  width: 100%;
+  margin: 12px 0;
+  border-collapse: collapse;
+}
+
+.rich-content th,
+.rich-content td {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+}
+
 .page-shell {
   display: grid;
   gap: 12px;
@@ -385,6 +574,9 @@ a {
 }
 
 .status-pill--pending,
+.status-pill--awaiting-first-approval,
+.status-pill--first-approval-required,
+.status-pill--final-approval-required,
 .status-pill--warning {
   color: var(--color-warning);
   background: var(--color-warning-soft);
@@ -397,7 +589,8 @@ a {
   background: var(--color-danger-soft);
 }
 
-.status-pill--info {
+.status-pill--info,
+.status-pill--awaiting-final-approval {
   color: var(--color-info);
   background: var(--color-info-soft);
 }

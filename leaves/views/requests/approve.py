@@ -10,8 +10,11 @@ from django.db import transaction
 from ...models import LeaveRequest
 from ...serializers import LeaveRequestApproveSerializer
 from ...services import LeaveApprovalService
-from core.services.notification_service import create_leave_approved_notification
-from core.services.email_service import send_leave_approved_email
+from core.services.notification_service import (
+    create_leave_approved_notification,
+    create_leave_pending_notification,
+)
+from core.services.email_service import send_leave_approved_email, send_leave_pending_email
 
 logger = logging.getLogger(__name__)
 
@@ -52,13 +55,22 @@ class LeaveRequestApproveView(generics.GenericAPIView):
                     comment=comment
                 )
 
-            # Create notification outside transaction for performance
-            create_leave_approved_notification(approved_request)
-            send_leave_approved_email(approved_request)
+            # Create notifications outside transaction for performance.
+            # First-step approval keeps the request pending for the final approver.
+            if approved_request.status == LeaveRequest.Status.APPROVED:
+                create_leave_approved_notification(approved_request)
+                send_leave_approved_email(approved_request)
+            elif (
+                approved_request.current_approval_step == LeaveRequest.ApprovalStep.FINAL
+                and approved_request.final_approver
+            ):
+                create_leave_pending_notification(approved_request.final_approver, approved_request)
+                send_leave_pending_email(approved_request.final_approver, approved_request)
 
             return Response({
                 'id': str(approved_request.id),
-                'status': approved_request.status
+                'status': approved_request.status,
+                'current_approval_step': approved_request.current_approval_step,
             })
 
         except ValueError as e:

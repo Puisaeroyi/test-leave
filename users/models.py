@@ -67,6 +67,14 @@ class User(AbstractUser):
         related_name='subordinates',
         help_text="Direct approver for leave requests. Cross-entity approval supported."
     )
+    final_approver = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='final_approval_subordinates',
+        help_text="Optional final approver for two-step leave approval.",
+    )
     join_date = models.DateField(null=True, blank=True)
     avatar_url = models.URLField(max_length=500, blank=True)
     google_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -120,6 +128,16 @@ class User(AbstractUser):
                     "A user cannot be their own approver. "
                     "Please select a different approver or leave the field blank."
                 )
+                })
+
+        if self.final_approver and self.final_approver == self:
+            raise ValidationError({
+                'final_approver': ValidationError("A user cannot be their own final approver.")
+            })
+
+        if self.approver and self.final_approver and self.approver == self.final_approver:
+            raise ValidationError({
+                'final_approver': ValidationError("First and final approvers must be different users.")
             })
 
     def save(self, *args, **kwargs):

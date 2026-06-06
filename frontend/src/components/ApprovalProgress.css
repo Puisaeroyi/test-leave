@@ -1,0 +1,213 @@
+.approval-progress {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  padding: 4px 0;
+}
+
+.approval-progress__segment {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.approval-progress__segment:last-child {
+  flex: 0 1 calc(50% - 18px);
+}
+
+.approval-progress__step {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgba(24, 39, 58, 0.06);
+}
+
+.approval-progress__step--approved {
+  border-color: color-mix(in srgb, var(--color-success) 42%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success-soft) 55%, var(--color-surface));
+}
+
+.approval-progress__step--rejected {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger-soft) 55%, var(--color-surface));
+}
+
+.approval-progress__step--current {
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 16%, transparent);
+}
+
+.approval-progress__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.approval-progress__marker {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  color: var(--color-muted);
+  background: var(--color-surface-muted);
+}
+
+.approval-progress__step--approved .approval-progress__marker {
+  color: var(--color-on-accent);
+  background: var(--color-success);
+}
+
+.approval-progress__step--rejected .approval-progress__marker {
+  color: var(--color-on-accent);
+  background: var(--color-danger);
+}
+
+.approval-progress__step--current .approval-progress__marker {
+  color: var(--color-on-accent);
+  background: var(--color-warning);
+}
+
+.approval-progress__label {
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.approval-progress__person {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-progress__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.approval-progress__meta time {
+  color: var(--color-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.approval-progress__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.approval-progress__status--approved {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.approval-progress__status--rejected {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.approval-progress__status--pending {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.approval-progress__status--muted {
+  color: var(--color-muted);
+  background: var(--color-surface-muted);
+}
+
+.approval-progress__note {
+  margin-top: 12px;
+  padding: 9px 10px;
+  border-left: 3px solid currentColor;
+  border-radius: 0 8px 8px 0;
+  color: var(--color-muted);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+}
+
+.approval-progress__note span {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.approval-progress__note p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.approval-progress__connector {
+  position: relative;
+  width: 36px;
+  height: 2px;
+  flex: 0 0 36px;
+  background: var(--color-border);
+}
+
+.approval-progress__connector::after {
+  position: absolute;
+  top: 50%;
+  right: -1px;
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid var(--color-border);
+  border-right: 2px solid var(--color-border);
+  content: "";
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.approval-progress__connector--complete {
+  background: var(--color-success);
+}
+
+.approval-progress__connector--complete::after {
+  border-color: var(--color-success);
+}
+
+@media (max-width: 680px) {
+  .approval-progress,
+  .approval-progress__segment {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .approval-progress__segment:last-child {
+    flex-basis: auto;
+  }
+
+  .approval-progress__connector {
+    width: 2px;
+    height: 24px;
+    margin-left: 29px;
+    flex-basis: 24px;
+  }
+
+  .approval-progress__connector::after {
+    top: auto;
+    right: 50%;
+    bottom: -1px;
+    transform: translateX(50%) rotate(135deg);
+  }
+}

@@ -74,6 +74,16 @@ class LeaveRequest(models.Model):
         REJECTED = 'REJECTED', 'Rejected'
         CANCELLED = 'CANCELLED', 'Cancelled'
 
+    class ApprovalStep(models.TextChoices):
+        FIRST = 'FIRST', 'First Approver'
+        FINAL = 'FINAL', 'Final Approver'
+        COMPLETED = 'COMPLETED', 'Completed'
+
+    class ApprovalDecision(models.TextChoices):
+        PENDING = 'PENDING', 'Pending'
+        APPROVED = 'APPROVED', 'Approved'
+        REJECTED = 'REJECTED', 'Rejected'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_requests')
     leave_category = models.ForeignKey(LeaveCategory, on_delete=models.SET_NULL, null=True, blank=True)
@@ -97,6 +107,39 @@ class LeaveRequest(models.Model):
     approved_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
     approver_comment = models.TextField(blank=True)
+    first_approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='first_step_leave_requests',
+    )
+    final_approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='final_step_leave_requests',
+    )
+    current_approval_step = models.CharField(
+        max_length=20,
+        choices=ApprovalStep.choices,
+        default=ApprovalStep.FIRST,
+    )
+    first_approval_status = models.CharField(
+        max_length=20,
+        choices=ApprovalDecision.choices,
+        default=ApprovalDecision.PENDING,
+    )
+    first_approval_comment = models.TextField(blank=True)
+    first_approval_at = models.DateTimeField(null=True, blank=True)
+    final_approval_status = models.CharField(
+        max_length=20,
+        choices=ApprovalDecision.choices,
+        default=ApprovalDecision.PENDING,
+    )
+    final_approval_comment = models.TextField(blank=True)
+    final_approval_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

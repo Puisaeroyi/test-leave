@@ -6,6 +6,7 @@ from decimal import Decimal
 from typing import Dict, Any
 
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -104,10 +105,21 @@ def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, A
             'last_name': user.approver.last_name,
             'full_name': f"{user.approver.first_name or ''} {user.approver.last_name or ''}".strip() or user.approver.email,
         }
+    if hasattr(user, 'final_approver') and user.final_approver:
+        response['final_approver'] = {
+            'id': str(user.final_approver.id),
+            'email': user.final_approver.email,
+            'first_name': user.final_approver.first_name,
+            'last_name': user.final_approver.last_name,
+            'full_name': f"{user.final_approver.first_name or ''} {user.final_approver.last_name or ''}".strip() or user.final_approver.email,
+        }
 
     # Check if user is an approver for anyone (controls Manager Ticket visibility)
     from users.models import User as UserModel
-    subordinates = UserModel.objects.filter(approver=user, is_active=True)
+    subordinates = UserModel.objects.filter(
+        Q(approver=user) | Q(final_approver=user),
+        is_active=True
+    ).distinct()
     response['is_approver'] = subordinates.exists()
 
     if subordinates.exists():

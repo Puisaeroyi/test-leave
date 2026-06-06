@@ -95,6 +95,11 @@ export default function Profile() {
     background: "var(--color-info-soft)",
     border: "1px solid var(--color-info)",
   };
+  const finalApproverTagStyle = {
+    color: "var(--color-warning)",
+    background: "var(--color-warning-soft)",
+    border: "1px solid var(--color-warning)",
+  };
 
   return (
     <div className="page-shell">
@@ -180,19 +185,23 @@ export default function Profile() {
             {user.department_name || "-"}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Role">
-            <Tag style={roleTagStyle}>
-              {user.role}
-            </Tag>
-          </Descriptions.Item>
-
           <Descriptions.Item label="Join Date">
             {user.join_date || "-"}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Approver">
+          <Descriptions.Item label="First Approver">
             {user.approver ? (
               <Tag style={approverTagStyle}>{user.approver.full_name}</Tag>
+            ) : ["MANAGER", "ADMIN", "HR"].includes(user.role) ? (
+              <Text type="secondary">N/A</Text>
+            ) : (
+              <Text type="secondary">Not assigned</Text>
+            )}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Final Approver">
+            {user.final_approver ? (
+              <Tag style={finalApproverTagStyle}>{user.final_approver.full_name}</Tag>
             ) : ["MANAGER", "ADMIN", "HR"].includes(user.role) ? (
               <Text type="secondary">N/A</Text>
             ) : (

@@ -32,6 +32,7 @@ import { useAuth } from "@auth/authContext";
 import { getAllUsers, updateUser, deleteUser, createUser } from "@api/userApi";
 import { getEntities, getLocations, getDepartments } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
+import AnnouncementManagement from "@components/AnnouncementManagement";
 import EntityManagement from "@components/EntityManagement";
 import "./Settings.css";
 
@@ -96,6 +97,7 @@ const Settings = () => {
       email: userData.email,
       employee_code: userData.employee_code,
       approver: userData.approver?.id || null,
+      final_approver: userData.final_approver?.id || null,
     });
     setEditModalVisible(true);
   };
@@ -110,7 +112,8 @@ const Settings = () => {
         last_name: values.last_name,
         email: values.email,
         employee_code: values.employee_code || null,
-        approver: values.approver,
+        approver: values.approver || null,
+        final_approver: values.final_approver || null,
       });
 
       message.success("User updated successfully");
@@ -208,6 +211,7 @@ const Settings = () => {
         location: values.location,
         department: values.department,
         approver: values.approver,
+        final_approver: values.final_approver || null,
         join_date: values.join_date?.format("YYYY-MM-DD") || null,
       });
       message.success("User created successfully");
@@ -309,6 +313,23 @@ const Settings = () => {
         approver ? (
           <Tooltip title={`${approver.first_name} ${approver.last_name} (${approver.email})`}>
             <Tag className="approver-tag" style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{`${approver.first_name} ${approver.last_name}`.trim() || approver.email}</Tag>
+          </Tooltip>
+        ) : (
+          <Tag style={{ color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}>Not assigned</Tag>
+        )
+      ),
+    },
+    {
+      title: "Final Approver",
+      dataIndex: "final_approver",
+      key: "final_approver",
+      width: 160,
+      render: (approver) => (
+        approver ? (
+          <Tooltip title={`${approver.first_name} ${approver.last_name} (${approver.email})`}>
+            <Tag style={{ color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }}>
+              {`${approver.first_name} ${approver.last_name}`.trim() || approver.email}
+            </Tag>
           </Tooltip>
         ) : (
           <Tag style={{ color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}>Not assigned</Tag>
@@ -454,6 +475,15 @@ const Settings = () => {
       label: 'Entities',
       children: <EntityManagement />,
     },
+    ...(user?.role === "ADMIN"
+      ? [
+          {
+            key: 'announcements',
+            label: 'Announcements',
+            children: <AnnouncementManagement />,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -554,6 +584,36 @@ const Settings = () => {
               allowClear
               showSearch
               placeholder="Select an approver"
+              filterOption={(input, option) =>
+                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+              }
+              options={availableApprovers.map((u) => ({
+                value: u.id,
+                label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Final Approver"
+            name="final_approver"
+            dependencies={["approver"]}
+            tooltip="Optional second approval step"
+            rules={[
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || value !== getFieldValue("approver")) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("Final approver must be different from first approver"));
+                },
+              }),
+            ]}
+          >
+            <Select
+              allowClear
+              showSearch
+              placeholder="Select a final approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
@@ -722,6 +782,38 @@ const Settings = () => {
             <Select
               showSearch
               placeholder="Select an approver"
+              filterOption={(input, option) =>
+                (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+              }
+              options={users
+                .filter((u) => u.status === "ACTIVE")
+                .map((u) => ({
+                  value: u.id,
+                  label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                }))}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Final Approver"
+            name="final_approver"
+            dependencies={["approver"]}
+            tooltip="Optional. Leave empty for one-step approval."
+            rules={[
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || value !== getFieldValue("approver")) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error("Final approver must be different from first approver"));
+                },
+              }),
+            ]}
+          >
+            <Select
+              allowClear
+              showSearch
+              placeholder="Select a final approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }

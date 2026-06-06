@@ -37,6 +37,7 @@ class UserAdminForm(forms.ModelForm):
         location = cleaned_data.get('location')
         department = cleaned_data.get('department')
         approver = cleaned_data.get('approver')
+        final_approver = cleaned_data.get('final_approver')
 
         # Validate entity consistency
         if entity and location and location.entity != entity:
@@ -53,6 +54,14 @@ class UserAdminForm(forms.ModelForm):
             raise forms.ValidationError({
                 'approver': "A user cannot be their own approver."
             })
+        if final_approver and self.instance.pk and final_approver.id == self.instance.pk:
+            raise forms.ValidationError({
+                'final_approver': "A user cannot be their own final approver."
+            })
+        if approver and final_approver and approver.id == final_approver.id:
+            raise forms.ValidationError({
+                'final_approver': "Final approver must be different from first approver."
+            })
 
         return cleaned_data
 
@@ -61,7 +70,10 @@ class UserAdminForm(forms.ModelForm):
 class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
     form = UserAdminForm
     resource_class = UserResource
-    list_display = ['employee_code', 'email', 'first_name', 'last_name', 'role', 'status', 'entity', 'location', 'department', 'approver']
+    list_display = [
+        'employee_code', 'email', 'first_name', 'last_name', 'role', 'status',
+        'entity', 'location', 'department', 'approver', 'final_approver'
+    ]
     list_filter = ['role', 'status', 'entity', 'location', 'department']
     search_fields = ['email', 'first_name', 'last_name', 'employee_code']
     ordering = ['-date_joined']
@@ -71,7 +83,7 @@ class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
         (None, {'fields': ('employee_code', 'email', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'avatar_url')}),
         ('Role & Status', {'fields': ('role', 'status')}),
-        ('Organization', {'fields': ('entity', 'location', 'department', 'approver', 'join_date')}),
+        ('Organization', {'fields': ('entity', 'location', 'department', 'approver', 'final_approver', 'join_date')}),
         ('Permissions', {'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )
