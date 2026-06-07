@@ -65,14 +65,25 @@ class Command(BaseCommand):
 
         # Create Leave Categories
         categories = [
-            {'category_name': 'Vacation', 'code': 'VACATION', 'sort_order': 1},
-            {'category_name': 'Sick Leave', 'code': 'SICK', 'sort_order': 2},
+            {'category_name': 'Vacation', 'code': 'VACATION', 'balance_bucket': 'VACATION', 'sort_order': 1},
+            {'category_name': 'Sick Leave', 'code': 'SICK', 'balance_bucket': 'SICK', 'sort_order': 2},
+            {'category_name': 'FMLA Leave', 'code': 'FMLA', 'balance_bucket': 'NONE', 'sort_order': 3},
+            {'category_name': 'Bereavement Leave', 'code': 'BEREAVEMENT', 'balance_bucket': 'NONE', 'sort_order': 4},
+            {'category_name': 'Jury Duty Leave', 'code': 'JURY_DUTY', 'balance_bucket': 'NONE', 'sort_order': 5},
+            {'category_name': 'Kin Care (Family Sick) - CA Only', 'code': 'KIN_CARE', 'balance_bucket': 'SICK', 'sort_order': 6},
+            {'category_name': 'School Activity Leave - CA Only', 'code': 'SCHOOL_ACTIVITY', 'balance_bucket': 'NONE', 'sort_order': 7},
+            {'category_name': 'Unpaid Leave', 'code': 'UNPAID', 'balance_bucket': 'NONE', 'sort_order': 8},
         ]
         for cat_data in categories:
             cat, _ = LeaveCategory.objects.get_or_create(
                 code=cat_data['code'],
                 defaults=cat_data
             )
+            for field, value in cat_data.items():
+                setattr(cat, field, value)
+            cat.requires_document = False
+            cat.is_active = True
+            cat.save()
             self.stdout.write(f'  Category: {cat.category_name}')
 
         # Create Public Holidays for 2026

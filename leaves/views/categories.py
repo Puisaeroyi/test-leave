@@ -19,7 +19,9 @@ class LeaveCategoryListView(generics.ListAPIView):
             {
                 'id': str(cat.id),
                 'name': cat.category_name,
+                'category_name': cat.category_name,
                 'code': cat.code,
+                'balance_bucket': cat.balance_bucket,
                 'requires_document': cat.requires_document
             }
             for cat in categories

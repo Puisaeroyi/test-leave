@@ -11,7 +11,10 @@ class LeaveCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LeaveCategory
-        fields = ['id', 'category_name', 'code', 'requires_document', 'sort_order', 'is_active']
+        fields = [
+            'id', 'category_name', 'code', 'balance_bucket',
+            'requires_document', 'sort_order', 'is_active'
+        ]
         read_only_fields = ['id']
 
 
@@ -56,7 +59,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         model = LeaveRequest
         fields = [
             'id', 'user', 'user_name', 'user_email', 'user_timezone', 'user_location_name',
-            'department_name', 'leave_category', 'category', 'exempt_type',
+            'department_name', 'leave_category', 'category',
             'start_date', 'end_date', 'shift_type',
             'start_time', 'end_time', 'total_hours', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
@@ -77,7 +80,8 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             return {
                 'id': str(obj.leave_category.id),
                 'name': obj.leave_category.category_name,
-                'code': obj.leave_category.code
+                'code': obj.leave_category.code,
+                'balance_bucket': obj.leave_category.balance_bucket,
             }
         return None
 

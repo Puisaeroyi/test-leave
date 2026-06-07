@@ -16,17 +16,18 @@ User = get_user_model()
 @pytest.fixture
 def setup_user_with_balance():
     """Create a user with leave balance for testing"""
-    entity = Entity.objects.create(name='Test Entity', code='TEST')
+    entity = Entity.objects.create(entity_name='Test Entity', code='TEST')
     location = Location.objects.create(
         entity=entity,
-        name='Test Location',
+        location_name='Test Location',
         city='Test City',
         country='Test Country',
         timezone='UTC'
     )
     department = Department.objects.create(
         entity=entity,
-        name='Test Department',
+        location=location,
+        department_name='Test Department',
         code='TEST'
     )
 
@@ -45,6 +46,7 @@ def setup_user_with_balance():
     balance, _ = LeaveBalance.objects.get_or_create(
         user=user,
         year=2026,
+        balance_type='VACATION',
         defaults={
             'allocated_hours': Decimal('96.00'),
             'used_hours': Decimal('0.00')
@@ -53,9 +55,9 @@ def setup_user_with_balance():
 
     # Create leave category
     category = LeaveCategory.objects.create(
-        name='Annual Leave',
+        category_name='Annual Leave',
         code='ANNUAL',
-        color='#3B82F6'
+        balance_bucket='VACATION',
     )
 
     return {'user': user, 'balance': balance, 'category': category, 'department': department}

@@ -13,11 +13,11 @@ from django.utils import timezone
 from .models import LeaveBalance, LeaveRequest
 
 
-# --- EXEMPT_VACATION dynamic allocation constants ---
+# --- VACATION dynamic allocation constants ---
 
 # Tier table: (min_year_of_service, max_year_of_service) -> hours
 # Year 1 handled separately via FIRST_YEAR_PRORATE
-EXEMPT_VACATION_TIERS = {
+VACATION_TIERS = {
     (2, 5): Decimal('80.00'),     # 10 days
     (6, 10): Decimal('120.00'),   # 15 days
     (11, 15): Decimal('160.00'),  # 20 days
@@ -41,59 +41,47 @@ FIRST_YEAR_PRORATE = {
 }
 
 # Default fallback when join_date is None
-DEFAULT_EXEMPT_VACATION_HOURS = Decimal('80.00')
+DEFAULT_VACATION_HOURS = Decimal('80.00')
 
-# Default allocations for non-exempt and sick leave types
-DEFAULT_BALANCE_ALLOCATION = Decimal('40.00')
+DEFAULT_SICK_HOURS = Decimal('40.00')
 
 
 class BalanceCalculationService:
     """Service for calculating leave balance types and allocations"""
 
     @staticmethod
-    def calculate_balance_type(exempt_type: str, leave_category) -> str:
+    def calculate_balance_type(leave_category) -> str:
         """
-        Determine balance type from exempt_type and leave_category.
+        Determine balance type from the category balance bucket.
 
         Args:
-            exempt_type: 'EXEMPT' or 'NON_EXEMPT'
             leave_category: LeaveCategory instance or None
 
         Returns:
-            str: Balance type key (e.g., 'EXEMPT_VACATION')
+            str: Balance type key: VACATION, SICK, or NONE
         """
-        is_vacation = leave_category and hasattr(leave_category, 'code') and leave_category.code and leave_category.code.lower() == 'vacation'
-        is_exempt = exempt_type.upper() == 'EXEMPT'
-
-        if is_vacation:
-            return 'EXEMPT_VACATION' if is_exempt else 'NON_EXEMPT_VACATION'
-        else:
-            return 'EXEMPT_SICK' if is_exempt else 'NON_EXEMPT_SICK'
+        return getattr(leave_category, 'balance_bucket', 'NONE') or 'NONE'
 
     @staticmethod
     def calculate_default_allocation(balance_type: str, user, year: int) -> Decimal:
         """
-        Calculate default allocation including YoS-based exempt vacation.
+        Calculate default allocation including YoS-based vacation.
 
         Args:
-            balance_type: Balance type key (e.g., 'EXEMPT_VACATION')
+            balance_type: Balance type key
             user: User instance
             year: Balance year
 
         Returns:
             Decimal: Default allocated hours
         """
-        if balance_type == 'EXEMPT_VACATION':
+        if balance_type == 'VACATION':
             reference_date = date(year, 1, 1)
-            return calculate_exempt_vacation_hours(user.join_date, reference_date)
+            return calculate_vacation_hours(user.join_date, reference_date)
 
-        # Default allocations for other types
-        default_allocations = {
-            'NON_EXEMPT_VACATION': DEFAULT_BALANCE_ALLOCATION,
-            'EXEMPT_SICK': DEFAULT_BALANCE_ALLOCATION,
-            'NON_EXEMPT_SICK': DEFAULT_BALANCE_ALLOCATION,
-        }
-        return default_allocations.get(balance_type, DEFAULT_BALANCE_ALLOCATION)
+        if balance_type == 'SICK':
+            return DEFAULT_SICK_HOURS
+        return Decimal('0.00')
 
 
 def get_year_of_service(join_date: date, reference_date: date) -> int:
@@ -107,9 +95,9 @@ def get_year_of_service(join_date: date, reference_date: date) -> int:
     return completed_years + 1
 
 
-def calculate_exempt_vacation_hours(join_date, reference_date: date) -> Decimal:
+def calculate_vacation_hours(join_date, reference_date: date) -> Decimal:
     """
-    Calculate EXEMPT_VACATION allocated hours based on years of service.
+    Calculate vacation allocated hours based on years of service.
 
     Args:
         join_date: Employee join date (date or None)
@@ -119,7 +107,7 @@ def calculate_exempt_vacation_hours(join_date, reference_date: date) -> Decimal:
         Decimal hours allocation
     """
     if join_date is None:
-        return DEFAULT_EXEMPT_VACATION_HOURS
+        return DEFAULT_VACATION_HOURS
 
     # Future year: employee hasn't started yet
     if join_date.year > reference_date.year:
@@ -137,7 +125,7 @@ def calculate_exempt_vacation_hours(join_date, reference_date: date) -> Decimal:
         yos = 2
 
     # Tier lookup
-    for (low, high), hours in EXEMPT_VACATION_TIERS.items():
+    for (low, high), hours in VACATION_TIERS.items():
         if high is None:
             if yos >= low:
                 return hours
@@ -315,7 +303,7 @@ class LeaveApprovalService:
         else:
             raise ValueError("This request has no pending approval step")
 
-        # Final approval completes the request and deducts balance.
+        # Final approval completes the request and deducts balance when applicable.
         leave_request.status = 'APPROVED'
         leave_request.current_approval_step = 'COMPLETED'
         leave_request.approved_by = approver
@@ -323,21 +311,21 @@ class LeaveApprovalService:
         leave_request.approver_comment = comment
         leave_request.save()
 
-        # Deduct from balance (find by balance_type)
         balance_type = LeaveApprovalService._get_balance_type(leave_request)
-        try:
-            balance = LeaveBalance.objects.select_for_update().get(
-                user=leave_request.user,
-                year=leave_request.start_date.year,
-                balance_type=balance_type
-            )
-        except LeaveBalance.DoesNotExist:
-            raise ValueError(
-                f"No {balance_type} balance found for year {leave_request.start_date.year}. "
-                "Cannot approve without an existing balance record."
-            )
-        balance.used_hours += leave_request.total_hours
-        balance.save()
+        if balance_type != 'NONE':
+            try:
+                balance = LeaveBalance.objects.select_for_update().get(
+                    user=leave_request.user,
+                    year=leave_request.start_date.year,
+                    balance_type=balance_type
+                )
+            except LeaveBalance.DoesNotExist:
+                raise ValueError(
+                    f"No {balance_type} balance found for year {leave_request.start_date.year}. "
+                    "Cannot approve without an existing balance record."
+                )
+            balance.used_hours += leave_request.total_hours
+            balance.save()
 
         LeaveApprovalService._create_approval_audit(
             leave_request, approver, 'FINAL', 'APPROVED', comment, now
@@ -367,22 +355,17 @@ class LeaveApprovalService:
     @staticmethod
     def _get_balance_type(leave_request):
         """
-        Determine balance type based on leave category and exempt type.
+        Determine balance type based on leave category.
 
         Args:
             leave_request: LeaveRequest instance
 
         Returns:
-            str: BalanceType key (e.g., 'EXEMPT_VACATION')
+            str: BalanceType key, or NONE for non-deducting categories.
         """
-        category = leave_request.leave_category
-        is_vacation = category is not None and hasattr(category, 'code') and category.code and category.code.lower() == 'vacation'
-        is_exempt = leave_request.exempt_type == 'EXEMPT'
-
-        if is_vacation:
-            return 'EXEMPT_VACATION' if is_exempt else 'NON_EXEMPT_VACATION'
-        else:
-            return 'EXEMPT_SICK' if is_exempt else 'NON_EXEMPT_SICK'
+        return BalanceCalculationService.calculate_balance_type(
+            leave_request.leave_category
+        )
 
     @staticmethod
     @transaction.atomic
@@ -425,15 +408,15 @@ class LeaveApprovalService:
                     f"Leave starts on {leave_request.start_date}, cutoff was {cutoff_time.strftime('%Y-%m-%d %H:%M')}"
                 )
 
-            # Restore balance (find by balance_type)
             balance_type = LeaveApprovalService._get_balance_type(leave_request)
-            balance = LeaveBalance.objects.select_for_update().get(
-                user=leave_request.user,
-                year=leave_request.start_date.year,
-                balance_type=balance_type
-            )
-            balance.used_hours = max(Decimal('0.00'), balance.used_hours - leave_request.total_hours)
-            balance.save()
+            if balance_type != 'NONE':
+                balance = LeaveBalance.objects.select_for_update().get(
+                    user=leave_request.user,
+                    year=leave_request.start_date.year,
+                    balance_type=balance_type
+                )
+                balance.used_hours = max(Decimal('0.00'), balance.used_hours - leave_request.total_hours)
+                balance.save()
 
         # Store old status for audit
         old_status = leave_request.status
@@ -495,17 +478,18 @@ class LeaveApprovalService:
 
         # Add employee balance for the relevant balance type
         balance_type = LeaveApprovalService._get_balance_type(leave_request)
-        balance = LeaveBalance.objects.filter(
-            user=leave_request.user,
-            year=leave_request.start_date.year,
-            balance_type=balance_type
-        ).first()
+        if balance_type != 'NONE':
+            balance = LeaveBalance.objects.filter(
+                user=leave_request.user,
+                year=leave_request.start_date.year,
+                balance_type=balance_type
+            ).first()
 
-        if balance:
-            data['employee_balance'] = {
-                'remaining_hours': float(balance.remaining_hours),
-                'remaining_days': float(balance.remaining_hours) / 8,
-            }
+            if balance:
+                data['employee_balance'] = {
+                    'remaining_hours': float(balance.remaining_hours),
+                    'remaining_days': float(balance.remaining_hours) / 8,
+                }
 
         # Find team conflicts (approved overlapping leaves)
         conflicts = LeaveRequest.objects.filter(

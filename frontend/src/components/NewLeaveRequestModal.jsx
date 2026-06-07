@@ -7,7 +7,6 @@ import {
   Select,
   DatePicker,
   Radio,
-  TimePicker,
   Input,
   Upload,
   Button,
@@ -24,17 +23,45 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { uploadFile } from "../api/dashboardApi";
+import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
+// Whole-hour options for business hours 6 AM–6 PM, labelled in AM/PM
+// (e.g. "09:00 AM"). Value is the 0-23 hour.
+const HOUR_OPTIONS = Array.from({ length: 13 }, (_, index) => {
+  const hour = 6 + index; // 6 (6 AM) .. 18 (6 PM)
+  return { value: hour, label: dayjs().hour(hour).minute(0).format("hh:00 A") };
+});
+
+// Single-column hour chooser used for custom-hour leave. A plain Select selects
+// and closes on one click (no OK button, no lingering panel) while still feeding
+// Form.Item a dayjs value so downstream `.format("HH:mm")`/`.diff()` keep working.
+function HourSelect({ value, onChange, disableHour, ...rest }) {
+  const options = disableHour
+    ? HOUR_OPTIONS.map((opt) => ({ ...opt, disabled: disableHour(opt.value) }))
+    : HOUR_OPTIONS;
+  return (
+    <Select
+      {...rest}
+      style={{ width: 132 }}
+      placeholder="Select hour"
+      value={value ? value.hour() : undefined}
+      onChange={(hour) =>
+        onChange?.(dayjs().hour(hour).minute(0).second(0).millisecond(0))
+      }
+      options={options}
+    />
+  );
+}
+
 export default function NewLeaveRequestModal({
   open,
   onCancel,
   onSubmit,
-  balances = [], // Array of 4 balances
+  balances = [],
   initialDate = null, // Pre-selected date from calendar click
 }) {
   const [step, setStep] = useState(0);
@@ -43,6 +70,7 @@ export default function NewLeaveRequestModal({
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [fileList, setFileList] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   // Pre-fill date from calendar click
   useEffect(() => {
@@ -53,19 +81,61 @@ export default function NewLeaveRequestModal({
 
   const values = Form.useWatch([], form);
   const leaveCategory = Form.useWatch("leaveCategory", form);
+  const selectedCategory = categories.find((category) => category.id === leaveCategory);
+  const selectedBucket = selectedCategory?.balanceBucket || null;
   const sameDay = values?.date && values.date[0]?.isSame(values.date[1], "day");
   const dayType = values?.dayType || "full";
 
-  // Different date rules: Sick leave allows up to 2 weeks retroactive, Vacation requires 3-day advance
+  // Progressive gating: each field unlocks only after the prior one is set,
+  // so the form fills in order (Category -> Date -> the rest).
+  const categoryChosen = !!leaveCategory;
+  const dateChosen = !!(values?.date && values.date[0] && values.date[1]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let active = true;
+    getLeaveCategories()
+      .then((data) => {
+        if (active) setCategories(data);
+      })
+      .catch(() => {
+        if (active) message.error("Failed to load leave categories");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  // SICK allows up to 2 weeks retroactive, VACATION requires 3-day advance, NONE has no restriction.
   const minLeaveDate =
-    leaveCategory === "sick"
-      ? dayjs().subtract(14, "day").startOf("day")  // Allow 2 weeks retroactive for sick leave
-      : dayjs().add(3, "day").startOf("day");
+    selectedBucket === "SICK"
+      ? dayjs().subtract(14, "day").startOf("day")
+      : selectedBucket === "VACATION"
+      ? dayjs().add(3, "day").startOf("day")
+      : null;
 
   const disabledDate = (current) => {
-    if (!leaveCategory) return false;
+    if (!leaveCategory || !minLeaveDate) return false;
     return current && current < minLeaveDate;
   };
+
+  // Changing the category can tighten the date rule (e.g. SICK -> VACATION's
+  // 3-day advance). Clear an already-picked date that no longer qualifies so the
+  // user must reselect a valid one. Keyed on the category, not the dayjs object.
+  useEffect(() => {
+    if (!minLeaveDate) return;
+    const date = form.getFieldValue("date");
+    const invalid =
+      date &&
+      (date[0]?.isBefore(minLeaveDate, "day") ||
+        date[1]?.isBefore(minLeaveDate, "day"));
+    if (invalid) {
+      form.setFieldsValue({ date: undefined, startTime: undefined, endTime: undefined });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaveCategory]);
 
   const calculateHours = (start, end) => {
     if (!start || !end) return 0;
@@ -93,16 +163,6 @@ export default function NewLeaveRequestModal({
     sameDay && dayType === "custom"
       ? calculateHours(values?.startTime, values?.endTime)
       : 0;
-
-  // Get balance type key based on leaveCategory and exemptType
-  const getBalanceKey = (category, exemptType) =>
-    category === "vacation"
-      ? exemptType === "exempt"
-        ? "EXEMPT_VACATION"
-        : "NON_EXEMPT_VACATION"
-      : exemptType === "exempt"
-      ? "EXEMPT_SICK"
-      : "NON_EXEMPT_SICK";
 
   const handleContinue = async () => {
     const data = await form.validateFields();
@@ -132,15 +192,19 @@ export default function NewLeaveRequestModal({
       hours = workingDays * 8;
     }
 
-    // Find the specific balance based on category and exempt type
-    const balanceKey = getBalanceKey(data.leaveCategory, data.exemptType);
-    const selectedBalance = balances.find(b => b.type === balanceKey);
+    const category = categories.find((item) => item.id === data.leaveCategory);
+    const balanceBucket = category?.balanceBucket || "NONE";
+    const selectedBalance = balanceBucket === "NONE"
+      ? null
+      : balances.find((balance) => balance.type === balanceBucket);
 
     setConfirmData({
       ...data,
+      categoryName: category?.name || "Leave",
+      balanceBucket,
       totalHours: hours,
-      remainingHours: selectedBalance?.remaining_hours || 0,
-      allocated_hours: selectedBalance?.allocated_hours || 0,
+      remainingHours: selectedBalance?.remaining_hours ?? null,
+      allocated_hours: selectedBalance?.allocated_hours ?? null,
     });
     setStep(1);
   };
@@ -201,12 +265,8 @@ export default function NewLeaveRequestModal({
           />
 
           {step === 0 && (
-            <Form
-              form={form}
-              layout="vertical"
-              style={{ marginTop: 24 }}
-              placeholder="Select leave type"
-            >
+            <Form form={form} layout="vertical" style={{ marginTop: 24 }}>
+              {/* 1. Leave Category — always available */}
               <Form.Item
                 name="leaveCategory"
                 label="Leave Category"
@@ -215,37 +275,31 @@ export default function NewLeaveRequestModal({
                 <Select
                   size="large"
                   placeholder="Select leave category"
-                  options={[
-                    { value: "vacation", label: "Vacation" },
-                    { value: "sick", label: "Sick Leave" },
-                  ]}
+                  options={categories.map((category) => ({
+                    value: category.id,
+                    label: category.name,
+                  }))}
                 />
               </Form.Item>
 
-              {leaveCategory && (
-                <Form.Item
-                  name="exemptType"
-                  label="Leave Type"
-                  rules={[{ required: true, message: "Please select leave type" }]}
-                  initialValue="exempt"
-                >
-                  <Radio.Group buttonStyle="solid" size="large">
-                    <Radio.Button value="exempt">Exempt</Radio.Button>
-                    <Radio.Button value="non-exempt">Non-Exempt</Radio.Button>
-                  </Radio.Group>
-                </Form.Item>
-              )}
-
-              <Form.Item name="date" label="Date" rules={[{ required: true }]}>
+              {/* 2. Date — unlocked once a category is chosen */}
+              <Form.Item
+                name="date"
+                label="Date"
+                rules={[{ required: true }]}
+                tooltip={!categoryChosen ? "Select a leave category first" : undefined}
+              >
                 <RangePicker
                   size="large"
                   style={{ width: "100%" }}
+                  disabled={!categoryChosen}
                   disabledDate={disabledDate}
                 />
               </Form.Item>
 
+              {/* 3. Duration / Time — unlocked once a same-day date is chosen */}
               {sameDay && (
-                <Form.Item name="dayType" initialValue="full">
+                <Form.Item name="dayType" label="Duration" initialValue="full">
                   <Radio.Group buttonStyle="solid" size="large">
                     <Radio.Button value="full">Full Day</Radio.Button>
                     <Radio.Button value="custom">Custom Hour</Radio.Button>
@@ -257,10 +311,20 @@ export default function NewLeaveRequestModal({
                 <>
                   <Space>
                     <Form.Item name="startTime" label="Start Time" rules={[{ required: true }]}>
-                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} aria-label="Start time" />
+                      <HourSelect
+                        aria-label="Start time"
+                        disableHour={(hour) =>
+                          values?.endTime ? hour >= values.endTime.hour() : false
+                        }
+                      />
                     </Form.Item>
                     <Form.Item name="endTime" label="End Time" rules={[{ required: true }]}>
-                      <TimePicker format="HH:mm" minuteStep={30} showNow={false} aria-label="End time" />
+                      <HourSelect
+                        aria-label="End time"
+                        disableHour={(hour) =>
+                          values?.startTime ? hour <= values.startTime.hour() : false
+                        }
+                      />
                     </Form.Item>
                   </Space>
 
@@ -283,12 +347,14 @@ export default function NewLeaveRequestModal({
                 </>
               )}
 
+              {/* 4. Reason & Attachment — unlocked once a date is chosen */}
               <Form.Item
                 name="reason"
                 label="Reason"
                 rules={[{ required: true }]}
+                tooltip={!dateChosen ? "Select a date first" : undefined}
               >
-                <TextArea rows={3} />
+                <TextArea rows={3} disabled={!dateChosen} />
               </Form.Item>
 
               <Form.Item label="Attachment">
@@ -298,8 +364,11 @@ export default function NewLeaveRequestModal({
                   onChange={({ fileList }) => setFileList(fileList)}
                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                   maxCount={1}
+                  disabled={!dateChosen}
                 >
-                  <Button icon={<UploadOutlined />}>Upload</Button>
+                  <Button icon={<UploadOutlined />} disabled={!dateChosen}>
+                    Upload
+                  </Button>
                 </Upload>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   PDF or images only, max 5MB
@@ -346,28 +415,12 @@ export default function NewLeaveRequestModal({
                     <Text type="secondary">Leave Category</Text>
                     <Tag
                       style={{
-                        color: confirmData.leaveCategory === "vacation" ? "var(--color-accent)" : "var(--color-danger)",
-                        background: confirmData.leaveCategory === "vacation" ? "var(--color-accent-soft)" : "var(--color-danger-soft)",
+                        color: confirmData.balanceBucket === "VACATION" ? "var(--color-accent)" : "var(--color-danger)",
+                        background: confirmData.balanceBucket === "VACATION" ? "var(--color-accent-soft)" : "var(--color-danger-soft)",
                         border: "1px solid currentColor",
                       }}
                     >
-                      {confirmData.leaveCategory === "vacation" ? "Vacation" : "Sick Leave"}
-                    </Tag>
-                  </div>
-
-                  {/* LEAVE TYPE */}
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <Text type="secondary">Leave Type</Text>
-                    <Tag
-                      style={{
-                        color: "var(--color-info)",
-                        background: "var(--color-info-soft)",
-                        border: "1px solid var(--color-info)",
-                      }}
-                    >
-                      {confirmData.exemptType === "exempt" ? "Exempt" : "Non-Exempt"}
+                      {confirmData.categoryName}
                     </Tag>
                   </div>
 
@@ -409,49 +462,51 @@ export default function NewLeaveRequestModal({
                     >
                       <Text type="secondary">Time</Text>
                       <Text strong>
-                        {confirmData.startTime.format("HH:mm")} →{" "}
-                        {confirmData.endTime.format("HH:mm")}
+                        {confirmData.startTime.format("hh:mm A")} →{" "}
+                        {confirmData.endTime.format("hh:mm A")}
                       </Text>
                     </div>
                   )}
 
-                  {/* DEDUCT HIGHLIGHT */}
-                  <div
-                    style={{
-                      padding: 16,
-                      borderRadius: 12,
-                      background:
-                        confirmData.totalHours > (confirmData.remainingHours || 0)
-                          ? "var(--color-danger-soft)"
-                          : "var(--color-accent-soft)",
-                      border:
-                        confirmData.totalHours > (confirmData.remainingHours || 0)
-                          ? "1px solid var(--color-danger)"
-                          : "1px solid var(--color-border-strong)",
-                    }}
-                  >
-                    <Text
-                      strong
+                  {/* DEDUCT HIGHLIGHT — only for balance-affecting categories;
+                      NONE-bucket leave is settled by HR/Finance at payslip time */}
+                  {confirmData.balanceBucket !== "NONE" && (
+                    <div
                       style={{
-                        color:
+                        padding: 16,
+                        borderRadius: 12,
+                        background:
                           confirmData.totalHours > (confirmData.remainingHours || 0)
-                            ? "var(--color-danger)"
-                            : "var(--color-accent)",
-                        fontSize: 16,
+                            ? "var(--color-danger-soft)"
+                            : "var(--color-accent-soft)",
+                        border:
+                          confirmData.totalHours > (confirmData.remainingHours || 0)
+                            ? "1px solid var(--color-danger)"
+                            : "1px solid var(--color-border-strong)",
                       }}
                     >
-                      Your leave balance will be deducted by{" "}
-                      {confirmData.totalHours.toFixed(1)} hours
-                    </Text>
+                      <Text
+                        strong
+                        style={{
+                          color:
+                            confirmData.totalHours > (confirmData.remainingHours || 0)
+                              ? "var(--color-danger)"
+                              : "var(--color-accent)",
+                          fontSize: 16,
+                        }}
+                      >
+                        {`Your leave balance will be deducted by ${confirmData.totalHours.toFixed(1)} hours`}
+                      </Text>
 
-                    {confirmData.totalHours > (confirmData.remainingHours || 0) && (
-                      <div style={{ marginTop: 8 }}>
-                        <Text type="danger">
-                          ⚠ Your current balance is only {confirmData.remainingHours?.toFixed(1) || 0}h
-                        </Text>
-                      </div>
-                    )}
-                  </div>
+                      {confirmData.totalHours > (confirmData.remainingHours || 0) && (
+                        <div style={{ marginTop: 8 }}>
+                          <Text type="danger">
+                            ⚠ Your current balance is only {confirmData.remainingHours?.toFixed(1) || 0}h
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* REASON */}
                   <div>

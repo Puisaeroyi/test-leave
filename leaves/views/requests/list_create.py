@@ -9,7 +9,7 @@ from django.db.models import Q
 
 from ...models import LeaveRequest, LeaveBalance, LeaveCategory
 from ...serializers import LeaveRequestSerializer
-from ...services import LeaveApprovalService, calculate_exempt_vacation_hours, BalanceCalculationService
+from ...services import LeaveApprovalService, BalanceCalculationService
 from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
@@ -149,39 +149,42 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Determine balance type from exempt_type and leave_category
-        exempt_type = data.get('exempt_type', 'EXEMPT').upper()
         category_id = data.get('leave_category') or data.get('leave_category_id')
         leave_category = LeaveCategory.objects.filter(id=category_id).first() if category_id else None
-        balance_type = BalanceCalculationService.calculate_balance_type(exempt_type, leave_category)
+        if category_id and leave_category is None:
+            return Response(
+                {'error': 'Invalid leave category'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        balance_type = BalanceCalculationService.calculate_balance_type(leave_category)
 
         # Check balance + create request inside transaction to prevent race conditions
         year = start_date.year
 
-        # Calculate default allocation using service
-        default_hours = BalanceCalculationService.calculate_default_allocation(balance_type, user, year)
-
         try:
             with transaction.atomic():
-                # Lock balance row to prevent concurrent overdraw
-                balance, _ = LeaveBalance.objects.select_for_update().get_or_create(
-                    user=user,
-                    year=year,
-                    balance_type=balance_type,
-                    defaults={'allocated_hours': default_hours}
-                )
-
-                if total_hours > balance.remaining_hours:
-                    return Response(
-                        {'error': f'Insufficient balance. Requested: {total_hours}h, Available: {balance.remaining_hours}h'},
-                        status=status.HTTP_400_BAD_REQUEST
+                if balance_type != 'NONE':
+                    default_hours = BalanceCalculationService.calculate_default_allocation(
+                        balance_type, user, year
                     )
+                    # Lock balance row to prevent concurrent overdraw
+                    balance, _ = LeaveBalance.objects.select_for_update().get_or_create(
+                        user=user,
+                        year=year,
+                        balance_type=balance_type,
+                        defaults={'allocated_hours': default_hours}
+                    )
+
+                    if total_hours > balance.remaining_hours:
+                        return Response(
+                            {'error': f'Insufficient balance. Requested: {total_hours}h, Available: {balance.remaining_hours}h'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
 
                 # Create request inside same transaction
                 leave_request = LeaveRequest.objects.create(
                     user=user,
                     leave_category_id=category_id,
-                    exempt_type=exempt_type,
                     start_date=start_date,
                     end_date=end_date,
                     shift_type=shift_type,

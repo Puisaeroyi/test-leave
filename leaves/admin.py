@@ -4,8 +4,8 @@ from .models import LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday, Bu
 
 @admin.register(LeaveCategory)
 class LeaveCategoryAdmin(admin.ModelAdmin):
-    list_display = ['category_name', 'code', 'sort_order', 'is_active']
-    list_filter = ['is_active']
+    list_display = ['category_name', 'code', 'balance_bucket', 'sort_order', 'is_active']
+    list_filter = ['balance_bucket', 'is_active']
     search_fields = ['category_name', 'code']
 
 

@@ -31,14 +31,17 @@ class TwoStepApprovalTests(TestCase):
         self.employee.approver = self.first_approver
         self.employee.final_approver = self.final_approver
         self.employee.save()
-        self.category = LeaveCategory.objects.create(
-            category_name='Vacation',
+        self.category, _ = LeaveCategory.objects.update_or_create(
             code='VACATION',
+            defaults={
+                'category_name': 'Vacation',
+                'balance_bucket': 'VACATION',
+            },
         )
         self.balance = LeaveBalance.objects.create(
             user=self.employee,
             year=2027,
-            balance_type='EXEMPT_VACATION',
+            balance_type='VACATION',
             allocated_hours=Decimal('80.00'),
         )
         self.leave_request = LeaveRequest.objects.create(

@@ -8,10 +8,20 @@ from django.conf import settings
 
 
 class LeaveCategory(models.Model):
-    """Leave category for reporting purposes (all draw from unified balance)"""
+    """Leave category for reporting and balance routing."""
+    class BalanceBucket(models.TextChoices):
+        VACATION = 'VACATION', 'Vacation'
+        SICK = 'SICK', 'Sick'
+        NONE = 'NONE', 'None'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     category_name = models.CharField(max_length=100, unique=True)
     code = models.CharField(max_length=20, unique=True)
+    balance_bucket = models.CharField(
+        max_length=20,
+        choices=BalanceBucket.choices,
+        default=BalanceBucket.NONE,
+    )
     requires_document = models.BooleanField(default=False)
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
@@ -27,17 +37,15 @@ class LeaveCategory(models.Model):
 
 
 class LeaveBalance(models.Model):
-    """Annual leave balance per user - separated by type (exempt/non-exempt, vacation/sick)"""
+    """Annual leave balance per user."""
     class BalanceType(models.TextChoices):
-        EXEMPT_VACATION = 'EXEMPT_VACATION', 'Exempt Vacation'
-        NON_EXEMPT_VACATION = 'NON_EXEMPT_VACATION', 'Non-Exempt Vacation'
-        EXEMPT_SICK = 'EXEMPT_SICK', 'Exempt Sick Leave'
-        NON_EXEMPT_SICK = 'NON_EXEMPT_SICK', 'Non-Exempt Sick Leave'
+        VACATION = 'VACATION', 'Vacation'
+        SICK = 'SICK', 'Sick Leave'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_balances')
     year = models.IntegerField()
-    balance_type = models.CharField(max_length=30, choices=BalanceType.choices, default=BalanceType.EXEMPT_VACATION)
+    balance_type = models.CharField(max_length=30, choices=BalanceType.choices, default=BalanceType.VACATION)
     allocated_hours = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     used_hours = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
     adjusted_hours = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('0.00'))
@@ -64,10 +72,6 @@ class LeaveRequest(models.Model):
         FULL_DAY = 'FULL_DAY', 'Full Day'
         CUSTOM_HOURS = 'CUSTOM_HOURS', 'Custom Hours'
 
-    class ExemptType(models.TextChoices):
-        EXEMPT = 'EXEMPT', 'Exempt'
-        NON_EXEMPT = 'NON_EXEMPT', 'Non-Exempt'
-
     class Status(models.TextChoices):
         PENDING = 'PENDING', 'Pending'
         APPROVED = 'APPROVED', 'Approved'
@@ -87,7 +91,6 @@ class LeaveRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_requests')
     leave_category = models.ForeignKey(LeaveCategory, on_delete=models.SET_NULL, null=True, blank=True)
-    exempt_type = models.CharField(max_length=20, choices=ExemptType.choices, default=ExemptType.EXEMPT)
     start_date = models.DateField()
     end_date = models.DateField()
     shift_type = models.CharField(max_length=20, choices=ShiftType.choices)

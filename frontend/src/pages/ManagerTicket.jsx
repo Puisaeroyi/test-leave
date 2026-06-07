@@ -107,16 +107,6 @@ export default function ManagerTickets() {
       background: "var(--color-info-soft)",
       border: "1px solid var(--color-info)",
     },
-    Exempt: {
-      color: "var(--color-warning)",
-      background: "var(--color-warning-soft)",
-      border: "1px solid var(--color-warning)",
-    },
-    "Non-Exempt": {
-      color: "var(--color-accent)",
-      background: "var(--color-accent-soft)",
-      border: "1px solid var(--color-accent)",
-    },
   };
 
   // =======================
@@ -132,12 +122,6 @@ export default function ManagerTickets() {
     {
       title: "Leave Category",
       dataIndex: "type",
-      align: "center",
-      render: (t) => <Tag style={tagStyles[t]}>{t}</Tag>,
-    },
-    {
-      title: "Leave Type",
-      dataIndex: "exemptType",
       align: "center",
       render: (t) => <Tag style={tagStyles[t]}>{t}</Tag>,
     },
@@ -339,12 +323,6 @@ export default function ManagerTickets() {
                 </Tag>
               </Descriptions.Item>
 
-              <Descriptions.Item label="Leave Type">
-                <Tag style={tagStyles[selectedTicket.exemptType]}>
-                  {selectedTicket.exemptType}
-                </Tag>
-              </Descriptions.Item>
-
               <Descriptions.Item label="Status">
                 <Tag
                   style={
@@ -520,8 +498,6 @@ export default function ManagerTickets() {
                 onChange={(e) => setApproveReason(e.target.value)}
                 placeholder="Enter approval note (optional)..."
                 style={{ marginTop: 8 }}
-                maxLength={500}
-                showCount
               />
             </div>
           </>

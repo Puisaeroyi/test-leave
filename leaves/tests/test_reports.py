@@ -15,17 +15,19 @@ User = get_user_model()
 @pytest.fixture
 def setup_reports_data():
     """Create data for reports testing"""
-    entity = Entity.objects.create(name='Test Entity', code='TEST')
+    entity = Entity.objects.create(entity_name='Test Entity', code='TEST')
     location = Location.objects.create(
         entity=entity,
-        name='Test Location',
+        location_name='Test Location',
         city='Test City',
         country='Test Country',
         timezone='UTC'
     )
     department = Department.objects.create(
         entity=entity,
-        name='Engineering'
+        location=location,
+        department_name='Engineering',
+        code='ENG',
     )
 
     # Create HR user
@@ -46,15 +48,16 @@ def setup_reports_data():
 
     # Create category
     category = LeaveCategory.objects.create(
-        name='Annual Leave',
+        category_name='Annual Leave',
         code='AL',
-        color='#10B981'
+        balance_bucket='VACATION',
     )
 
     # Create or get balance (signal may have created one)
     balance, _ = LeaveBalance.objects.get_or_create(
         user=user,
         year=2026,
+        balance_type='VACATION',
         defaults={
             'allocated_hours': Decimal('96.00'),
             'used_hours': Decimal('16.00')

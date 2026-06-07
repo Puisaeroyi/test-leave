@@ -77,7 +77,6 @@ class ExportApprovedLeavesView(APIView):
             "Location",
             "Entity",
             "Leave Type",
-            "Exempt Type",
             "Start Date",
             "End Date",
             "Total Hours",
@@ -131,20 +130,19 @@ class ExportApprovedLeavesView(APIView):
                 column=7,
                 value=getattr(lr.leave_category, "category_name", "") or "",
             )
-            ws.cell(row=row_idx, column=8, value=lr.exempt_type)
             ws.cell(
-                row=row_idx, column=9, value=lr.start_date.isoformat()
+                row=row_idx, column=8, value=lr.start_date.isoformat()
             )
             ws.cell(
-                row=row_idx, column=10, value=lr.end_date.isoformat()
+                row=row_idx, column=9, value=lr.end_date.isoformat()
             )
             hours = float(lr.total_hours)
-            ws.cell(row=row_idx, column=11, value=hours)
-            ws.cell(row=row_idx, column=12, value=round(hours / 8, 2))
-            ws.cell(row=row_idx, column=13, value=lr.status)
+            ws.cell(row=row_idx, column=10, value=hours)
+            ws.cell(row=row_idx, column=11, value=round(hours / 8, 2))
+            ws.cell(row=row_idx, column=12, value=lr.status)
             ws.cell(
                 row=row_idx,
-                column=14,
+                column=13,
                 value=(
                     f"{lr.approved_by.first_name} {lr.approved_by.last_name}".strip()
                     if lr.approved_by
@@ -153,14 +151,14 @@ class ExportApprovedLeavesView(APIView):
             )
             ws.cell(
                 row=row_idx,
-                column=15,
+                column=14,
                 value=(
                     lr.approved_at.strftime("%Y-%m-%d %H:%M")
                     if lr.approved_at
                     else ""
                 ),
             )
-            ws.cell(row=row_idx, column=16, value=lr.reason or "")
+            ws.cell(row=row_idx, column=15, value=lr.reason or "")
 
         # Auto-adjust column widths
         for col in ws.columns:

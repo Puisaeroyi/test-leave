@@ -466,18 +466,6 @@ export default function Dashboard() {
               </Tag>
             </Descriptions.Item>
 
-            <Descriptions.Item label="Leave Type">
-              <Tag
-                style={
-                  selectedRequest.exemptType === "Non-Exempt"
-                    ? { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }
-                    : { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
-                }
-              >
-                {selectedRequest.exemptType || "-"}
-              </Tag>
-            </Descriptions.Item>
-
             <Descriptions.Item label="Date">
               {selectedRequest.from} → {selectedRequest.to}
             </Descriptions.Item>

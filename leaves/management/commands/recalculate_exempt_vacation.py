@@ -1,11 +1,9 @@
 """
 Recalculate leave balance allocations for all active onboarded employees.
 
-Handles all 4 balance types:
-- EXEMPT_VACATION: dynamic by years of service
-- NON_EXEMPT_VACATION: fixed 40h
-- EXEMPT_SICK: fixed 40h
-- NON_EXEMPT_SICK: fixed 40h
+Handles the two balance types:
+- VACATION: dynamic by years of service
+- SICK: fixed 40h
 
 Intended for yearly cron (Jan 1st):
     0 0 1 1 * cd /app && python manage.py recalculate_exempt_vacation
@@ -18,15 +16,13 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from leaves.models import LeaveBalance
-from leaves.services import calculate_exempt_vacation_hours
+from leaves.services import calculate_vacation_hours
 
 User = get_user_model()
 
-# Fixed defaults for non-dynamic balance types
+# Command filename is historical because production cron calls it directly.
 FIXED_BALANCE_DEFAULTS = {
-    'NON_EXEMPT_VACATION': Decimal('40.00'),
-    'EXEMPT_SICK': Decimal('40.00'),
-    'NON_EXEMPT_SICK': Decimal('40.00'),
+    'SICK': Decimal('40.00'),
 }
 
 
@@ -48,18 +44,16 @@ class Command(BaseCommand):
         parser.add_argument(
             '--all-types',
             action='store_true',
-            help='Recalculate all 4 balance types (default: EXEMPT_VACATION only)',
+            help='Accepted for backwards compatibility; recalculates VACATION and SICK.',
         )
 
     def handle(self, *args, **options):
         year = options['year']
         dry_run = options['dry_run']
-        all_types = options['all_types']
         reference_date = date(year, 1, 1)
 
-        mode = "all balance types" if all_types else "EXEMPT_VACATION only"
         self.stdout.write(
-            f"Recalculating {mode} for year {year} "
+            f"Recalculating VACATION and SICK for year {year} "
             f"(ref: {reference_date}){' [DRY RUN]' if dry_run else ''}"
         )
 
@@ -75,41 +69,38 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             for user in users:
-                # Always recalculate EXEMPT_VACATION (dynamic)
-                ev_hours = calculate_exempt_vacation_hours(
+                vacation_hours = calculate_vacation_hours(
                     user.join_date, reference_date
                 )
 
                 if dry_run:
                     self.stdout.write(
-                        f"  [DRY RUN] {user.email}: EXEMPT_VACATION={ev_hours}h"
+                        f"  [DRY RUN] {user.email}: VACATION={vacation_hours}h, SICK=40.00h"
                     )
                     continue
 
                 obj, created = LeaveBalance.objects.update_or_create(
                     user=user,
                     year=year,
-                    balance_type=LeaveBalance.BalanceType.EXEMPT_VACATION,
-                    defaults={'allocated_hours': ev_hours},
+                    balance_type=LeaveBalance.BalanceType.VACATION,
+                    defaults={'allocated_hours': vacation_hours},
                 )
                 if created:
                     created_count += 1
                 else:
                     updated_count += 1
 
-                # Recalculate fixed balance types if --all-types
-                if all_types:
-                    for balance_type, hours in FIXED_BALANCE_DEFAULTS.items():
-                        obj, created = LeaveBalance.objects.update_or_create(
-                            user=user,
-                            year=year,
-                            balance_type=balance_type,
-                            defaults={'allocated_hours': hours},
-                        )
-                        if created:
-                            created_count += 1
-                        else:
-                            updated_count += 1
+                for balance_type, hours in FIXED_BALANCE_DEFAULTS.items():
+                    obj, created = LeaveBalance.objects.update_or_create(
+                        user=user,
+                        year=year,
+                        balance_type=balance_type,
+                        defaults={'allocated_hours': hours},
+                    )
+                    if created:
+                        created_count += 1
+                    else:
+                        updated_count += 1
 
         total = users.count()
         if dry_run:

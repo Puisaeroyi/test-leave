@@ -60,7 +60,7 @@ class UserBalanceAdjustView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        VALID_BALANCE_TYPES = ['EXEMPT_VACATION', 'NON_EXEMPT_VACATION', 'EXEMPT_SICK', 'NON_EXEMPT_SICK']
+        VALID_BALANCE_TYPES = ['VACATION', 'SICK']
         if balance_type not in VALID_BALANCE_TYPES:
             return Response(
                 {'error': f'Invalid balance_type. Must be one of: {", ".join(VALID_BALANCE_TYPES)}'},

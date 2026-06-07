@@ -10,13 +10,11 @@ from django.utils import timezone
 
 from .models import User
 from leaves.models import LeaveBalance
-from leaves.services import calculate_exempt_vacation_hours
+from leaves.services import calculate_vacation_hours
 
 # Fixed defaults for non-dynamic balance types
 FIXED_BALANCE_DEFAULTS = {
-    'NON_EXEMPT_VACATION': Decimal('40.00'),
-    'EXEMPT_SICK': Decimal('40.00'),
-    'NON_EXEMPT_SICK': Decimal('40.00'),
+    'SICK': Decimal('40.00'),
 }
 
 
@@ -25,8 +23,8 @@ def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
     """
     Auto-create LeaveBalance when user completes onboarding.
 
-    EXEMPT_VACATION uses dynamic allocation based on years of service.
-    Other balance types use fixed defaults.
+    Vacation uses dynamic allocation based on years of service.
+    Sick uses a fixed default.
     """
     if instance.has_completed_onboarding:
         current_year = timezone.now().year
@@ -38,8 +36,8 @@ def create_leave_balance_on_onboarding(sender, instance, created, **kwargs):
         reference_date = date(current_year, 1, 1)
 
         for balance_type in LeaveBalance.BalanceType.values:
-            if balance_type == 'EXEMPT_VACATION':
-                hours = calculate_exempt_vacation_hours(
+            if balance_type == 'VACATION':
+                hours = calculate_vacation_hours(
                     instance.join_date, reference_date
                 )
             else:

@@ -9,19 +9,17 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from ..models import LeaveBalance
-from ..services import calculate_exempt_vacation_hours
+from ..services import calculate_vacation_hours
 
 # Default allocated hours for non-dynamic balance types
 DEFAULT_BALANCE_ALLOCATION = {
-    LeaveBalance.BalanceType.EXEMPT_VACATION: Decimal('80.00'),  # fallback only
-    LeaveBalance.BalanceType.NON_EXEMPT_VACATION: Decimal('40.00'),
-    LeaveBalance.BalanceType.EXEMPT_SICK: Decimal('40.00'),
-    LeaveBalance.BalanceType.NON_EXEMPT_SICK: Decimal('40.00'),
+    LeaveBalance.BalanceType.VACATION: Decimal('80.00'),  # fallback only
+    LeaveBalance.BalanceType.SICK: Decimal('40.00'),
 }
 
 
 class LeaveBalanceMeView(generics.RetrieveAPIView):
-    """Get current user's leave balance - 4 separate balances."""
+    """Get current user's leave balance."""
 
     permission_classes = [IsAuthenticated]
 
@@ -33,9 +31,8 @@ class LeaveBalanceMeView(generics.RetrieveAPIView):
 
         balances = []
         for balance_type, default_hours in DEFAULT_BALANCE_ALLOCATION.items():
-            # Use dynamic calculation for EXEMPT_VACATION
-            if balance_type == LeaveBalance.BalanceType.EXEMPT_VACATION:
-                default_hours = calculate_exempt_vacation_hours(
+            if balance_type == LeaveBalance.BalanceType.VACATION:
+                default_hours = calculate_vacation_hours(
                     user.join_date, reference_date
                 )
 
