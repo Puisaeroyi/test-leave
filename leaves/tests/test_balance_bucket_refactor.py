@@ -76,7 +76,7 @@ def test_calculate_balance_type_uses_category_bucket():
 def test_none_bucket_request_submits_and_approves_without_balance_rows():
     manager = create_user('manager@example.com', role=User.Role.MANAGER)
     employee = create_user('employee@example.com', role=User.Role.EMPLOYEE)
-    employee.approver = manager
+    employee.approver_1 = manager
     employee.save()
     fmla = get_category('FMLA', 'FMLA Leave', 'NONE')
 
@@ -113,7 +113,7 @@ def test_none_bucket_request_submits_and_approves_without_balance_rows():
 def test_vacation_and_sick_buckets_deduct_their_own_balances():
     manager = create_user('approver@example.com', role=User.Role.MANAGER)
     employee = create_user('worker@example.com', role=User.Role.EMPLOYEE)
-    employee.approver = manager
+    employee.approver_1 = manager
     employee.save()
     vacation = get_category('VACATION', 'Vacation', 'VACATION')
     sick = get_category('SICK', 'Sick Leave', 'SICK')

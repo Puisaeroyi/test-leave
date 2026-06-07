@@ -2,6 +2,7 @@
 Business trip views - separate from leaves, no approval workflow, no balance impact
 """
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -124,7 +125,7 @@ class BusinessTripTeamListView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         """GET /api/v1/leaves/business-trips/team/ - List subordinates' business trips"""
         queryset = BusinessTrip.objects.filter(
-            user__approver=request.user
+            Q(user__approver_1=request.user) | Q(user__approver_2=request.user)
         ).exclude(
             user=request.user
         ).select_related('user').order_by('-start_date')

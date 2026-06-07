@@ -194,9 +194,8 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     reason=data.get('reason', ''),
                     attachment_url=attachment_url,
                     status='PENDING',
-                    first_approver=user.approver,
-                    final_approver=user.final_approver,
-                    current_approval_step='FIRST',
+                    first_approver=user.approver_1,
+                    final_approver=user.approver_2,
                 )
         except Exception as e:
             logger.error(f"Error creating leave request: {e}")
@@ -205,11 +204,14 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # Notify the assigned approver (outside transaction for performance)
-        if user.approver:
-            create_leave_pending_notification(user.approver, leave_request)
-            send_leave_pending_email(user.approver, leave_request)
-        else:
+        # Notify assigned peers once at creation.
+        notified = False
+        for peer in (user.approver_1, user.approver_2):
+            if peer:
+                create_leave_pending_notification(peer, leave_request)
+                send_leave_pending_email(peer, leave_request)
+                notified = True
+        if not notified:
             logger.warning(f"User {user.email} has no approver assigned - no notification sent for leave request {leave_request.id}")
 
         serializer = LeaveRequestSerializer(leave_request)

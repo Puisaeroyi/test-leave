@@ -219,7 +219,7 @@ class TestLeaveApprovals:
             password='Manager123!',
             role=User.Role.MANAGER
         )
-        user.approver = manager
+        user.approver_1 = manager
         user.save()
 
         # Create leave request
@@ -258,6 +258,8 @@ class TestLeaveApprovals:
             password='Hr123!',
             role=User.Role.HR
         )
+        user.approver_1 = hr
+        user.save()
 
         # Create leave request
         leave_request = LeaveRequest.objects.create(
@@ -321,7 +323,7 @@ class TestLeaveApprovals:
             password='Manager123!',
             role=User.Role.MANAGER
         )
-        user.approver = manager
+        user.approver_1 = manager
         user.save()
 
         # Create leave request

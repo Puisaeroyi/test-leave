@@ -93,27 +93,29 @@ def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, A
         response['avatar_url'] = user.avatar_url
 
     # Add approver information (for all users)
-    if hasattr(user, 'approver') and user.approver:
+    if hasattr(user, 'approver_1') and user.approver_1:
+        approver = user.approver_1
         response['approver'] = {
-            'id': str(user.approver.id),
-            'email': user.approver.email,
-            'first_name': user.approver.first_name,
-            'last_name': user.approver.last_name,
-            'full_name': f"{user.approver.first_name or ''} {user.approver.last_name or ''}".strip() or user.approver.email,
+            'id': str(approver.id),
+            'email': approver.email,
+            'first_name': approver.first_name,
+            'last_name': approver.last_name,
+            'full_name': f"{approver.first_name or ''} {approver.last_name or ''}".strip() or approver.email,
         }
-    if hasattr(user, 'final_approver') and user.final_approver:
+    if hasattr(user, 'approver_2') and user.approver_2:
+        final_approver = user.approver_2
         response['final_approver'] = {
-            'id': str(user.final_approver.id),
-            'email': user.final_approver.email,
-            'first_name': user.final_approver.first_name,
-            'last_name': user.final_approver.last_name,
-            'full_name': f"{user.final_approver.first_name or ''} {user.final_approver.last_name or ''}".strip() or user.final_approver.email,
+            'id': str(final_approver.id),
+            'email': final_approver.email,
+            'first_name': final_approver.first_name,
+            'last_name': final_approver.last_name,
+            'full_name': f"{final_approver.first_name or ''} {final_approver.last_name or ''}".strip() or final_approver.email,
         }
 
     # Check if user is an approver for anyone (controls Manager Ticket visibility)
     from users.models import User as UserModel
     subordinates = UserModel.objects.filter(
-        Q(approver=user) | Q(final_approver=user),
+        Q(approver_1=user) | Q(approver_2=user),
         is_active=True
     ).distinct()
     response['is_approver'] = subordinates.exists()

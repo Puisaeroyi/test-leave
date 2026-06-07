@@ -35,18 +35,18 @@ class UserViewSet(viewsets.ModelViewSet):
 
         if user.role in [User.Role.HR, User.Role.ADMIN]:
             return User.objects.all().select_related(
-                'entity', 'location', 'department', 'approver', 'final_approver'
+                'entity', 'location', 'department', 'approver_1', 'approver_2'
             )
         elif user.role == User.Role.MANAGER:
             return User.objects.filter(
-                Q(approver=user) | Q(final_approver=user)
+                Q(approver_1=user) | Q(approver_2=user)
             ).select_related(
-                'entity', 'location', 'department', 'approver', 'final_approver'
+                'entity', 'location', 'department', 'approver_1', 'approver_2'
             ).distinct()
         else:
             # Employees can only see themselves
             return User.objects.filter(id=user.id).select_related(
-                'entity', 'location', 'department', 'approver', 'final_approver'
+                'entity', 'location', 'department', 'approver_1', 'approver_2'
             )
 
     def get_serializer_class(self):
@@ -131,9 +131,9 @@ class UserViewSet(viewsets.ModelViewSet):
         Returns list of users who have the current user as first or final approver
         """
         subordinates = User.objects.filter(
-            Q(approver=request.user) | Q(final_approver=request.user),
+            Q(approver_1=request.user) | Q(approver_2=request.user),
             is_active=True
-        ).select_related('entity', 'location', 'department', 'approver', 'final_approver').distinct()
+        ).select_related('entity', 'location', 'department', 'approver_1', 'approver_2').distinct()
 
         serializer = UserSerializer(subordinates, many=True)
         return Response(serializer.data)

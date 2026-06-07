@@ -58,22 +58,21 @@ class User(AbstractUser):
     entity = models.ForeignKey('organizations.Entity', on_delete=models.PROTECT, null=True, blank=True)
     location = models.ForeignKey('organizations.Location', on_delete=models.SET_NULL, null=True, blank=True)
     department = models.ForeignKey('organizations.Department', on_delete=models.SET_NULL, null=True, blank=True)
-    # Approver field for person-to-person approval system (cross-entity supported)
-    approver = models.ForeignKey(
+    approver_1 = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='subordinates',
-        help_text="Direct approver for leave requests. Cross-entity approval supported."
+        related_name='approver_1_for',
+        help_text="Approver 1 for leave requests. Cross-entity approval supported."
     )
-    final_approver = models.ForeignKey(
+    approver_2 = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='final_approval_subordinates',
-        help_text="Optional final approver for two-step leave approval.",
+        related_name='approver_2_for',
+        help_text="Optional approver 2 for leave requests.",
     )
     join_date = models.DateField(null=True, blank=True)
     avatar_url = models.URLField(max_length=500, blank=True)
@@ -121,23 +120,23 @@ class User(AbstractUser):
                     )
                 })
 
-        # Validate approver is not self (circular reference prevention)
-        if self.approver and self.approver == self:
+        # Validate approvers are not self (circular reference prevention)
+        if self.approver_1 and self.approver_1 == self:
             raise ValidationError({
-                'approver': ValidationError(
-                    "A user cannot be their own approver. "
-                    "Please select a different approver or leave the field blank."
+                'approver_1': ValidationError(
+                    "A user cannot be their own approver 1. "
+                    "Please select a different approver 1 or leave the field blank."
                 )
                 })
 
-        if self.final_approver and self.final_approver == self:
+        if self.approver_2 and self.approver_2 == self:
             raise ValidationError({
-                'final_approver': ValidationError("A user cannot be their own final approver.")
+                'approver_2': ValidationError("A user cannot be their own approver 2.")
             })
 
-        if self.approver and self.final_approver and self.approver == self.final_approver:
+        if self.approver_1 and self.approver_2 and self.approver_1 == self.approver_2:
             raise ValidationError({
-                'final_approver': ValidationError("First and final approvers must be different users.")
+                'approver_2': ValidationError("Approver 1 and approver 2 must be different users.")
             })
 
     def save(self, *args, **kwargs):

@@ -140,6 +140,48 @@ class LeaveApprovalService:
     """Service for handling leave approval logic"""
 
     @staticmethod
+    def _peer_approvers(leave_request):
+        """Return the request's assigned peer approvers from snapshots or user defaults."""
+        return (
+            leave_request.first_approver or leave_request.user.approver_1,
+            leave_request.final_approver or leave_request.user.approver_2,
+        )
+
+    @staticmethod
+    def _assigned_peers(leave_request):
+        peers = []
+        for peer in LeaveApprovalService._peer_approvers(leave_request):
+            if peer and peer not in peers:
+                peers.append(peer)
+        return peers
+
+    @staticmethod
+    def _decision_for_peer(leave_request, peer):
+        peer_1, peer_2 = LeaveApprovalService._peer_approvers(leave_request)
+        if peer_1 == peer:
+            return leave_request.first_approval_status
+        if peer_2 == peer:
+            return leave_request.final_approval_status
+        return None
+
+    @staticmethod
+    def get_action_required_user_ids(leave_request):
+        if leave_request.status != LeaveRequest.Status.PENDING:
+            return []
+
+        pending_ids = []
+        peer_1, peer_2 = LeaveApprovalService._peer_approvers(leave_request)
+        if peer_1 and leave_request.first_approval_status == LeaveRequest.ApprovalDecision.PENDING:
+            pending_ids.append(str(peer_1.id))
+        if (
+            peer_2
+            and peer_2 != peer_1
+            and leave_request.final_approval_status == LeaveRequest.ApprovalDecision.PENDING
+        ):
+            pending_ids.append(str(peer_2.id))
+        return pending_ids
+
+    @staticmethod
     def get_pending_requests_for_manager(user):
         """
         Get pending leave requests for a manager based on approver relationship.
@@ -155,33 +197,36 @@ class LeaveApprovalService:
         """
         pending_for_user = Q(
             status='PENDING',
-            current_approval_step='FIRST',
+            first_approval_status='PENDING',
             first_approver=user,
         ) | Q(
             status='PENDING',
-            current_approval_step='FIRST',
+            first_approval_status='PENDING',
             first_approver__isnull=True,
-            user__approver=user,
+            user__approver_1=user,
         ) | Q(
             status='PENDING',
-            current_approval_step='FINAL',
+            final_approval_status='PENDING',
             final_approver=user,
         ) | Q(
             status='PENDING',
-            current_approval_step='FINAL',
+            final_approval_status='PENDING',
             final_approver__isnull=True,
-            user__final_approver=user,
-        ) | Q(
-            status='PENDING',
-            current_approval_step='FINAL',
-            first_approval_status='APPROVED',
-            first_approver=user,
-        ) | Q(
-            status='PENDING',
-            current_approval_step='FINAL',
-            first_approval_status='APPROVED',
-            first_approver__isnull=True,
-            user__approver=user,
+            user__approver_2=user,
+        )
+        acted_pending = Q(status='PENDING') & (
+            Q(first_approver=user, first_approval_status__in=['APPROVED', 'REJECTED'])
+            | Q(
+                first_approver__isnull=True,
+                user__approver_1=user,
+                first_approval_status__in=['APPROVED', 'REJECTED'],
+            )
+            | Q(final_approver=user, final_approval_status__in=['APPROVED', 'REJECTED'])
+            | Q(
+                final_approver__isnull=True,
+                user__approver_2=user,
+                final_approval_status__in=['APPROVED', 'REJECTED'],
+            )
         )
         acted_history = Q(
             status__in=['APPROVED', 'REJECTED'],
@@ -189,14 +234,15 @@ class LeaveApprovalService:
             Q(first_approver=user)
             | Q(final_approver=user)
             | Q(approved_by=user)
-            | Q(first_approver__isnull=True, user__approver=user)
-            | Q(final_approver__isnull=True, user__final_approver=user)
+            | Q(first_approver__isnull=True, user__approver_1=user)
+            | Q(final_approver__isnull=True, user__approver_2=user)
         )
 
         return LeaveRequest.objects.filter(
-            pending_for_user | acted_history
+            pending_for_user | acted_pending | acted_history
         ).exclude(user=user).select_related(
-            'user', 'leave_category', 'first_approver', 'final_approver'
+            'user', 'leave_category', 'first_approver', 'final_approver',
+            'user__approver_1', 'user__approver_2'
         ).distinct().order_by('created_at')
 
     @staticmethod
@@ -215,13 +261,14 @@ class LeaveApprovalService:
             Q(first_approver=user)
             | Q(final_approver=user)
             | Q(approved_by=user)
-            | Q(first_approver__isnull=True, user__approver=user)
-            | Q(final_approver__isnull=True, user__final_approver=user),
+            | Q(first_approver__isnull=True, user__approver_1=user)
+            | Q(final_approver__isnull=True, user__approver_2=user),
             status__in=['APPROVED', 'REJECTED'],
         ).distinct()
 
         return queryset.select_related(
-            'user', 'leave_category', 'first_approver', 'final_approver'
+            'user', 'leave_category', 'first_approver', 'final_approver',
+            'user__approver_1', 'user__approver_2'
         ).order_by('-approved_at')
 
     @staticmethod
@@ -229,7 +276,7 @@ class LeaveApprovalService:
         """
         Check if a manager can approve a specific leave request.
 
-        Permission based solely on approver relationship (request.user.approver == manager).
+        Permission based solely on approver relationship.
         No role-based bypass - HR/ADMIN must be assigned as approver to approve.
 
         Args:
@@ -239,16 +286,23 @@ class LeaveApprovalService:
         Returns:
             bool: True if manager can approve, False otherwise
         """
-        first_approver = leave_request.first_approver or leave_request.user.approver
-        final_approver = leave_request.final_approver or leave_request.user.final_approver
+        first_approver, final_approver = LeaveApprovalService._peer_approvers(leave_request)
 
         if leave_request.status == 'PENDING':
-            if leave_request.current_approval_step == 'FINAL':
-                return final_approver == manager
-            return first_approver == manager
+            return (
+                first_approver == manager
+                and leave_request.first_approval_status == LeaveRequest.ApprovalDecision.PENDING
+            ) or (
+                final_approver == manager
+                and leave_request.final_approval_status == LeaveRequest.ApprovalDecision.PENDING
+            )
 
         if leave_request.status == 'APPROVED':
-            return leave_request.approved_by == manager or final_approver == manager
+            return (
+                leave_request.approved_by == manager
+                or first_approver == manager
+                or final_approver == manager
+            )
 
         return False
 
@@ -270,38 +324,39 @@ class LeaveApprovalService:
             raise ValueError("Only pending requests can be approved")
 
         now = timezone.now()
-        first_approver = leave_request.first_approver or leave_request.user.approver
-        final_approver = leave_request.final_approver or leave_request.user.final_approver
+        first_approver, final_approver = LeaveApprovalService._peer_approvers(leave_request)
+        leave_request.first_approver = first_approver
+        leave_request.final_approver = final_approver
 
-        if leave_request.current_approval_step == 'FIRST':
-            if first_approver != approver:
-                raise ValueError("Only the assigned first approver can approve this step")
-
-            leave_request.first_approver = first_approver
-            leave_request.final_approver = final_approver
+        if first_approver == approver:
+            if leave_request.first_approval_status != LeaveRequest.ApprovalDecision.PENDING:
+                raise ValueError("This approver has already acted on this request")
             leave_request.first_approval_status = 'APPROVED'
             leave_request.first_approval_comment = comment
             leave_request.first_approval_at = now
-
-            if final_approver and final_approver != first_approver:
-                leave_request.current_approval_step = 'FINAL'
-                leave_request.save()
-                LeaveApprovalService._create_approval_audit(
-                    leave_request, approver, 'FIRST', 'PENDING', comment, now
-                )
-                return leave_request
-
+            decision_step = 'FIRST'
+        elif final_approver == approver:
+            if leave_request.final_approval_status != LeaveRequest.ApprovalDecision.PENDING:
+                raise ValueError("This approver has already acted on this request")
             leave_request.final_approval_status = 'APPROVED'
             leave_request.final_approval_comment = comment
             leave_request.final_approval_at = now
-        elif leave_request.current_approval_step == 'FINAL':
-            if final_approver != approver:
-                raise ValueError("Only the assigned final approver can approve this step")
-            leave_request.final_approval_status = 'APPROVED'
-            leave_request.final_approval_comment = comment
-            leave_request.final_approval_at = now
+            decision_step = 'FINAL'
         else:
-            raise ValueError("This request has no pending approval step")
+            raise ValueError("Only an assigned approver can approve this request")
+
+        assigned_peers = LeaveApprovalService._assigned_peers(leave_request)
+        all_approved = assigned_peers and all(
+            LeaveApprovalService._decision_for_peer(leave_request, peer) == LeaveRequest.ApprovalDecision.APPROVED
+            for peer in assigned_peers
+        )
+
+        if not all_approved:
+            leave_request.save()
+            LeaveApprovalService._create_approval_audit(
+                leave_request, approver, decision_step, 'PENDING', comment, now
+            )
+            return leave_request
 
         # Final approval completes the request and deducts balance when applicable.
         leave_request.status = 'APPROVED'
@@ -328,7 +383,7 @@ class LeaveApprovalService:
             balance.save()
 
         LeaveApprovalService._create_approval_audit(
-            leave_request, approver, 'FINAL', 'APPROVED', comment, now
+            leave_request, approver, decision_step, 'APPROVED', comment, now
         )
 
         return leave_request
@@ -422,17 +477,19 @@ class LeaveApprovalService:
         old_status = leave_request.status
 
         now = timezone.now()
-        if leave_request.status == 'PENDING':
-            if leave_request.current_approval_step == 'FIRST':
-                leave_request.first_approver = leave_request.first_approver or leave_request.user.approver
-                leave_request.first_approval_status = 'REJECTED'
-                leave_request.first_approval_comment = reason
-                leave_request.first_approval_at = now
-            elif leave_request.current_approval_step == 'FINAL':
-                leave_request.final_approver = leave_request.final_approver or leave_request.user.final_approver
-                leave_request.final_approval_status = 'REJECTED'
-                leave_request.final_approval_comment = reason
-                leave_request.final_approval_at = now
+        first_approver, final_approver = LeaveApprovalService._peer_approvers(leave_request)
+        leave_request.first_approver = first_approver
+        leave_request.final_approver = final_approver
+        if first_approver == approver:
+            leave_request.first_approval_status = 'REJECTED'
+            leave_request.first_approval_comment = reason
+            leave_request.first_approval_at = now
+        elif final_approver == approver:
+            leave_request.final_approval_status = 'REJECTED'
+            leave_request.final_approval_comment = reason
+            leave_request.final_approval_at = now
+        elif leave_request.status == 'PENDING':
+            raise ValueError("Only an assigned approver can reject this request")
 
         # Update leave request
         leave_request.status = 'REJECTED'

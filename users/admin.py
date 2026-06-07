@@ -36,8 +36,8 @@ class UserAdminForm(forms.ModelForm):
         entity = cleaned_data.get('entity')
         location = cleaned_data.get('location')
         department = cleaned_data.get('department')
-        approver = cleaned_data.get('approver')
-        final_approver = cleaned_data.get('final_approver')
+        approver = cleaned_data.get('approver_1')
+        final_approver = cleaned_data.get('approver_2')
 
         # Validate entity consistency
         if entity and location and location.entity != entity:
@@ -52,15 +52,15 @@ class UserAdminForm(forms.ModelForm):
         # Validate circular reference (user cannot be their own approver)
         if approver and self.instance.pk and approver.id == self.instance.pk:
             raise forms.ValidationError({
-                'approver': "A user cannot be their own approver."
+                'approver_1': "A user cannot be their own approver 1."
             })
         if final_approver and self.instance.pk and final_approver.id == self.instance.pk:
             raise forms.ValidationError({
-                'final_approver': "A user cannot be their own final approver."
+                'approver_2': "A user cannot be their own approver 2."
             })
         if approver and final_approver and approver.id == final_approver.id:
             raise forms.ValidationError({
-                'final_approver': "Final approver must be different from first approver."
+                'approver_2': "Approver 2 must be different from approver 1."
             })
 
         return cleaned_data
@@ -72,7 +72,7 @@ class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
     resource_class = UserResource
     list_display = [
         'employee_code', 'email', 'first_name', 'last_name', 'role', 'status',
-        'entity', 'location', 'department', 'approver', 'final_approver'
+        'entity', 'location', 'department', 'approver_1', 'approver_2'
     ]
     list_filter = ['role', 'status', 'entity', 'location', 'department']
     search_fields = ['email', 'first_name', 'last_name', 'employee_code']
@@ -83,7 +83,7 @@ class UserAdmin(ImportExportModelAdmin, BaseUserAdmin):
         (None, {'fields': ('employee_code', 'email', 'password')}),
         ('Personal Info', {'fields': ('first_name', 'last_name', 'avatar_url')}),
         ('Role & Status', {'fields': ('role', 'status')}),
-        ('Organization', {'fields': ('entity', 'location', 'department', 'approver', 'final_approver', 'join_date')}),
+        ('Organization', {'fields': ('entity', 'location', 'department', 'approver_1', 'approver_2', 'join_date')}),
         ('Permissions', {'fields': ('is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important Dates', {'fields': ('last_login', 'date_joined')}),
     )

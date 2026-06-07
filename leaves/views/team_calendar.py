@@ -27,10 +27,10 @@ class TeamCalendarView(generics.GenericAPIView):
         # Get current user
         user = request.user
 
-        # Get team members (same entity) + direct subordinates + user's approver
+        # Get team members (same entity) + peer-approval subordinates + user's approver
         team_filters = Q(entity=user.entity)  # Entity-level only
-        subordinate_filter = Q(approver=user)  # Direct subordinates
-        approver_filter = Q(id=user.approver.pk) if user.approver else Q()  # User's approver
+        subordinate_filter = Q(approver_1=user) | Q(approver_2=user)
+        approver_filter = Q(id=user.approver_1.pk) if user.approver_1 else Q()  # User's approver
 
         team_members = User.objects.filter(
             team_filters | subordinate_filter | approver_filter

@@ -102,8 +102,8 @@ class UserSerializer(serializers.ModelSerializer):
         id = serializers.UUIDField()
         department_name = serializers.CharField()
 
-    approver = ApproverSerializer(read_only=True, allow_null=True)
-    final_approver = ApproverSerializer(read_only=True, allow_null=True)
+    approver = ApproverSerializer(source='approver_1', read_only=True, allow_null=True)
+    final_approver = ApproverSerializer(source='approver_2', read_only=True, allow_null=True)
     entity = EntitySerializer(read_only=True, allow_null=True)
     department = DepartmentSerializer(read_only=True, allow_null=True)
 
@@ -134,6 +134,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating user information"""
+    approver = serializers.PrimaryKeyRelatedField(
+        source='approver_1',
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+    final_approver = serializers.PrimaryKeyRelatedField(
+        source='approver_2',
+        queryset=User.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = User
         fields = [
@@ -173,8 +186,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        approver = attrs.get('approver', getattr(self.instance, 'approver', None))
-        final_approver = attrs.get('final_approver', getattr(self.instance, 'final_approver', None))
+        approver = attrs.get('approver_1', getattr(self.instance, 'approver_1', None))
+        final_approver = attrs.get('approver_2', getattr(self.instance, 'approver_2', None))
 
         if self.instance and approver and approver.id == self.instance.id:
             raise serializers.ValidationError({'approver': "A user cannot be their own approver."})
@@ -267,8 +280,8 @@ class UserCreateSerializer(serializers.Serializer):
             entity=validated_data['entity'],
             location=validated_data['location'],
             department=validated_data['department'],
-            approver=validated_data.get('approver'),
-            final_approver=validated_data.get('final_approver'),
+            approver_1=validated_data.get('approver'),
+            approver_2=validated_data.get('final_approver'),
             join_date=validated_data.get('join_date') or date.today(),
             first_login=True,
         )

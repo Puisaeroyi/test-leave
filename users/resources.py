@@ -231,7 +231,7 @@ class UserResource(resources.ModelResource):
     )
     approver = fields.Field(
         column_name='Approver_Email',
-        attribute='approver',
+        attribute='approver_1',
         widget=ApproverByEmailWidget()
     )
     is_active = fields.Field(

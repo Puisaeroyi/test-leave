@@ -51,6 +51,10 @@ class ExportApprovedLeavesView(APIView):
                 "user__entity",
                 "user__location",
                 "user__department",
+                "user__approver_1",
+                "user__approver_2",
+                "first_approver",
+                "final_approver",
             )
             .order_by("start_date", "user__last_name")
         )
@@ -82,7 +86,10 @@ class ExportApprovedLeavesView(APIView):
             "Total Hours",
             "Total Days",
             "Status",
-            "Approved By",
+            "Approver 1",
+            "Approver 1 Note",
+            "Approver 2",
+            "Approver 2 Note",
             "Approved Date",
             "Reason",
         ]
@@ -100,65 +107,37 @@ class ExportApprovedLeavesView(APIView):
             cell.font = header_font
             cell.alignment = header_align
 
+        def display_name(person):
+            if not person:
+                return ""
+            return f"{person.first_name} {person.last_name}".strip() or person.email
+
         # Data rows
         for row_idx, lr in enumerate(queryset, 2):
             user = lr.user
-            ws.cell(row=row_idx, column=1, value=user.employee_code or "")
-            ws.cell(
-                row=row_idx,
-                column=2,
-                value=f"{user.first_name} {user.last_name}".strip(),
-            )
-            ws.cell(row=row_idx, column=3, value=user.email)
-            ws.cell(
-                row=row_idx,
-                column=4,
-                value=getattr(user.department, "department_name", "") or "",
-            )
-            ws.cell(
-                row=row_idx,
-                column=5,
-                value=getattr(user.location, "location_name", "") or "",
-            )
-            ws.cell(
-                row=row_idx,
-                column=6,
-                value=getattr(user.entity, "entity_name", "") or "",
-            )
-            ws.cell(
-                row=row_idx,
-                column=7,
-                value=getattr(lr.leave_category, "category_name", "") or "",
-            )
-            ws.cell(
-                row=row_idx, column=8, value=lr.start_date.isoformat()
-            )
-            ws.cell(
-                row=row_idx, column=9, value=lr.end_date.isoformat()
-            )
             hours = float(lr.total_hours)
-            ws.cell(row=row_idx, column=10, value=hours)
-            ws.cell(row=row_idx, column=11, value=round(hours / 8, 2))
-            ws.cell(row=row_idx, column=12, value=lr.status)
-            ws.cell(
-                row=row_idx,
-                column=13,
-                value=(
-                    f"{lr.approved_by.first_name} {lr.approved_by.last_name}".strip()
-                    if lr.approved_by
-                    else ""
-                ),
-            )
-            ws.cell(
-                row=row_idx,
-                column=14,
-                value=(
-                    lr.approved_at.strftime("%Y-%m-%d %H:%M")
-                    if lr.approved_at
-                    else ""
-                ),
-            )
-            ws.cell(row=row_idx, column=15, value=lr.reason or "")
+            row = [
+                user.employee_code or "",
+                display_name(user),
+                user.email,
+                getattr(user.department, "department_name", "") or "",
+                getattr(user.location, "location_name", "") or "",
+                getattr(user.entity, "entity_name", "") or "",
+                getattr(lr.leave_category, "category_name", "") or "",
+                lr.start_date.isoformat(),
+                lr.end_date.isoformat(),
+                hours,
+                round(hours / 8, 2),
+                lr.status,
+                display_name(lr.first_approver or user.approver_1),
+                lr.first_approval_comment or "",
+                display_name(lr.final_approver or user.approver_2),
+                lr.final_approval_comment or "",
+                lr.approved_at.strftime("%Y-%m-%d %H:%M") if lr.approved_at else "",
+                lr.reason or "",
+            ]
+            for col_idx, value in enumerate(row, 1):
+                ws.cell(row=row_idx, column=col_idx, value=value)
 
         # Auto-adjust column widths
         for col in ws.columns:

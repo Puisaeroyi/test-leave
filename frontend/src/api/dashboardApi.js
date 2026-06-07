@@ -13,9 +13,7 @@ const getCurrentUserId = () => {
 
 const getEmployeeWorkflowStatus = (item) => {
   if (item.status !== "PENDING") return null;
-  return item.current_approval_step === "FINAL"
-    ? "Awaiting Final Approval"
-    : "Awaiting First Approval";
+  return "Awaiting Approval";
 };
 
 const getManagerWorkflowState = (item, currentUserId) => {
@@ -26,16 +24,13 @@ const getManagerWorkflowState = (item, currentUserId) => {
     };
   }
 
-  const actionRequired = String(item.current_approver_id) === String(currentUserId);
-  if (item.current_approval_step === "FINAL") {
-    return {
-      workflowStatus: actionRequired ? "Final Approval Required" : "Awaiting Final Approval",
-      actionRequired,
-    };
-  }
+  const actionRequiredIds = (item.action_required_user_ids || []).map(String);
+  const actionRequired = actionRequiredIds.length
+    ? actionRequiredIds.includes(String(currentUserId))
+    : String(item.current_approver_id) === String(currentUserId);
 
   return {
-    workflowStatus: actionRequired ? "First Approval Required" : "Awaiting First Approval",
+    workflowStatus: actionRequired ? "Approval Required" : "Awaiting Co-Approver",
     actionRequired,
   };
 };
@@ -75,6 +70,7 @@ export const getLeaveHistory = async (sort = "new") => {
     approvalTimeline: item.approval_timeline || [],
     currentApprovalStep: item.current_approval_step || null,
     currentApproverName: item.current_approver_name || null,
+    actionRequiredUserIds: item.action_required_user_ids || [],
     attachment: item.attachment_url || null,
   }));
 
@@ -240,12 +236,13 @@ export const getPendingRequests = async () => {
         approvalTimeline: item.approval_timeline || [],
         currentApprovalStep: item.current_approval_step || null,
         currentApproverName: item.current_approver_name || null,
+        actionRequiredUserIds: item.action_required_user_ids || [],
         workflowStatus: workflowState.workflowStatus,
         actionRequired: workflowState.actionRequired,
         canManageApproved: item.status === "APPROVED" && (
           String(item.approved_by) === String(currentUserId)
           || item.approval_timeline?.some(
-            (step) => step.step === "FINAL" && String(step.approver_id) === String(currentUserId)
+            (step) => String(step.approver_id) === String(currentUserId)
           )
         ),
       };

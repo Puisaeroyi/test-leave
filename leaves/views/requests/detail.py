@@ -27,8 +27,8 @@ class LeaveRequestDetailView(generics.RetrieveAPIView):
         user = request.user
         is_owner = leave_request.user == user
         is_approver = user in {
-            leave_request.first_approver or leave_request.user.approver,
-            leave_request.final_approver or leave_request.user.final_approver,
+            leave_request.first_approver or leave_request.user.approver_1,
+            leave_request.final_approver or leave_request.user.approver_2,
         }
         is_hr_admin = user.role in ['HR', 'ADMIN']
         if not (is_owner or is_approver or is_hr_admin):

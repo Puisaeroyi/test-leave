@@ -4,6 +4,7 @@ Leave Management Serializers
 from rest_framework import serializers
 from decimal import Decimal
 from .models import LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday, BusinessTrip
+from .services import LeaveApprovalService
 
 
 class LeaveCategorySerializer(serializers.ModelSerializer):
@@ -54,6 +55,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     approval_timeline = serializers.SerializerMethodField()
     current_approver_id = serializers.SerializerMethodField()
     current_approver_name = serializers.SerializerMethodField()
+    action_required_user_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaveRequest
@@ -65,7 +67,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',
             'current_approval_step', 'current_approver_id', 'current_approver_name',
-            'approval_timeline',
+            'action_required_user_ids', 'approval_timeline',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'total_hours', 'approved_by', 'approved_at', 'created_at', 'updated_at']
@@ -132,26 +134,49 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     def get_current_approver(self, obj):
         if obj.status != LeaveRequest.Status.PENDING:
             return None
-        if obj.current_approval_step == LeaveRequest.ApprovalStep.FINAL:
-            return obj.final_approver or obj.user.final_approver
-        return obj.first_approver or obj.user.approver
+        peer_1 = obj.first_approver or obj.user.approver_1
+        peer_2 = obj.final_approver or obj.user.approver_2
+        if peer_1 and obj.first_approval_status == LeaveRequest.ApprovalDecision.PENDING:
+            return peer_1
+        if peer_2 and obj.final_approval_status == LeaveRequest.ApprovalDecision.PENDING:
+            return peer_2
+        return None
 
     def get_current_approver_id(self, obj):
         approver = self.get_current_approver(obj)
         return str(approver.id) if approver else None
 
     def get_current_approver_name(self, obj):
-        approver = self.get_current_approver(obj)
-        if not approver:
+        if obj.status != LeaveRequest.Status.PENDING:
             return None
-        return f"{approver.first_name or ''} {approver.last_name or ''}".strip() or approver.email
+
+        pending_peers = []
+        peer_1 = obj.first_approver or obj.user.approver_1
+        peer_2 = obj.final_approver or obj.user.approver_2
+        if peer_1 and obj.first_approval_status == LeaveRequest.ApprovalDecision.PENDING:
+            pending_peers.append(peer_1)
+        if (
+            peer_2
+            and peer_2 != peer_1
+            and obj.final_approval_status == LeaveRequest.ApprovalDecision.PENDING
+        ):
+            pending_peers.append(peer_2)
+        if not pending_peers:
+            return None
+        return ', '.join(
+            f"{peer.first_name or ''} {peer.last_name or ''}".strip() or peer.email
+            for peer in pending_peers
+        )
+
+    def get_action_required_user_ids(self, obj):
+        return LeaveApprovalService.get_action_required_user_ids(obj)
 
     def get_approval_timeline(self, obj):
         return [
             self.build_approval_step(
                 'FIRST',
                 'First Approver',
-                obj.first_approver or obj.user.approver,
+                obj.first_approver or obj.user.approver_1,
                 obj.first_approval_status,
                 obj.first_approval_comment,
                 obj.first_approval_at,
@@ -159,7 +184,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             self.build_approval_step(
                 'FINAL',
                 'Final Approver',
-                obj.final_approver or obj.user.final_approver,
+                obj.final_approver or obj.user.approver_2,
                 obj.final_approval_status,
                 obj.final_approval_comment,
                 obj.final_approval_at,
