@@ -1,4 +1,5 @@
-import { Empty, Modal, Spin, Tag, Typography } from "antd";
+import { Button, Empty, Modal, Spin, Tag, Typography } from "antd";
+import { LeftOutlined, RightOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
 const { Paragraph, Text } = Typography;
@@ -8,15 +9,40 @@ export default function AnnouncementModal({
   loading = false,
   open,
   onClose,
+  index = 0,
+  total = 1,
+  onPrev,
+  onNext,
 }) {
   const createdBy = announcement?.created_by_name || announcement?.created_by;
+
+  // Show Prev/Next stepper only when cycling multiple announcements (login pop-up).
+  const stepperFooter =
+    total > 1 ? (
+      <div className="announcement-stepper">
+        <Button
+          icon={<LeftOutlined />}
+          onClick={onPrev}
+          disabled={index <= 0}
+        >
+          Prev
+        </Button>
+        <Text type="secondary">{`${index + 1} of ${total}`}</Text>
+        <Button
+          onClick={onNext}
+          disabled={index >= total - 1}
+        >
+          Next <RightOutlined />
+        </Button>
+      </div>
+    ) : null;
 
   return (
     <Modal
       title={null}
       open={open}
       onCancel={onClose}
-      footer={null}
+      footer={stepperFooter}
       width={860}
       className="announcement-article-modal"
     >

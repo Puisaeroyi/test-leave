@@ -230,21 +230,23 @@ const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, 
 export default function AppHeader({ isMobile, onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [latestAnnouncement, setLatestAnnouncement] = useState(null);
+  const [autoOpenAnnouncements, setAutoOpenAnnouncements] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [announcementCount, setAnnouncementCount] = useState(0);
   const [announcementPage, setAnnouncementPage] = useState(1);
   const [announcementsLoading, setAnnouncementsLoading] = useState(false);
-  const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+  // Modal is driven by an array + index so both the login stepper (many) and a
+  // dropdown click (single) share one code path; nav shows only when length > 1.
+  const [modalAnnouncements, setModalAnnouncements] = useState([]);
+  const [modalIndex, setModalIndex] = useState(0);
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, markAllAsRead, dismissNotification, dismissAll } =
     useNotifications();
 
-  const fetchLatestAnnouncement = useCallback(async () => {
+  const fetchAutoOpenAnnouncements = useCallback(async () => {
     try {
-      const data = await getAnnouncements({ page: 1, page_size: 1 });
-      const latest = data.results?.[0] || null;
-      setLatestAnnouncement(latest);
+      const data = await getAnnouncements({ page: 1, page_size: 20 });
+      setAutoOpenAnnouncements(data.results || []);
       setAnnouncementCount(data.count || 0);
     } catch (error) {
       console.error("Failed to fetch announcements:", error);
@@ -267,28 +269,37 @@ export default function AppHeader({ isMobile, onMenuClick }) {
 
   useEffect(() => {
     if (!user) return;
-    fetchLatestAnnouncement();
-  }, [fetchLatestAnnouncement, user]);
+    fetchAutoOpenAnnouncements();
+  }, [fetchAutoOpenAnnouncements, user]);
 
   useEffect(() => {
-    if (!user || !latestAnnouncement) return;
+    if (!user || autoOpenAnnouncements.length === 0) return;
 
+    // Dedupe on the newest announcement id: re-pop only when something new appears.
+    const newestId = autoOpenAnnouncements[0].id;
     const storageKey = `announcements:auto-opened:${user.id}`;
-    if (sessionStorage.getItem(storageKey) === latestAnnouncement.id) return;
+    if (sessionStorage.getItem(storageKey) === newestId) return;
 
-    setSelectedAnnouncement(latestAnnouncement);
+    setModalAnnouncements(autoOpenAnnouncements);
+    setModalIndex(0);
     setAnnouncementsOpen(true);
-    sessionStorage.setItem(storageKey, latestAnnouncement.id);
-  }, [latestAnnouncement, user]);
+    sessionStorage.setItem(storageKey, newestId);
+  }, [autoOpenAnnouncements, user]);
 
   const openAnnouncementDropdown = () => {
     fetchAnnouncementPage(1);
   };
 
   const handleAnnouncementClick = (announcement) => {
-    setSelectedAnnouncement(announcement);
+    setModalAnnouncements([announcement]);
+    setModalIndex(0);
     setAnnouncementsOpen(true);
   };
+
+  const handleAnnouncementPrev = () =>
+    setModalIndex((i) => Math.max(0, i - 1));
+  const handleAnnouncementNext = () =>
+    setModalIndex((i) => Math.min(modalAnnouncements.length - 1, i + 1));
 
   if (!user) return null;
 
@@ -450,7 +461,11 @@ export default function AppHeader({ isMobile, onMenuClick }) {
         </Dropdown>
       </Space>
       <AnnouncementModal
-        announcement={selectedAnnouncement}
+        announcement={modalAnnouncements[modalIndex] || null}
+        index={modalIndex}
+        total={modalAnnouncements.length}
+        onPrev={handleAnnouncementPrev}
+        onNext={handleAnnouncementNext}
         open={announcementsOpen}
         onClose={() => setAnnouncementsOpen(false)}
       />
