@@ -254,6 +254,28 @@ class PeerApprovalTests(TestCase):
         data = LeaveRequestSerializer(leave_request).data
         self.assertEqual(data['action_required_user_ids'], [])
 
+    def test_single_approver_timeline_shows_only_approver_label(self):
+        self.employee.approver_2 = None
+        self.employee.save()
+        leave_request = self.make_request(final_approver=None)
+
+        data = LeaveRequestSerializer(leave_request).data
+
+        self.assertEqual(len(data['approval_timeline']), 1)
+        self.assertEqual(data['approval_timeline'][0]['step'], 'FIRST')
+        self.assertEqual(data['approval_timeline'][0]['label'], 'Approver')
+        self.assertEqual(data['approval_timeline'][0]['approver_id'], str(self.approver_1.id))
+
+    def test_two_approver_timeline_shows_first_and_second_labels(self):
+        leave_request = self.make_request()
+
+        data = LeaveRequestSerializer(leave_request).data
+
+        self.assertEqual(
+            [step['label'] for step in data['approval_timeline']],
+            ['First Approver', 'Second Approver'],
+        )
+
     def test_user_has_approver_1_and_2_fields(self):
         self.assertEqual(self.employee.approver_1, self.approver_1)
         self.assertEqual(self.employee.approver_2, self.approver_2)

@@ -47,7 +47,7 @@ export default function AnnouncementManagement() {
   const fetchAnnouncements = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getAnnouncements();
+      const data = await getAnnouncements({ include_inactive: true });
       setAnnouncements(data.results || []);
     } catch (error) {
       message.error("Failed to load announcements: " + (error.response?.data?.error || error.message));
@@ -153,10 +153,9 @@ export default function AnnouncementManagement() {
     },
     {
       title: "Created By",
-      dataIndex: "created_by",
       key: "created_by",
       width: 190,
-      render: (createdBy) => createdBy || "-",
+      render: (_, record) => record.created_by_name || record.created_by || "-",
     },
     {
       title: "Action",

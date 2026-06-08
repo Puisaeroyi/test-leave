@@ -9,6 +9,8 @@ export default function AnnouncementModal({
   open,
   onClose,
 }) {
+  const createdBy = announcement?.created_by_name || announcement?.created_by;
+
   return (
     <Modal
       title={null}
@@ -31,7 +33,7 @@ export default function AnnouncementModal({
               {announcement.is_active === false && <Tag>Inactive</Tag>}
               <Text type="secondary" className="announcement-article__meta">
               Posted {dayjs(announcement.created_at).format("MMM D, YYYY HH:mm")}
-              {announcement.created_by ? ` by ${announcement.created_by}` : ""}
+              {createdBy ? ` by ${createdBy}` : ""}
               </Text>
               {(announcement.starts_at || announcement.expires_at) && (
                 <Text type="secondary" className="announcement-article__meta">

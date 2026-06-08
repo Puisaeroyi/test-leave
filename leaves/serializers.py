@@ -172,19 +172,34 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         return LeaveApprovalService.get_action_required_user_ids(obj)
 
     def get_approval_timeline(self, obj):
+        first_approver = obj.first_approver or obj.user.approver_1
+        second_approver = obj.final_approver or obj.user.approver_2
+
+        if not second_approver:
+            return [
+                self.build_approval_step(
+                    'FIRST',
+                    'Approver',
+                    first_approver,
+                    obj.first_approval_status,
+                    obj.first_approval_comment,
+                    obj.first_approval_at,
+                ),
+            ]
+
         return [
             self.build_approval_step(
                 'FIRST',
                 'First Approver',
-                obj.first_approver or obj.user.approver_1,
+                first_approver,
                 obj.first_approval_status,
                 obj.first_approval_comment,
                 obj.first_approval_at,
             ),
             self.build_approval_step(
                 'FINAL',
-                'Final Approver',
-                obj.final_approver or obj.user.approver_2,
+                'Second Approver',
+                second_approver,
                 obj.final_approval_status,
                 obj.final_approval_comment,
                 obj.final_approval_at,

@@ -35,11 +35,17 @@ class ExportApprovedLeavesView(APIView):
                 "Invalid date format. Use YYYY-MM-DD.", status=400
             )
 
+        if start > end:
+            return HttpResponse(
+                "start_date must be before or equal to end_date.",
+                status=400,
+            )
+
         # Build query filters - HR and ADMIN both have global access for export
         filters = {
             "status": "APPROVED",
-            "start_date__gte": start,
             "start_date__lte": end,
+            "end_date__gte": start,
         }
 
         queryset = (
@@ -81,17 +87,28 @@ class ExportApprovedLeavesView(APIView):
             "Location",
             "Entity",
             "Leave Type",
+            "Shift Type",
             "Start Date",
+            "Start Time",
             "End Date",
+            "End Time",
             "Total Hours",
             "Total Days",
             "Status",
             "Approver 1",
+            "Approver 1 Status",
             "Approver 1 Note",
+            "Approver 1 Date",
             "Approver 2",
+            "Approver 2 Status",
             "Approver 2 Note",
+            "Approver 2 Date",
+            "Approved By",
             "Approved Date",
             "Reason",
+            "Attachment URL",
+            "Created At",
+            "Updated At",
         ]
 
         # Header styling
@@ -112,6 +129,12 @@ class ExportApprovedLeavesView(APIView):
                 return ""
             return f"{person.first_name} {person.last_name}".strip() or person.email
 
+        def format_datetime(value):
+            return value.strftime("%Y-%m-%d %H:%M") if value else ""
+
+        def format_time(value):
+            return value.strftime("%H:%M") if value else ""
+
         # Data rows
         for row_idx, lr in enumerate(queryset, 2):
             user = lr.user
@@ -124,17 +147,28 @@ class ExportApprovedLeavesView(APIView):
                 getattr(user.location, "location_name", "") or "",
                 getattr(user.entity, "entity_name", "") or "",
                 getattr(lr.leave_category, "category_name", "") or "",
+                lr.get_shift_type_display(),
                 lr.start_date.isoformat(),
+                format_time(lr.start_time),
                 lr.end_date.isoformat(),
+                format_time(lr.end_time),
                 hours,
                 round(hours / 8, 2),
                 lr.status,
                 display_name(lr.first_approver or user.approver_1),
+                lr.first_approval_status,
                 lr.first_approval_comment or "",
+                format_datetime(lr.first_approval_at),
                 display_name(lr.final_approver or user.approver_2),
+                lr.final_approval_status,
                 lr.final_approval_comment or "",
-                lr.approved_at.strftime("%Y-%m-%d %H:%M") if lr.approved_at else "",
+                format_datetime(lr.final_approval_at),
+                display_name(lr.approved_by),
+                format_datetime(lr.approved_at),
                 lr.reason or "",
+                lr.attachment_url or "",
+                format_datetime(lr.created_at),
+                format_datetime(lr.updated_at),
             ]
             for col_idx, value in enumerate(row, 1):
                 ws.cell(row=row_idx, column=col_idx, value=value)

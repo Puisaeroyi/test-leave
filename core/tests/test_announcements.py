@@ -18,6 +18,8 @@ class AnnouncementTests(TestCase):
             email='admin@example.com',
             password='TestPass123!',
             role=User.Role.ADMIN,
+            first_name='Admin',
+            last_name='User',
         )
         self.hr = User.objects.create_user(
             email='hr@example.com',
@@ -44,6 +46,8 @@ class AnnouncementTests(TestCase):
         self.assertEqual(response.data['title'], 'Policy Update')
         self.assertEqual(response.data['body'], 'Please read the new leave policy.')
         self.assertIs(response.data['is_active'], True)
+        self.assertEqual(response.data['created_by'], 'admin@example.com')
+        self.assertEqual(response.data['created_by_name'], 'Admin User')
         self.assertTrue(Announcement.objects.filter(title='Policy Update').exists())
 
     def test_admin_can_create_rich_announcement_content(self):
@@ -142,7 +146,7 @@ class AnnouncementTests(TestCase):
         expired.refresh_from_db()
         self.assertIs(expired.is_active, False)
 
-    def test_admin_sees_inactive_announcements_for_management(self):
+    def test_admin_default_list_only_shows_visible_announcements(self):
         Announcement.objects.create(
             title='Visible',
             body='Visible to users.',
@@ -161,7 +165,40 @@ class AnnouncementTests(TestCase):
         response = client.get('/api/v1/notifications/announcements/')
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual({item['title'] for item in response.data['results']}, {'Visible', 'Draft'})
+        self.assertEqual([item['title'] for item in response.data['results']], ['Visible'])
+
+    def test_admin_can_include_inactive_announcements_for_management(self):
+        now = timezone.now()
+        Announcement.objects.create(
+            title='Visible',
+            body='Visible to users.',
+            is_active=True,
+            created_by=self.admin,
+        )
+        Announcement.objects.create(
+            title='Draft',
+            body='Admin only.',
+            is_active=False,
+            created_by=self.admin,
+        )
+        Announcement.objects.create(
+            title='Expired',
+            body='Expired admin article.',
+            is_active=True,
+            starts_at=now - timedelta(days=2),
+            expires_at=now - timedelta(days=1),
+            created_by=self.admin,
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        response = client.get('/api/v1/notifications/announcements/?include_inactive=true')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            {item['title'] for item in response.data['results']},
+            {'Visible', 'Draft', 'Expired'},
+        )
 
     def test_announcements_are_paginated_newest_first(self):
         older = Announcement.objects.create(

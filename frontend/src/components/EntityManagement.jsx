@@ -187,6 +187,7 @@ const EntityManagement = () => {
 
   return (
     <Card
+      className="page-panel table-card"
       title="Entity Management"
       extra={
         <Button
