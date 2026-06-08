@@ -103,10 +103,14 @@
 }
 
 .settings-tab-panel > .table-card {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
 }
 
 .settings-tab-panel > .table-card > .ant-card-body {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
