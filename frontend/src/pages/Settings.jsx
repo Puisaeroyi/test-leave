@@ -48,7 +48,7 @@ const Settings = () => {
   const [saving, setSaving] = useState(false);
   const [exportRange, setExportRange] = useState([
     dayjs().startOf("month"),
-    dayjs().add(1, "month").startOf("month"),
+    dayjs().endOf("month"),
   ]);
   const [exporting, setExporting] = useState(false);
 
@@ -154,7 +154,14 @@ const Settings = () => {
       window.URL.revokeObjectURL(url);
       message.success("Export downloaded");
     } catch (error) {
-      message.error("Export failed: " + (error.response?.data?.error || error.message));
+      let errorMessage = error.message;
+      const responseData = error.response?.data;
+      if (responseData instanceof Blob) {
+        errorMessage = await responseData.text();
+      } else if (responseData?.error) {
+        errorMessage = responseData.error;
+      }
+      message.error("Export failed: " + errorMessage);
     } finally {
       setExporting(false);
     }
@@ -228,32 +235,82 @@ const Settings = () => {
     }
   };
 
+  const renderTableText = (value, fallback = "-") => {
+    const text = value || fallback;
+    return (
+      <Tooltip title={text}>
+        <span className="settings-table-text">{text}</span>
+      </Tooltip>
+    );
+  };
+
+  const renderUserName = (firstName, record) => {
+    const name = `${firstName || ""} ${record.last_name || ""}`.trim() || record.email;
+    return renderTableText(name);
+  };
+
+  const renderApproverTag = (approver, tone = "info") => {
+    const styleByTone = {
+      info: { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" },
+      success: { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" },
+      muted: { color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" },
+    };
+
+    if (!approver) {
+      return (
+        <Tag className="settings-table-tag" style={styleByTone.muted}>
+          Not assigned
+        </Tag>
+      );
+    }
+
+    const label = `${approver.first_name || ""} ${approver.last_name || ""}`.trim() || approver.email;
+    const title = `${label} (${approver.email})`;
+    return (
+      <Tooltip title={title}>
+        <Tag className="settings-table-tag" style={styleByTone[tone]}>
+          {label}
+        </Tag>
+      </Tooltip>
+    );
+  };
+
   const columns = [
     {
       title: "Employee Code",
       dataIndex: "employee_code",
       key: "employee_code",
-      width: 120,
+      width: "9%",
+      align: "center",
+      ellipsis: true,
+      render: (value) => renderTableText(value),
     },
     {
       title: "Name",
       dataIndex: "first_name",
       key: "name",
-      width: 160,
-      render: (first_name, record) => `${first_name} ${record.last_name}`.trim() || record.email,
+      width: "11%",
+      align: "center",
+      ellipsis: true,
+      render: renderUserName,
       sorter: (a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`),
     },
     {
       title: "Email",
       dataIndex: "email",
       key: "email",
-      width: 220,
+      width: "16%",
+      align: "center",
+      ellipsis: true,
+      render: (value) => renderTableText(value),
     },
     {
       title: "Role",
       dataIndex: "role",
       key: "role",
-      width: 100,
+      width: "8%",
+      align: "center",
+      ellipsis: true,
       render: (role) => {
         const roleTagStyles = {
           ADMIN: { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" },
@@ -261,7 +318,7 @@ const Settings = () => {
           MANAGER: { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" },
           EMPLOYEE: { color: "var(--color-accent)", background: "var(--color-accent-soft)", border: "1px solid var(--color-accent)" },
         };
-        return <Tag style={roleTagStyles[role]}>{role}</Tag>;
+        return <Tag className="settings-table-tag" style={roleTagStyles[role]}>{role}</Tag>;
       },
       filters: [
         { text: "Admin", value: "ADMIN" },
@@ -275,9 +332,12 @@ const Settings = () => {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      width: 100,
+      width: "8%",
+      align: "center",
+      ellipsis: true,
       render: (status) => (
         <Tag
+          className="settings-table-tag"
           style={status === "ACTIVE"
             ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
             : { color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}
@@ -290,8 +350,10 @@ const Settings = () => {
       title: "Entity",
       dataIndex: "entity",
       key: "entity",
-      width: 150,
-      render: (entity) => entity?.entity_name || "-",
+      width: "10%",
+      align: "center",
+      ellipsis: true,
+      render: (entity) => renderTableText(entity?.entity_name),
       filters: Array.from(new Set(users.map(u => u.entity?.entity_name).filter(Boolean)))
         .sort()
         .map(name => ({ text: name, value: name })),
@@ -301,56 +363,44 @@ const Settings = () => {
       title: "Department",
       dataIndex: "department",
       key: "department",
-      width: 140,
-      render: (department) => department?.department_name || "-",
+      width: "10%",
+      align: "center",
+      ellipsis: true,
+      render: (department) => renderTableText(department?.department_name),
     },
     {
-      title: "Approver",
+      title: "First Approver",
       dataIndex: "approver",
       key: "approver",
-      width: 150,
-      render: (approver) => (
-        approver ? (
-          <Tooltip title={`${approver.first_name} ${approver.last_name} (${approver.email})`}>
-            <Tag className="approver-tag" style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{`${approver.first_name} ${approver.last_name}`.trim() || approver.email}</Tag>
-          </Tooltip>
-        ) : (
-          <Tag style={{ color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}>Not assigned</Tag>
-        )
-      ),
+      width: "10%",
+      align: "center",
+      ellipsis: true,
+      render: (approver) => renderApproverTag(approver, "info"),
     },
     {
-      title: "Final Approver",
+      title: "Second Approver",
       dataIndex: "final_approver",
       key: "final_approver",
-      width: 160,
-      render: (approver) => (
-        approver ? (
-          <Tooltip title={`${approver.first_name} ${approver.last_name} (${approver.email})`}>
-            <Tag style={{ color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }}>
-              {`${approver.first_name} ${approver.last_name}`.trim() || approver.email}
-            </Tag>
-          </Tooltip>
-        ) : (
-          <Tag style={{ color: "var(--color-muted)", background: "var(--color-surface-muted)", border: "1px solid var(--color-border)" }}>Not assigned</Tag>
-        )
-      ),
+      width: "11%",
+      align: "center",
+      ellipsis: true,
+      render: (approver) => renderApproverTag(approver, "success"),
     },
     {
       title: "Action",
       key: "action",
-      width: 140,
-      fixed: "right",
+      width: "7%",
+      align: "center",
       render: (_, record) => (
-        <Space size="small">
-          <Button
-            type="link"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size="small"
-          >
-            Edit
-          </Button>
+        <div className="settings-action-cell">
+          <Tooltip title="Edit user">
+            <Button
+              aria-label="Edit user"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+              size="small"
+            />
+          </Tooltip>
           {/* Only Admin can delete users */}
           {user?.role === "ADMIN" && record.id !== user?.id && (
             <Popconfirm
@@ -361,17 +411,17 @@ const Settings = () => {
               cancelText="No"
               okButtonProps={{ danger: true }}
             >
-              <Button
-                type="link"
-                danger
-                icon={<DeleteOutlined />}
-                size="small"
-              >
-                Delete
-              </Button>
+              <Tooltip title="Delete user">
+                <Button
+                  aria-label="Delete user"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="small"
+                />
+              </Tooltip>
             </Popconfirm>
           )}
-        </Space>
+        </div>
       ),
     },
   ];
@@ -396,10 +446,10 @@ const Settings = () => {
       key: 'users',
       label: 'Users',
       children: (
-        <div>
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <div className="settings-tab-panel">
+          <Row gutter={[16, 16]} className="settings-stats-row">
             <Col xs={24} sm={8}>
-              <Card className="page-panel">
+              <Card className="page-panel settings-stat-card">
                 <Statistic
                   title="Total Users"
                   value={stats.total}
@@ -408,7 +458,7 @@ const Settings = () => {
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card className="page-panel">
+              <Card className="page-panel settings-stat-card">
                 <Statistic
                   title="Active Users"
                   value={stats.active}
@@ -417,7 +467,7 @@ const Settings = () => {
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card className="page-panel">
+              <Card className="page-panel settings-stat-card">
                 <Statistic
                   title="Users Without Approver"
                   value={stats.withoutApprover}
@@ -455,11 +505,13 @@ const Settings = () => {
             }
           >
             <Table
+              className="settings-users-table"
               columns={columns}
               dataSource={users}
               rowKey="id"
               loading={loading}
-              scroll={{ x: 1200 }}
+              size="small"
+              tableLayout="fixed"
               pagination={{
                 pageSizeOptions: ['10', '20', '50', '100'],
                 showSizeChanger: true,
@@ -487,44 +539,44 @@ const Settings = () => {
   ];
 
   return (
-    <div className="page-shell page-shell--three-row settings-page">
-      <section>
-        <div className="page-kicker">Admin Settings</div>
-        <h1 className="page-title">Settings</h1>
-        <p className="page-subtitle">
-          Manage users, entities, exports, and approver assignments from one clear admin area.
-        </p>
+    <div className="page-shell settings-page">
+      <section className="settings-page-header">
+        <div className="settings-page-heading">
+          <div className="page-kicker">Admin Settings</div>
+          <h1 className="page-title">Settings</h1>
+          <p className="page-subtitle">
+            Manage users, entities, exports, and approver assignments from one clear admin area.
+          </p>
+        </div>
+
+        <div className="settings-export-bar">
+          <Space size={10} wrap>
+            <span className="settings-export-label">
+              <DownloadOutlined />
+              Export approved leaves
+            </span>
+            <DatePicker.RangePicker
+              value={exportRange}
+              onChange={(dates) => setExportRange(dates)}
+              format="YYYY-MM-DD"
+              size="small"
+            />
+            <Button
+              type="primary"
+              className="app-button-primary"
+              icon={<DownloadOutlined />}
+              onClick={handleExport}
+              loading={exporting}
+              size="small"
+            >
+              Export
+            </Button>
+          </Space>
+        </div>
       </section>
 
-      <Card
-        className="page-panel"
-        title={
-          <Space>
-            <DownloadOutlined />
-            <span>Export Approved Leave Requests</span>
-          </Space>
-        }
-      >
-        <Space wrap>
-          <DatePicker.RangePicker
-            value={exportRange}
-            onChange={(dates) => setExportRange(dates)}
-            format="YYYY-MM-DD"
-          />
-          <Button
-            type="primary"
-            className="app-button-primary"
-            icon={<DownloadOutlined />}
-            onClick={handleExport}
-            loading={exporting}
-          >
-            Export to Excel
-          </Button>
-        </Space>
-      </Card>
-
-      <Card className="page-panel">
-        <Tabs defaultActiveKey="users" items={tabItems} />
+      <Card className="page-panel settings-tabs-card">
+        <Tabs className="settings-tabs" defaultActiveKey="users" items={tabItems} />
       </Card>
 
       <Modal
@@ -576,14 +628,14 @@ const Settings = () => {
           </Form.Item>
 
           <Form.Item
-            label="Approver"
+            label="First Approver"
             name="approver"
             tooltip="Leave empty for HR/Admin/Manager roles"
           >
             <Select
               allowClear
               showSearch
-              placeholder="Select an approver"
+              placeholder="Select a first approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
@@ -595,7 +647,7 @@ const Settings = () => {
           </Form.Item>
 
           <Form.Item
-            label="Final Approver"
+            label="Second Approver"
             name="final_approver"
             dependencies={["approver"]}
             tooltip="Optional second approval step"
@@ -605,7 +657,7 @@ const Settings = () => {
                   if (!value || value !== getFieldValue("approver")) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error("Final approver must be different from first approver"));
+                  return Promise.reject(new Error("Second approver must be different from first approver"));
                 },
               }),
             ]}
@@ -613,7 +665,7 @@ const Settings = () => {
             <Select
               allowClear
               showSearch
-              placeholder="Select a final approver"
+              placeholder="Select a second approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
@@ -775,13 +827,13 @@ const Settings = () => {
           </Row>
 
           <Form.Item
-            label="Approver"
+            label="First Approver"
             name="approver"
-            rules={[{ required: true, message: "Please select an approver" }]}
+            rules={[{ required: true, message: "Please select a first approver" }]}
           >
             <Select
               showSearch
-              placeholder="Select an approver"
+              placeholder="Select a first approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
@@ -795,7 +847,7 @@ const Settings = () => {
           </Form.Item>
 
           <Form.Item
-            label="Final Approver"
+            label="Second Approver"
             name="final_approver"
             dependencies={["approver"]}
             tooltip="Optional. Leave empty for one-step approval."
@@ -805,7 +857,7 @@ const Settings = () => {
                   if (!value || value !== getFieldValue("approver")) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error("Final approver must be different from first approver"));
+                  return Promise.reject(new Error("Second approver must be different from first approver"));
                 },
               }),
             ]}
@@ -813,7 +865,7 @@ const Settings = () => {
             <Select
               allowClear
               showSearch
-              placeholder="Select a final approver"
+              placeholder="Select a second approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }

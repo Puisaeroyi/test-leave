@@ -16,14 +16,200 @@
   background: transparent;
 }
 
-.settings-page .ant-statistic-title {
+.settings-page {
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+}
+
+.settings-page-header {
+  display: flex;
+  gap: 16px;
+  align-items: end;
+  justify-content: space-between;
+  min-height: 0;
+}
+
+.settings-page-heading {
+  min-width: 0;
+}
+
+.settings-page-heading .page-subtitle {
+  max-width: 620px;
+  margin-top: 6px;
   font-size: 14px;
+  line-height: 1.45;
+}
+
+.settings-export-bar {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  background: rgba(255, 250, 241, 0.78);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.settings-export-label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--color-text-soft);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.settings-tabs-card > .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-tabs,
+.settings-tabs > .ant-tabs-content-holder,
+.settings-tabs .ant-tabs-content,
+.settings-tabs .ant-tabs-tabpane,
+.settings-tabs .ant-tabs-tabpane > div {
+  min-height: 0;
+}
+
+.settings-tabs {
+  flex: 1;
+  overflow: hidden;
+}
+
+.settings-tabs > .ant-tabs-content-holder {
+  overflow: hidden;
+}
+
+.settings-tabs .ant-tabs-content,
+.settings-tabs .ant-tabs-tabpane,
+.settings-tabs .ant-tabs-tabpane > div,
+.settings-tab-panel {
+  height: 100%;
+}
+
+.settings-tab-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  overflow: hidden;
+}
+
+.settings-tab-panel .settings-stats-row {
+  margin-bottom: 0;
+}
+
+.settings-tab-panel > .table-card {
+  min-height: 0;
+}
+
+.settings-tab-panel > .table-card > .ant-card-body {
+  overflow: hidden;
+}
+
+.settings-tabs-card.ant-card > .ant-card-body {
+  padding: 14px 16px 16px;
+}
+
+.settings-tabs .ant-tabs-nav {
+  margin-bottom: 10px;
+}
+
+.settings-stat-card.ant-card .ant-card-body {
+  padding: 10px 14px;
+}
+
+.settings-stat-card .ant-statistic {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.settings-tab-panel > .table-card .ant-card-head {
+  min-height: 50px;
+}
+
+.settings-tab-panel > .table-card .ant-card-body {
+  padding: 12px;
+}
+
+.settings-users-table .ant-table-cell {
+  min-width: 0;
+}
+
+.settings-users-table,
+.settings-users-table .ant-spin-nested-loading,
+.settings-users-table .ant-spin-container,
+.settings-users-table .ant-table,
+.settings-users-table .ant-table-container {
+  min-width: 0;
+}
+
+.settings-users-table .ant-table-content {
+  overflow-x: hidden !important;
+  overflow-y: hidden;
+}
+
+.settings-users-table table {
+  width: 100% !important;
+  min-width: 0 !important;
+  table-layout: fixed !important;
+}
+
+.settings-users-table .ant-table-thead > tr > th,
+.settings-users-table .ant-table-tbody > tr > td {
+  padding: 10px 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.settings-users-table .ant-table-thead > tr > th {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+}
+
+.settings-table-text,
+.settings-table-tag {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.settings-action-cell {
+  display: inline-flex;
+  width: 64px;
+  white-space: nowrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-action-cell .ant-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 29px;
+  width: 29px;
+  min-width: 29px;
+  height: 29px;
+  padding: 0;
+  justify-content: center;
+}
+
+.settings-page .ant-statistic-title {
+  font-size: 12px;
   color: var(--color-muted);
 }
 
 .settings-page .ant-statistic-content {
   color: var(--color-text);
-  font-size: 24px;
+  font-size: 19px;
   font-weight: 600;
 }
 
@@ -37,4 +223,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .settings-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-export-bar {
+    width: 100%;
+  }
 }

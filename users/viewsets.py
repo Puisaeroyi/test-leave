@@ -128,7 +128,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         GET /api/v1/users/my-subordinates/
 
-        Returns list of users who have the current user as first or final approver
+        Returns list of users who have the current user as first or second approver
         """
         subordinates = User.objects.filter(
             Q(approver_1=request.user) | Q(approver_2=request.user),

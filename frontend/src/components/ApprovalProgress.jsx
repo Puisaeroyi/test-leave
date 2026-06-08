@@ -16,11 +16,16 @@ const STATUS_META = {
 };
 
 export default function ApprovalProgress({ timeline = [], currentStep, actionRequired = false }) {
-  if (!timeline.length) return null;
+  const visibleTimeline = timeline.filter((step) => step.status !== "NOT_REQUIRED");
+  const displayTimeline = visibleTimeline.length === 1
+    ? [{ ...visibleTimeline[0], label: "Approver" }]
+    : visibleTimeline;
+
+  if (!displayTimeline.length) return null;
 
   return (
     <div className="approval-progress" aria-label="Approval progress">
-      {timeline.map((step, index) => {
+      {displayTimeline.map((step, index) => {
         const meta = STATUS_META[step.status] || STATUS_META.PENDING;
         const isCurrent = step.status === "PENDING" && step.step === currentStep;
 
@@ -49,7 +54,7 @@ export default function ApprovalProgress({ timeline = [], currentStep, actionReq
                 </span>
                 {step.acted_at && (
                   <time dateTime={step.acted_at}>
-                    {dayjs(step.acted_at).format("MMM D, YYYY · HH:mm")}
+                    {dayjs(step.acted_at).format("MMM D, YYYY · h:mm A")}
                   </time>
                 )}
               </div>
@@ -62,7 +67,7 @@ export default function ApprovalProgress({ timeline = [], currentStep, actionReq
               )}
             </article>
 
-            {index < timeline.length - 1 && (
+            {index < displayTimeline.length - 1 && (
               <div
                 className={[
                   "approval-progress__connector",

@@ -156,7 +156,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'employee_code',
             'avatar_url',
             'approver',  # HR/Admin can assign first approver
-            'final_approver',  # HR/Admin can assign final approver
+            'final_approver',  # HR/Admin can assign second approver
         ]
 
     def validate_email(self, value):
@@ -172,17 +172,17 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_approver(self, value):
-        """Only HR/Admin can assign approver"""
+        """Only HR/Admin can assign first approver"""
         request = self.context.get('request')
         if request and request.user.role not in [User.Role.HR, User.Role.ADMIN]:
-            raise serializers.ValidationError("Only HR/Admin can assign approver.")
+            raise serializers.ValidationError("Only HR/Admin can assign first approver.")
         return value
 
     def validate_final_approver(self, value):
-        """Only HR/Admin can assign final approver"""
+        """Only HR/Admin can assign second approver"""
         request = self.context.get('request')
         if request and request.user.role not in [User.Role.HR, User.Role.ADMIN]:
-            raise serializers.ValidationError("Only HR/Admin can assign final approver.")
+            raise serializers.ValidationError("Only HR/Admin can assign second approver.")
         return value
 
     def validate(self, attrs):
@@ -190,12 +190,12 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         final_approver = attrs.get('approver_2', getattr(self.instance, 'approver_2', None))
 
         if self.instance and approver and approver.id == self.instance.id:
-            raise serializers.ValidationError({'approver': "A user cannot be their own approver."})
+            raise serializers.ValidationError({'approver': "A user cannot be their own first approver."})
         if self.instance and final_approver and final_approver.id == self.instance.id:
-            raise serializers.ValidationError({'final_approver': "A user cannot be their own final approver."})
+            raise serializers.ValidationError({'final_approver': "A user cannot be their own second approver."})
         if approver and final_approver and approver.id == final_approver.id:
             raise serializers.ValidationError({
-                'final_approver': "Final approver must be different from first approver."
+                'final_approver': "Second approver must be different from first approver."
             })
         return attrs
 
@@ -235,7 +235,7 @@ class UserCreateSerializer(serializers.Serializer):
         try:
             return User.objects.get(id=value, is_active=True)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Approver not found or inactive.")
+            raise serializers.ValidationError("First approver not found or inactive.")
 
     def validate_final_approver(self, value):
         if not value:
@@ -243,7 +243,7 @@ class UserCreateSerializer(serializers.Serializer):
         try:
             return User.objects.get(id=value, is_active=True)
         except User.DoesNotExist:
-            raise serializers.ValidationError("Final approver not found or inactive.")
+            raise serializers.ValidationError("Second approver not found or inactive.")
 
     def validate(self, attrs):
         entity = attrs.get('entity')
@@ -262,7 +262,7 @@ class UserCreateSerializer(serializers.Serializer):
         final_approver = attrs.get('final_approver')
         if approver and final_approver and approver.id == final_approver.id:
             raise serializers.ValidationError({
-                "final_approver": "Final approver must be different from first approver."
+                "final_approver": "Second approver must be different from first approver."
             })
         return attrs
 

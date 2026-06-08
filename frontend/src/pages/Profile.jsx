@@ -199,7 +199,7 @@ export default function Profile() {
             )}
           </Descriptions.Item>
 
-          <Descriptions.Item label="Final Approver">
+          <Descriptions.Item label="Second Approver">
             {user.final_approver ? (
               <Tag style={finalApproverTagStyle}>{user.final_approver.full_name}</Tag>
             ) : ["MANAGER", "ADMIN", "HR"].includes(user.role) ? (

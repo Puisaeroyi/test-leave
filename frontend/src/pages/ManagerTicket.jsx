@@ -423,7 +423,7 @@ export default function ManagerTickets() {
               <Tooltip
                 title={
                   selectedTicket.status === "Pending" && !selectedTicket.actionRequired
-                    ? "This request is waiting for the final approver."
+                    ? "This request is waiting for the second approver."
                     : selectedTicket.status === "Approved" && !canAct
                       ? "Cannot deny within 24h of leave start"
                       : ""

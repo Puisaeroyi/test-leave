@@ -111,6 +111,12 @@ def serialize_announcement(announcement):
     is_expired = bool(announcement.expires_at and announcement.expires_at <= now)
     is_scheduled = bool(announcement.starts_at and announcement.starts_at > now)
     effective_is_active = announcement.is_active and not is_expired
+    created_by_name = None
+    if announcement.created_by:
+        created_by_name = (
+            f"{announcement.created_by.first_name or ''} {announcement.created_by.last_name or ''}".strip()
+            or announcement.created_by.email
+        )
     return {
         'id': str(announcement.id),
         'title': announcement.title,
@@ -122,6 +128,7 @@ def serialize_announcement(announcement):
         'is_expired': is_expired,
         'is_scheduled': is_scheduled,
         'created_by': announcement.created_by.email if announcement.created_by else None,
+        'created_by_name': created_by_name,
         'created_at': announcement.created_at.isoformat(),
         'updated_at': announcement.updated_at.isoformat(),
     }
@@ -138,7 +145,10 @@ class AnnouncementListCreateView(generics.GenericAPIView):
     def get_queryset(self):
         self.deactivate_expired_announcements()
         queryset = Announcement.objects.select_related('created_by').order_by('-created_at')
-        if is_admin(self.request.user):
+        include_inactive = str(
+            self.request.query_params.get('include_inactive', '')
+        ).lower() in {'1', 'true', 'yes'}
+        if is_admin(self.request.user) and include_inactive:
             return queryset
         now = timezone.now()
         return queryset.filter(
