@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
 import {
-  Card, Table, Button, Space, Tag, Modal, message, Typography
+  Card, Table, Button, Space, Tag, Modal, message, Tooltip
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { getEntities, createEntity, updateEntity, softDeleteEntity, getDeleteImpact } from '@api/entityApi';
 import EntityForm from './EntityForm';
 
-const { Text } = Typography;
+const renderEntityTableText = (value, fallback = "-") => {
+  const text = value || fallback;
+  return (
+    <span className="entity-table-text" title={text}>
+      {text}
+    </span>
+  );
+};
 
 const EntityManagement = () => {
   const [entities, setEntities] = useState([]);
@@ -111,14 +118,18 @@ const EntityManagement = () => {
       title: 'Entity Name',
       dataIndex: 'entity_name',
       key: 'entity_name',
-      width: 150,
+      width: 260,
+      ellipsis: true,
+      render: (value) => renderEntityTableText(value),
       sorter: (a, b) => a.entity_name.localeCompare(b.entity_name),
     },
     {
       title: 'Code',
       dataIndex: 'code',
       key: 'code',
-      width: 120,
+      width: 180,
+      ellipsis: true,
+      render: (value) => renderEntityTableText(value),
     },
     {
       title: 'Locations',
@@ -159,26 +170,28 @@ const EntityManagement = () => {
     {
       title: 'Actions',
       key: 'actions',
-      fixed: 'right',
-      width: 150,
+      width: 76,
+      align: 'center',
       render: (_, record) => (
-        <Space>
-          <Button
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size="small"
-          >
-            Edit
-          </Button>
-          {record.is_active && (
+        <Space className="entity-action-cell" size={6}>
+          <Tooltip title="Edit entity">
             <Button
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record)}
-              danger
+              aria-label="Edit entity"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
               size="small"
-            >
-              Delete
-            </Button>
+            />
+          </Tooltip>
+          {record.is_active && (
+            <Tooltip title="Deactivate entity">
+              <Button
+                aria-label="Deactivate entity"
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record)}
+                danger
+                size="small"
+              />
+            </Tooltip>
           )}
         </Space>
       ),
@@ -187,25 +200,29 @@ const EntityManagement = () => {
 
   return (
     <Card
-      className="page-panel table-card"
+      className="page-panel table-card entity-management-card"
       title="Entity Management"
       extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleCreate}
-        >
-          Add Entity
-        </Button>
+        <Space className="entity-management-toolbar" wrap>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleCreate}
+          >
+            Add Entity
+          </Button>
+        </Space>
       }
     >
       <Table
+        className="entity-management-table"
         columns={columns}
         dataSource={entities}
         rowKey="id"
         loading={loading}
-        pagination={{ pageSize: 10 }}
-        scroll={{ x: 800 }}
+        pagination={{ pageSize: 10, responsive: true, size: "small" }}
+        scroll={{ x: 900 }}
+        tableLayout="fixed"
       />
 
       <EntityForm

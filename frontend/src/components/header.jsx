@@ -35,6 +35,7 @@ dayjs.extend(relativeTime);
 
 const { Header } = Layout;
 const ANNOUNCEMENT_PAGE_SIZE = 5;
+const HEADER_POPUP_WIDTH = "min(380px, calc(100vw - 20px))";
 
 const AnnouncementDropdown = ({
   announcements,
@@ -44,17 +45,14 @@ const AnnouncementDropdown = ({
   onPageChange,
   page,
   pageSize,
-  isMobile,
 }) => (
   <div
-    className="notification-popup"
+    className="notification-popup announcement-dropdown"
     style={{
-      width: isMobile ? "calc(100vw - 32px)" : 380,
-      maxWidth: 380,
       padding: 12,
     }}
   >
-    <Typography.Text strong style={{ color: "var(--color-text)" }}>
+    <Typography.Text strong className="announcement-dropdown__title" style={{ color: "var(--color-text)" }}>
       Announcements
     </Typography.Text>
     <Divider style={{ margin: "8px 0" }} />
@@ -67,33 +65,38 @@ const AnnouncementDropdown = ({
           <List
             itemLayout="horizontal"
             dataSource={announcements}
-            renderItem={(item) => (
-              <List.Item
-                className="notification-item"
-                onClick={() => onAnnouncementClick(item)}
-              >
-                <List.Item.Meta
-                  avatar={
-                    <Avatar
-                      size={36}
-                      icon={<ReadOutlined />}
-                      style={{ backgroundColor: "var(--color-accent-strong)" }}
-                    />
-                  }
-                  title={<Typography.Text strong>{item.title}</Typography.Text>}
-                  description={
-                    <>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {item.body.length > 96 ? `${item.body.slice(0, 96)}...` : item.body}
-                      </Typography.Text>
-                      <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
-                        {dayjs(item.created_at).fromNow()}
-                      </div>
-                    </>
-                  }
-                />
-              </List.Item>
-            )}
+            renderItem={(item) => {
+              const body = item.body || "";
+
+              return (
+                <List.Item
+                  className="notification-item announcement-dropdown__item"
+                  onClick={() => onAnnouncementClick(item)}
+                >
+                  <List.Item.Meta
+                    className="announcement-dropdown__meta"
+                    avatar={
+                      <Avatar
+                        size={36}
+                        icon={<ReadOutlined />}
+                        style={{ backgroundColor: "var(--color-accent-strong)" }}
+                      />
+                    }
+                    title={<Typography.Text strong className="announcement-dropdown__item-title">{item.title}</Typography.Text>}
+                    description={
+                      <>
+                        <Typography.Text type="secondary" className="announcement-dropdown__summary" style={{ fontSize: 12 }}>
+                          {body.length > 96 ? `${body.slice(0, 96)}...` : body}
+                        </Typography.Text>
+                        <div className="announcement-dropdown__time" style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
+                          {dayjs(item.created_at).fromNow()}
+                        </div>
+                      </>
+                    }
+                  />
+                </List.Item>
+              );
+            }}
           />
           {count > pageSize && (
             <Pagination
@@ -114,15 +117,13 @@ const AnnouncementDropdown = ({
 );
 
 /* ================= NOTIFICATION POPUP ================= */
-const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, dismissNotification, dismissAll, isMobile }) => {
+const NotificationPopup = ({ notifications, markAllAsRead, onNotificationClick, dismissNotification, dismissAll }) => {
   const hasUnread = notifications.some((n) => !n.is_read);
 
   return (
     <div
       className="notification-popup"
       style={{
-        width: isMobile ? "calc(100vw - 32px)" : 380,
-        maxWidth: 380,
         padding: 12,
       }}
     >
@@ -385,9 +386,11 @@ export default function AppHeader({ isMobile, onMenuClick }) {
         {/* ANNOUNCEMENT ICON */}
         <Dropdown
           trigger={["click"]}
+          classNames={{ root: "header-responsive-dropdown" }}
           onOpenChange={(open) => {
             if (open) openAnnouncementDropdown();
           }}
+          styles={{ root: { width: HEADER_POPUP_WIDTH } }}
           dropdownRender={() => (
             <AnnouncementDropdown
               announcements={announcements}
@@ -397,7 +400,6 @@ export default function AppHeader({ isMobile, onMenuClick }) {
               onPageChange={fetchAnnouncementPage}
               page={announcementPage}
               pageSize={ANNOUNCEMENT_PAGE_SIZE}
-              isMobile={isMobile}
             />
           )}
           placement="bottomRight"
@@ -416,6 +418,8 @@ export default function AppHeader({ isMobile, onMenuClick }) {
         {/* NOTIFICATION ICON */}
         <Dropdown
           trigger={["click"]}
+          classNames={{ root: "header-responsive-dropdown" }}
+          styles={{ root: { width: HEADER_POPUP_WIDTH } }}
           dropdownRender={() => (
             <NotificationPopup
               notifications={notifications}
@@ -423,7 +427,6 @@ export default function AppHeader({ isMobile, onMenuClick }) {
               onNotificationClick={handleNotificationClick}
               dismissNotification={dismissNotification}
               dismissAll={dismissAll}
-              isMobile={isMobile}
             />
           )}
           placement="bottomRight"

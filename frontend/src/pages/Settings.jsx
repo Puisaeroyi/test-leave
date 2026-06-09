@@ -60,6 +60,7 @@ const Settings = () => {
   const [departments, setDepartments] = useState([]);
   const [creating, setCreating] = useState(false);
   const hasSettingsAccess = user?.role === "HR" || user?.role === "ADMIN";
+  const userRows = Array.isArray(users) ? users : users?.results || [];
 
   const fetchUsers = useCallback(async () => {
     if (!hasSettingsAccess) return;
@@ -67,7 +68,7 @@ const Settings = () => {
     setLoading(true);
     try {
       const data = await getAllUsers();
-      setUsers(data.results || data);
+      setUsers(Array.isArray(data) ? data : data?.results || []);
     } catch (error) {
       message.error("Failed to load users: " + (error.response?.data?.error || error.message));
     } finally {
@@ -354,7 +355,7 @@ const Settings = () => {
       align: "center",
       ellipsis: true,
       render: (entity) => renderTableText(entity?.entity_name),
-      filters: Array.from(new Set(users.map(u => u.entity?.entity_name).filter(Boolean)))
+      filters: Array.from(new Set(userRows.map((u) => u.entity?.entity_name).filter(Boolean)))
         .sort()
         .map(name => ({ text: name, value: name })),
       onFilter: (value, record) => record.entity?.entity_name === value,
@@ -427,15 +428,15 @@ const Settings = () => {
   ];
 
   // Filter users for approver dropdown (exclude self and inactive users)
-  const availableApprovers = users.filter(
+  const availableApprovers = userRows.filter(
     (u) => u.status === "ACTIVE" && u.id !== selectedUser?.id
   );
 
   // Statistics
   const stats = {
-    total: users.length,
-    active: users.filter((u) => u.status === "ACTIVE").length,
-    withoutApprover: users.filter(
+    total: userRows.length,
+    active: userRows.filter((u) => u.status === "ACTIVE").length,
+    withoutApprover: userRows.filter(
       (u) => !u.approver && (u.role === "EMPLOYEE" || u.role === "MANAGER")
     ).length,
   };
@@ -507,7 +508,7 @@ const Settings = () => {
             <Table
               className="settings-users-table"
               columns={columns}
-              dataSource={users}
+              dataSource={userRows}
               rowKey="id"
               loading={loading}
               size="small"
@@ -525,14 +526,22 @@ const Settings = () => {
     {
       key: 'entities',
       label: 'Entities',
-      children: <EntityManagement />,
+      children: (
+        <div className="settings-tab-panel settings-tab-panel--single">
+          <EntityManagement />
+        </div>
+      ),
     },
     ...(user?.role === "ADMIN"
       ? [
           {
             key: 'announcements',
             label: 'Announcements',
-            children: <AnnouncementManagement />,
+            children: (
+              <div className="settings-tab-panel settings-tab-panel--single">
+                <AnnouncementManagement />
+              </div>
+            ),
           },
         ]
       : []),
@@ -837,7 +846,7 @@ const Settings = () => {
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={users
+              options={userRows
                 .filter((u) => u.status === "ACTIVE")
                 .map((u) => ({
                   value: u.id,
@@ -869,7 +878,7 @@ const Settings = () => {
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={users
+              options={userRows
                 .filter((u) => u.status === "ACTIVE")
                 .map((u) => ({
                   value: u.id,

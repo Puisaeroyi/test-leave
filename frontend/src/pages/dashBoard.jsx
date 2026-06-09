@@ -24,6 +24,7 @@ import { BalanceMeter, EventCard, MetricCard, StatusPill } from "@components/das
 import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
 import { getMediaUrl } from "../api/http";
 import ApprovalProgress from "../components/ApprovalProgress";
+import ResponsiveRecordCard, { ResponsiveRecordRow } from "../components/ResponsiveRecordCard";
 
 dayjs.extend(isoWeek);
 dayjs.extend(isSameOrAfter);
@@ -324,21 +325,46 @@ export default function Dashboard() {
               </div>
             }
           >
-            <Table
-              rowKey="id"
-              columns={columns}
-              dataSource={history}
-              loading={loading}
-              scroll={{ x: 500 }}
-              pagination={{ pageSize: 6 }}
-              onRow={(record) => ({
-                onClick: () => {
-                  setSelectedRequest(record);
-                  setOpenDetail(true);
-                },
-                style: { cursor: "pointer" },
-              })}
-            />
+            <div className="responsive-desktop-table">
+              <Table
+                rowKey="id"
+                columns={columns}
+                dataSource={history}
+                loading={loading}
+                scroll={{ x: 500 }}
+                pagination={{ pageSize: 6 }}
+                onRow={(record) => ({
+                  onClick: () => {
+                    setSelectedRequest(record);
+                    setOpenDetail(true);
+                  },
+                  style: { cursor: "pointer" },
+                })}
+              />
+            </div>
+            <div className="responsive-mobile-list">
+              <div className="responsive-record-list" aria-live="polite">
+                {history.map((request) => (
+                  <ResponsiveRecordCard
+                    key={request.id}
+                    title={request.type}
+                    badge={<StatusPill status={request.workflowStatus || request.status} />}
+                    onClick={() => {
+                      setSelectedRequest(request);
+                      setOpenDetail(true);
+                    }}
+                    ariaLabel={`View ${request.type} request from ${request.from}`}
+                  >
+                    <ResponsiveRecordRow label="From">{request.from}</ResponsiveRecordRow>
+                    <ResponsiveRecordRow label="To">{request.to}</ResponsiveRecordRow>
+                    <ResponsiveRecordRow label="Total">{request.hours}h</ResponsiveRecordRow>
+                  </ResponsiveRecordCard>
+                ))}
+                {!loading && history.length === 0 && (
+                  <div className="responsive-empty-state">No leave requests found.</div>
+                )}
+              </div>
+            </div>
           </Card>
         </Col>
 
@@ -373,13 +399,13 @@ export default function Dashboard() {
             className="office-card events-card"
             title="Upcoming Events"
             extra={
-              <Space>
+              <div className="events-week-switch">
                 <Button type="text" size="small" icon={<LeftOutlined />} onClick={handlePrevWeek} />
-                <Text strong style={{ fontSize: 13 }}>
+                <Text strong className="events-week-switch__label" style={{ fontSize: 13 }}>
                   W{currentWeek}
                 </Text>
                 <Button type="text" size="small" icon={<RightOutlined />} onClick={handleNextWeek} />
-              </Space>
+              </div>
             }
           >
             {(() => {

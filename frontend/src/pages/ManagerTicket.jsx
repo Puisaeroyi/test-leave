@@ -26,6 +26,7 @@ import dayjs from "dayjs";
 import { getPendingRequests, approveLeaveRequest, rejectLeaveRequest } from "../api/dashboardApi";
 import { getMediaUrl } from "../api/http";
 import ApprovalProgress from "../components/ApprovalProgress";
+import ResponsiveRecordCard, { ResponsiveRecordRow } from "../components/ResponsiveRecordCard";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -244,6 +245,21 @@ export default function ManagerTickets() {
 
   const timeInfo = selectedTicket ? getTimeRemaining(selectedTicket) : null;
   const canAct = selectedTicket ? canActOnTicket(selectedTicket) : false;
+  const filteredTickets = statusFilter === "all"
+    ? tickets
+    : tickets.filter((ticket) => (
+        statusFilter === "action-required"
+          ? ticket.actionRequired
+          : (ticket.workflowStatus || ticket.status) === statusFilter
+      ));
+
+  const getStatusStyle = (ticket) => ticket.status === "Approved"
+    ? { color: "var(--color-success)", background: "var(--color-success-soft)", border: "1px solid var(--color-success)" }
+    : ticket.status === "Denied"
+      ? { color: "var(--color-danger)", background: "var(--color-danger-soft)", border: "1px solid var(--color-danger)" }
+      : ticket.actionRequired
+        ? { color: "var(--color-warning)", background: "var(--color-warning-soft)", border: "1px solid var(--color-warning)" }
+        : { color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" };
 
   return (
     <div className="page-shell">
@@ -282,22 +298,45 @@ export default function ManagerTickets() {
           </Space>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={
-            statusFilter === "all"
-              ? tickets
-              : tickets.filter((ticket) => (
-                  statusFilter === "action-required"
-                    ? ticket.actionRequired
-                    : (ticket.workflowStatus || ticket.status) === statusFilter
-                ))
-          }
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 800 }}
-        />
+        <div className="responsive-desktop-table">
+          <Table
+            columns={columns}
+            dataSource={filteredTickets}
+            rowKey="id"
+            loading={loading}
+            pagination={false}
+            scroll={{ x: 800 }}
+          />
+        </div>
+        <div className="responsive-mobile-list">
+          <div className="responsive-record-list" aria-live="polite">
+            {filteredTickets.map((ticket) => (
+              <ResponsiveRecordCard
+                key={ticket.id}
+                title={ticket.employeeName}
+                badge={<Tag style={getStatusStyle(ticket)}>{ticket.workflowStatus || ticket.status}</Tag>}
+                onClick={() => setSelectedTicket(ticket)}
+                ariaLabel={`View leave request from ${ticket.employeeName}`}
+                footer={
+                  <Button type="primary" ghost icon={<EyeOutlined />} onClick={() => setSelectedTicket(ticket)}>
+                    View detail
+                  </Button>
+                }
+              >
+                <ResponsiveRecordRow label="Category">
+                  <Tag style={tagStyles[ticket.type]}>{ticket.type}</Tag>
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="Dates">
+                  {ticket.from} to {ticket.to}
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="Hours">{ticket.hours}h</ResponsiveRecordRow>
+              </ResponsiveRecordCard>
+            ))}
+            {!loading && filteredTickets.length === 0 && (
+              <div className="responsive-empty-state">No leave requests match this filter.</div>
+            )}
+          </div>
+        </div>
       </Card>
 
       {/* =======================

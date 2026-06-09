@@ -126,12 +126,14 @@ export default function Profile() {
               onClick={avatarLoading ? undefined : handleAvatarClick}
             />
             {!avatarLoading && (
-              <div
+              <button
+                type="button"
                 className="profile-avatar-action"
                 onClick={handleAvatarClick}
+                aria-label="Change profile avatar"
               >
                 <CameraOutlined style={{ fontSize: 14 }} />
-              </div>
+              </button>
             )}
             {avatarLoading && (
               <div className="profile-avatar-action">
