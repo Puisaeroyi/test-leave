@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from organizations.models import Department, Entity, Location
+from organizations.models import Department, Entity, Location, WorkShift
 from users.models import User
 
 
@@ -25,6 +25,12 @@ class UserManagementApiTests(TestCase):
             location=self.location,
             department_name='Engineering',
             code='ENG',
+        )
+        self.work_shift = WorkShift.objects.create(
+            department=self.department,
+            name='Night Shift',
+            start_time='22:00',
+            end_time='06:00',
         )
         self.admin = User.objects.create_user(
             email='admin-create-user@example.com',
@@ -64,6 +70,7 @@ class UserManagementApiTests(TestCase):
             'entity': str(self.entity.id),
             'location': str(self.location.id),
             'department': str(self.department.id),
+            'work_shift': str(self.work_shift.id),
             'approver': str(self.first_approver.id),
             'final_approver': str(self.second_approver.id),
         }, format='json')
@@ -75,5 +82,20 @@ class UserManagementApiTests(TestCase):
         self.assertTrue(user.first_login)
         self.assertEqual(user.approver_1, self.first_approver)
         self.assertEqual(user.approver_2, self.second_approver)
+        self.assertEqual(user.work_shift, self.work_shift)
+        self.assertEqual(response.data['work_shift']['id'], str(self.work_shift.id))
         self.assertEqual(response.data['approver']['id'], str(self.first_approver.id))
         self.assertEqual(response.data['final_approver']['id'], str(self.second_approver.id))
+
+    def test_admin_cannot_assign_inactive_work_shift(self):
+        self.work_shift.is_active = False
+        self.work_shift.save(update_fields=['is_active'])
+
+        response = self.client.patch(
+            f'/api/v1/auth/users/{self.first_approver.id}/',
+            {'work_shift': str(self.work_shift.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn('work_shift', response.data)

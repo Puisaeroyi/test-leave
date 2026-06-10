@@ -115,7 +115,8 @@ class TeamCalendarView(generics.GenericAPIView):
 
         # Get holidays for the month (supports multi-day holidays)
         holidays_query = PublicHoliday.objects.filter(
-            is_active=True
+            is_active=True,
+            status=PublicHoliday.Status.PUBLISHED,
         ).filter(
             Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).filter(

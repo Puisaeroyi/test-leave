@@ -11,6 +11,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   message,
 } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
@@ -27,6 +28,15 @@ const htmlToPlainText = (html) => {
   const element = document.createElement("div");
   element.innerHTML = html || "";
   return (element.textContent || element.innerText || "").trim();
+};
+
+const renderAnnouncementText = (value, fallback = "-") => {
+  const text = value || fallback;
+  return (
+    <span className="announcement-table-text" title={text}>
+      {text}
+    </span>
+  );
 };
 
 const getAnnouncementStatus = (announcement) => {
@@ -129,12 +139,14 @@ export default function AnnouncementManagement() {
       title: "Title",
       dataIndex: "title",
       key: "title",
+      width: 260,
+      render: (value) => renderAnnouncementText(value),
     },
     {
       title: "Status",
       dataIndex: "is_active",
       key: "is_active",
-      width: 110,
+      width: 100,
       render: (_, record) => {
         const status = getAnnouncementStatus(record);
         return <Tag color={status.color}>{status.label}</Tag>;
@@ -143,38 +155,49 @@ export default function AnnouncementManagement() {
     {
       title: "Visible Window",
       key: "active_range",
-      width: 260,
+      width: 230,
       render: (_, record) => {
         if (!record.starts_at && !record.expires_at) return "Always";
         const start = record.starts_at ? dayjs(record.starts_at).format("YYYY-MM-DD HH:mm") : "Now";
         const end = record.expires_at ? dayjs(record.expires_at).format("YYYY-MM-DD HH:mm") : "No end";
-        return `${start} to ${end}`;
+        return renderAnnouncementText(`${start} to ${end}`);
       },
     },
     {
       title: "Created By",
       key: "created_by",
-      width: 190,
-      render: (_, record) => record.created_by_name || record.created_by || "-",
+      width: 160,
+      render: (_, record) => renderAnnouncementText(record.created_by_name || record.created_by || "-"),
     },
     {
       title: "Action",
       key: "action",
-      width: 180,
+      width: 76,
+      align: "center",
       render: (_, record) => (
-        <Space>
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditModal(record)}>
-            Edit
-          </Button>
+        <Space className="announcement-action-cell" size={6}>
+          <Tooltip title="Edit announcement">
+            <Button
+              aria-label="Edit announcement"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEditModal(record)}
+            />
+          </Tooltip>
           <Popconfirm
             title="Delete announcement"
             description="Are you sure you want to delete this announcement?"
             onConfirm={() => handleDelete(record.id)}
             okButtonProps={{ danger: true }}
           >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              Delete
-            </Button>
+            <Tooltip title="Delete announcement">
+              <Button
+                aria-label="Delete announcement"
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
       ),
@@ -183,10 +206,10 @@ export default function AnnouncementManagement() {
 
   return (
     <Card
-      className="page-panel table-card"
+      className="page-panel table-card announcement-management-card"
       title="Announcement Articles"
       extra={
-        <Space>
+        <Space className="announcement-management-toolbar" wrap>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
             Add Announcement
           </Button>
@@ -197,10 +220,14 @@ export default function AnnouncementManagement() {
       }
     >
       <Table
+        className="announcement-management-table"
         columns={columns}
         dataSource={announcements}
         rowKey="id"
         loading={loading}
+        scroll={{ x: 950 }}
+        pagination={{ responsive: true, size: "small" }}
+        tableLayout="fixed"
         expandable={{
           expandedRowRender: (record) => record.body_html ? (
             <div className="rich-content" dangerouslySetInnerHTML={{ __html: record.body_html }} />

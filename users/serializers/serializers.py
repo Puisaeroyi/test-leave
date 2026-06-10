@@ -5,7 +5,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
-from organizations.models import Entity, Location, Department
+from organizations.models import Entity, Location, Department, WorkShift
 
 from .utils import validate_active_relationship
 
@@ -102,10 +102,17 @@ class UserSerializer(serializers.ModelSerializer):
         id = serializers.UUIDField()
         department_name = serializers.CharField()
 
+    class WorkShiftSerializer(serializers.Serializer):
+        id = serializers.UUIDField()
+        name = serializers.CharField()
+        start_time = serializers.TimeField()
+        end_time = serializers.TimeField()
+
     approver = ApproverSerializer(source='approver_1', read_only=True, allow_null=True)
     final_approver = ApproverSerializer(source='approver_2', read_only=True, allow_null=True)
     entity = EntitySerializer(read_only=True, allow_null=True)
     department = DepartmentSerializer(read_only=True, allow_null=True)
+    work_shift = WorkShiftSerializer(read_only=True, allow_null=True)
 
     class Meta:
         model = User
@@ -121,6 +128,7 @@ class UserSerializer(serializers.ModelSerializer):
             'entity',
             'location',
             'department',
+            'work_shift',
             'approver',  # First approval step
             'final_approver',  # Optional final approval step
             'join_date',
@@ -134,6 +142,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating user information"""
+    work_shift = serializers.PrimaryKeyRelatedField(
+        queryset=WorkShift.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+    )
     approver = serializers.PrimaryKeyRelatedField(
         source='approver_1',
         queryset=User.objects.filter(is_active=True),
@@ -157,6 +170,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'avatar_url',
             'approver',  # HR/Admin can assign first approver
             'final_approver',  # HR/Admin can assign second approver
+            'work_shift',
         ]
 
     def validate_email(self, value):
@@ -188,6 +202,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         approver = attrs.get('approver_1', getattr(self.instance, 'approver_1', None))
         final_approver = attrs.get('approver_2', getattr(self.instance, 'approver_2', None))
+        work_shift = attrs.get('work_shift', getattr(self.instance, 'work_shift', None))
 
         if self.instance and approver and approver.id == self.instance.id:
             raise serializers.ValidationError({'approver': "A user cannot be their own first approver."})
@@ -197,6 +212,8 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'final_approver': "Second approver must be different from first approver."
             })
+        if work_shift and self.instance.department_id and work_shift.department_id != self.instance.department_id:
+            raise serializers.ValidationError({'work_shift': "Selected shift does not belong to department."})
         return attrs
 
 
@@ -215,6 +232,7 @@ class UserCreateSerializer(serializers.Serializer):
     department = serializers.UUIDField(required=True)
     approver = serializers.UUIDField(required=True)
     final_approver = serializers.UUIDField(required=False, allow_null=True)
+    work_shift = serializers.UUIDField(required=False, allow_null=True)
     join_date = serializers.DateField(required=False, allow_null=True)
 
     def validate_email(self, value):
@@ -245,6 +263,14 @@ class UserCreateSerializer(serializers.Serializer):
         except User.DoesNotExist:
             raise serializers.ValidationError("Second approver not found or inactive.")
 
+    def validate_work_shift(self, value):
+        if not value:
+            return None
+        try:
+            return WorkShift.objects.get(id=value, is_active=True)
+        except WorkShift.DoesNotExist:
+            raise serializers.ValidationError("Work shift not found or inactive.")
+
     def validate(self, attrs):
         entity = attrs.get('entity')
         location = attrs.get('location')
@@ -264,6 +290,9 @@ class UserCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 "final_approver": "Second approver must be different from first approver."
             })
+        work_shift = attrs.get('work_shift')
+        if work_shift and department and work_shift.department_id != department.id:
+            raise serializers.ValidationError({"work_shift": "Selected shift does not belong to department."})
         return attrs
 
     def create(self, validated_data):
@@ -280,6 +309,7 @@ class UserCreateSerializer(serializers.Serializer):
             entity=validated_data['entity'],
             location=validated_data['location'],
             department=validated_data['department'],
+            work_shift=validated_data.get('work_shift'),
             approver_1=validated_data.get('approver'),
             approver_2=validated_data.get('final_approver'),
             join_date=validated_data.get('join_date') or date.today(),

@@ -8,7 +8,10 @@ from .models import PublicHoliday, LeaveRequest
 from django.db.models import Q
 
 
-def calculate_leave_hours(user, start_date, end_date, shift_type, start_time=None, end_time=None):
+def calculate_leave_hours(
+    user, start_date, end_date, shift_type, start_time=None, end_time=None,
+    exclude_calendar_id=None, start_day_offset=0, end_day_offset=0,
+):
     """
     Calculate total leave hours based on shift type, excluding weekends and holidays
 
@@ -28,18 +31,27 @@ def calculate_leave_hours(user, start_date, end_date, shift_type, start_time=Non
             raise ValueError("start_time and end_time required for CUSTOM_HOURS")
 
         # For custom hours, calculate time difference on start_date only
-        start_dt = datetime.combine(start_date, start_time)
-        end_dt = datetime.combine(start_date, end_time)
+        if start_day_offset not in (0, 1) or end_day_offset not in (0, 1, 2):
+            raise ValueError("Invalid custom-hour calendar day")
+        start_dt = datetime.combine(start_date + timedelta(days=start_day_offset), start_time)
+        end_dt = datetime.combine(start_date + timedelta(days=end_day_offset), end_time)
 
-        # Handle case where end time is before start time (e.g., 23:00 to 01:00 next day)
-        if end_dt < start_dt:
-            end_dt = datetime.combine(start_date + timedelta(days=1), end_time)
+        if end_dt <= start_dt and end_day_offset == start_day_offset:
+            end_dt += timedelta(days=1)
 
         delta = end_dt - start_dt
+        if delta.total_seconds() <= 0:
+            raise ValueError("Custom-hour end must be after start")
+        if delta > timedelta(hours=8):
+            raise ValueError("Custom leave cannot exceed 8 hours")
         return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
     # FULL_DAY: count working days (excludes weekends and holidays)
-    holidays = get_holidays_for_user(user, start_date, end_date)
+    holidays = (
+        PublicHoliday.objects.none()
+        if user.department_id and user.department.holiday_requires_leave
+        else get_holidays_for_user(user, start_date, end_date, exclude_calendar_id)
+    )
     # Expand multi-day holidays into individual dates
     holiday_dates = set()
     for h in holidays:
@@ -61,7 +73,30 @@ def calculate_leave_hours(user, start_date, end_date, shift_type, start_time=Non
     return Decimal(str(working_days * 8))
 
 
-def get_holidays_for_user(user, start_date, end_date):
+def infer_custom_hour_offsets(user, start_time, end_time):
+    """Infer actual calendar-day offsets from the employee's assigned overnight shift."""
+    shift = getattr(user, 'work_shift', None)
+    if not shift:
+        return 0, 1 if end_time <= start_time else 0
+    shift_start = (
+        datetime.strptime(shift.start_time, '%H:%M').time()
+        if isinstance(shift.start_time, str) else shift.start_time
+    )
+    shift_end = (
+        datetime.strptime(shift.end_time, '%H:%M').time()
+        if isinstance(shift.end_time, str) else shift.end_time
+    )
+    if shift_end > shift_start:
+        return 0, 1 if end_time <= start_time else 0
+
+    start_offset = 1 if start_time < shift_start else 0
+    end_offset = 1 if end_time <= shift_end else 0
+    if end_time <= start_time and end_offset <= start_offset:
+        end_offset = start_offset + 1
+    return start_offset, end_offset
+
+
+def get_holidays_for_user(user, start_date, end_date, exclude_calendar_id=None):
     """
     Get holidays applicable to user's entity/location
 
@@ -100,12 +135,16 @@ def get_holidays_for_user(user, start_date, end_date):
     else:
         query = Q(entity__isnull=True, location__isnull=True)
 
-    return PublicHoliday.objects.filter(
+    holidays = PublicHoliday.objects.filter(
         query,
         start_date__lte=end_date,
         end_date__gte=start_date,
-        is_active=True
+        is_active=True,
+        status=PublicHoliday.Status.PUBLISHED,
     )
+    if exclude_calendar_id:
+        holidays = holidays.exclude(calendar_id=exclude_calendar_id)
+    return holidays
 
 
 def validate_leave_request_dates(start_date, end_date):
@@ -167,6 +206,41 @@ def check_overlapping_requests(user, start_date, end_date, exclude_request_id=No
         overlapping = overlapping.exclude(id=exclude_request_id)
 
     return overlapping
+
+
+def custom_hour_datetimes(work_date, start_time, end_time, start_day_offset=0, end_day_offset=0):
+    """Return actual calendar datetimes for a custom-hours request."""
+    start_dt = datetime.combine(work_date + timedelta(days=start_day_offset), start_time)
+    end_dt = datetime.combine(work_date + timedelta(days=end_day_offset), end_time)
+    if end_dt <= start_dt and end_day_offset == start_day_offset:
+        end_dt += timedelta(days=1)
+    return start_dt, end_dt
+
+
+def check_overlapping_custom_hours(
+    user, work_date, start_time, end_time, start_day_offset=0, end_day_offset=0
+):
+    """Find active custom-hour requests overlapping the actual calendar time range."""
+    start_dt, end_dt = custom_hour_datetimes(
+        work_date, start_time, end_time, start_day_offset, end_day_offset
+    )
+    candidates = LeaveRequest.objects.filter(
+        user=user,
+        shift_type=LeaveRequest.ShiftType.CUSTOM_HOURS,
+        status__in=[LeaveRequest.Status.PENDING, LeaveRequest.Status.APPROVED],
+        start_date__range=(work_date - timedelta(days=2), work_date + timedelta(days=2)),
+    )
+    for leave in candidates:
+        existing_start, existing_end = custom_hour_datetimes(
+            leave.start_date,
+            leave.start_time,
+            leave.end_time,
+            leave.start_day_offset,
+            leave.end_day_offset,
+        )
+        if start_dt < existing_end and end_dt > existing_start:
+            return True
+    return False
 
 
 def check_overlapping_business_trips(user, start_date, end_date, exclude_trip_id=None):

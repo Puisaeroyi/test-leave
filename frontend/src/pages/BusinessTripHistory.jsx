@@ -14,6 +14,7 @@ import dayjs from "dayjs";
 import { getBusinessTrips } from "@api/businessTripApi";
 import { getMediaUrl } from "@api/http";
 import NewBusinessTripModal from "@components/NewBusinessTripModal";
+import ResponsiveRecordCard, { ResponsiveRecordRow } from "@components/ResponsiveRecordCard";
 
 export default function BusinessTripHistory() {
   const [data, setData] = useState([]);
@@ -88,14 +89,46 @@ export default function BusinessTripHistory() {
       </section>
 
       <Card className="page-panel table-card">
-        <Table
-          rowKey="id"
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          pagination={false}
-          scroll={{ x: 600 }}
-        />
+        <div className="responsive-desktop-table">
+          <Table
+            rowKey="id"
+            columns={columns}
+            dataSource={data}
+            loading={loading}
+            pagination={false}
+            scroll={{ x: 600 }}
+          />
+        </div>
+        <div className="responsive-mobile-list">
+          <div className="responsive-record-list" aria-live="polite">
+            {data.map((trip) => (
+              <ResponsiveRecordCard
+                key={trip.id}
+                title={`${trip.city}, ${trip.country}`}
+                onClick={() => setSelected(trip)}
+                ariaLabel={`View business trip to ${trip.city}, ${trip.country}`}
+                footer={
+                  <Button icon={<EyeOutlined />} onClick={() => setSelected(trip)}>
+                    View Detail
+                  </Button>
+                }
+              >
+                <ResponsiveRecordRow label="Start">
+                  {dayjs(trip.start_date).format("DD/MM/YYYY")}
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="End">
+                  {dayjs(trip.end_date).format("DD/MM/YYYY")}
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="Attachment">
+                  {trip.attachment_url ? "Available" : "None"}
+                </ResponsiveRecordRow>
+              </ResponsiveRecordCard>
+            ))}
+            {!loading && data.length === 0 && (
+              <div className="responsive-empty-state">No business trips found.</div>
+            )}
+          </div>
+        </div>
       </Card>
 
       {/* DETAIL MODAL */}

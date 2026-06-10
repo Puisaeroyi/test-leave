@@ -139,7 +139,7 @@ function transformToEvents(data) {
 export default function TeamCalendar() {
   const today = dayjs().format("YYYY-MM-DD");
   const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const isMobile = !screens.lg;
 
   const [filter, setFilter] = useState("all");
   const [currentDate, setCurrentDate] = useState(dayjs());

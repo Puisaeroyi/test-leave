@@ -96,6 +96,8 @@ class LeaveRequest(models.Model):
     shift_type = models.CharField(max_length=20, choices=ShiftType.choices)
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
+    start_day_offset = models.PositiveSmallIntegerField(default=0)
+    end_day_offset = models.PositiveSmallIntegerField(default=0)
     total_hours = models.DecimalField(max_digits=5, decimal_places=2)
     reason = models.TextField(blank=True)
     attachment_url = models.CharField(max_length=500, blank=True, null=True)
@@ -158,6 +160,95 @@ class LeaveRequest(models.Model):
         return f"{self.user.email} - {self.start_date} to {self.end_date}"
 
 
+class HolidayTemplate(models.Model):
+    """Versioned source calendar used to generate company holiday drafts."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    country_code = models.CharField(max_length=2)
+    year = models.IntegerField()
+    name = models.CharField(max_length=120)
+    source_name = models.CharField(max_length=200)
+    source_url = models.URLField(max_length=500, blank=True)
+    version = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'holiday_templates'
+        unique_together = ['country_code', 'year', 'version']
+        ordering = ['country_code', 'year']
+
+    def __str__(self):
+        return self.name
+
+
+class HolidayTemplateDate(models.Model):
+    """One holiday date or date range in a source template."""
+    class HolidayType(models.TextChoices):
+        STATUTORY = 'STATUTORY', 'Statutory'
+        OBSERVED = 'OBSERVED', 'Observed'
+        COMPENSATORY = 'COMPENSATORY', 'Compensatory'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    template = models.ForeignKey(HolidayTemplate, on_delete=models.CASCADE, related_name='dates')
+    holiday_name = models.CharField(max_length=120)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    holiday_type = models.CharField(
+        max_length=20, choices=HolidayType.choices, default=HolidayType.STATUTORY
+    )
+    source_note = models.TextField(blank=True)
+
+    class Meta:
+        db_table = 'holiday_template_dates'
+        unique_together = ['template', 'start_date', 'holiday_name']
+        ordering = ['start_date']
+
+
+class HolidayCalendar(models.Model):
+    """Company-owned holiday calendar for an entity or location."""
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        PUBLISHED = 'PUBLISHED', 'Published'
+        ARCHIVED = 'ARCHIVED', 'Archived'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=150)
+    country_code = models.CharField(max_length=2)
+    year = models.IntegerField()
+    entity = models.ForeignKey(
+        'organizations.Entity', on_delete=models.CASCADE, related_name='holiday_calendars'
+    )
+    location = models.ForeignKey(
+        'organizations.Location',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='holiday_calendars',
+    )
+    source_template = models.ForeignKey(
+        HolidayTemplate, on_delete=models.SET_NULL, null=True, blank=True, related_name='calendars'
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='published_holiday_calendars',
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'holiday_calendars'
+        unique_together = ['year', 'entity', 'location', 'country_code']
+        ordering = ['-year', 'country_code', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class PublicHoliday(models.Model):
     """Public holidays scoped by entity/location (supports multi-day holidays)"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -175,11 +266,42 @@ class PublicHoliday(models.Model):
         blank=True,
         related_name='public_holidays'
     )
-    holiday_name = models.CharField(max_length=100)
+    class Status(models.TextChoices):
+        DRAFT = 'DRAFT', 'Draft'
+        PUBLISHED = 'PUBLISHED', 'Published'
+        ARCHIVED = 'ARCHIVED', 'Archived'
+
+    class HolidayType(models.TextChoices):
+        STATUTORY = 'STATUTORY', 'Statutory'
+        OBSERVED = 'OBSERVED', 'Observed'
+        COMPENSATORY = 'COMPENSATORY', 'Compensatory'
+        COMPANY = 'COMPANY', 'Company'
+
+    calendar = models.ForeignKey(
+        HolidayCalendar,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='holidays',
+    )
+    holiday_name = models.CharField(max_length=120)
     start_date = models.DateField()
     end_date = models.DateField()
     is_recurring = models.BooleanField(default=False)
     year = models.IntegerField()
+    holiday_type = models.CharField(
+        max_length=20, choices=HolidayType.choices, default=HolidayType.STATUTORY
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PUBLISHED)
+    source_note = models.TextField(blank=True)
+    published_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='published_holidays',
+    )
+    published_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

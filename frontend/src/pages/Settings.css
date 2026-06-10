@@ -21,6 +21,16 @@
   gap: 10px;
 }
 
+.settings-page > *,
+.settings-page-header,
+.settings-tabs-card,
+.settings-tabs,
+.settings-tab-panel,
+.settings-tab-panel > * {
+  min-width: 0;
+  width: 100%;
+}
+
 .settings-page-header {
   display: flex;
   gap: 16px;
@@ -30,7 +40,9 @@
 }
 
 .settings-page-heading {
+  flex: 1 1 auto;
   min-width: 0;
+  width: auto;
 }
 
 .settings-page-heading .page-subtitle {
@@ -42,6 +54,7 @@
 
 .settings-export-bar {
   flex: 0 0 auto;
+  width: auto;
   padding: 8px 10px;
   background: rgba(255, 250, 241, 0.78);
   border: 1px solid var(--color-border);
@@ -98,6 +111,10 @@
   overflow: hidden;
 }
 
+.settings-tab-panel--single {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .settings-tab-panel .settings-stats-row {
   margin-bottom: 0;
 }
@@ -116,6 +133,11 @@
 
 .settings-tabs .ant-tabs-nav {
   margin-bottom: 10px;
+}
+
+.settings-tabs .ant-tabs-nav-wrap,
+.settings-tabs .ant-tabs-nav-list {
+  min-width: 0;
 }
 
 .settings-stat-card.ant-card .ant-card-body {
@@ -137,7 +159,11 @@
   padding: 12px;
 }
 
-.settings-users-table .ant-table-cell {
+.settings-users-table .ant-table-cell,
+.entity-management-table .ant-table-cell,
+.announcement-management-table .ant-table-cell,
+.holiday-management-table .ant-table-cell,
+.audit-log-table .ant-table-cell {
   min-width: 0;
 }
 
@@ -145,35 +171,78 @@
 .settings-users-table .ant-spin-nested-loading,
 .settings-users-table .ant-spin-container,
 .settings-users-table .ant-table,
-.settings-users-table .ant-table-container {
+.settings-users-table .ant-table-container,
+.entity-management-table,
+.entity-management-table .ant-spin-nested-loading,
+.entity-management-table .ant-spin-container,
+.entity-management-table .ant-table,
+.entity-management-table .ant-table-container,
+.announcement-management-table,
+.announcement-management-table .ant-spin-nested-loading,
+.announcement-management-table .ant-spin-container,
+.announcement-management-table .ant-table,
+.announcement-management-table .ant-table-container,
+.holiday-management-table,
+.holiday-management-table .ant-spin-nested-loading,
+.holiday-management-table .ant-spin-container,
+.holiday-management-table .ant-table,
+.holiday-management-table .ant-table-container,
+.audit-log-table,
+.audit-log-table .ant-spin-nested-loading,
+.audit-log-table .ant-spin-container,
+.audit-log-table .ant-table,
+.audit-log-table .ant-table-container {
   min-width: 0;
 }
 
-.settings-users-table .ant-table-content {
-  overflow-x: hidden !important;
+.settings-users-table .ant-table-content,
+.entity-management-table .ant-table-content,
+.announcement-management-table .ant-table-content,
+.holiday-management-table .ant-table-content,
+.audit-log-table .ant-table-content {
+  overflow-x: auto !important;
   overflow-y: hidden;
+  overscroll-behavior-inline: contain;
 }
 
-.settings-users-table table {
+.settings-users-table table,
+.entity-management-table table,
+.announcement-management-table table,
+.holiday-management-table table,
+.audit-log-table table {
   width: 100% !important;
   min-width: 0 !important;
   table-layout: fixed !important;
 }
 
 .settings-users-table .ant-table-thead > tr > th,
-.settings-users-table .ant-table-tbody > tr > td {
+.settings-users-table .ant-table-tbody > tr > td,
+.entity-management-table .ant-table-thead > tr > th,
+.entity-management-table .ant-table-tbody > tr > td,
+.announcement-management-table .ant-table-thead > tr > th,
+.announcement-management-table .ant-table-tbody > tr > td,
+.holiday-management-table .ant-table-thead > tr > th,
+.holiday-management-table .ant-table-tbody > tr > td,
+.audit-log-table .ant-table-thead > tr > th,
+.audit-log-table .ant-table-tbody > tr > td {
   padding: 10px 8px;
   font-size: 13px;
   line-height: 1.35;
 }
 
-.settings-users-table .ant-table-thead > tr > th {
+.settings-users-table .ant-table-thead > tr > th,
+.entity-management-table .ant-table-thead > tr > th,
+.announcement-management-table .ant-table-thead > tr > th,
+.holiday-management-table .ant-table-thead > tr > th,
+.audit-log-table .ant-table-thead > tr > th {
   font-size: 11px;
   letter-spacing: 0.03em;
 }
 
 .settings-table-text,
-.settings-table-tag {
+.settings-table-tag,
+.entity-table-text,
+.announcement-table-text {
   display: inline-block;
   max-width: 100%;
   overflow: hidden;
@@ -191,7 +260,9 @@
   justify-content: center;
 }
 
-.settings-action-cell .ant-btn {
+.settings-action-cell .ant-btn,
+.entity-action-cell .ant-btn,
+.announcement-action-cell .ant-btn {
   display: inline-grid;
   place-items: center;
   flex: 0 0 29px;
@@ -200,6 +271,16 @@
   height: 29px;
   padding: 0;
   justify-content: center;
+}
+
+.entity-action-cell,
+.announcement-action-cell {
+  display: inline-flex;
+  width: 64px;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
 }
 
 .settings-page .ant-statistic-title {
@@ -233,5 +314,128 @@
 
   .settings-export-bar {
     width: 100%;
+  }
+}
+
+@media (max-width: 991px) {
+  .settings-page,
+  .settings-tabs-card,
+  .settings-tabs,
+  .settings-tabs > .ant-tabs-content-holder,
+  .settings-tabs .ant-tabs-content,
+  .settings-tabs .ant-tabs-tabpane,
+  .settings-tabs .ant-tabs-tabpane > div,
+  .settings-tab-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .settings-page,
+  .settings-tab-panel {
+    grid-template-rows: none;
+  }
+
+  .settings-tabs-card > .ant-card-body,
+  .settings-tab-panel > .table-card > .ant-card-body {
+    overflow: visible;
+  }
+
+  .settings-users-table .ant-table-content,
+  .entity-management-table .ant-table-content,
+  .announcement-management-table .ant-table-content,
+  .holiday-management-table .ant-table-content,
+  .audit-log-table .ant-table-content {
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+  }
+
+  .settings-users-table table {
+    width: max-content !important;
+    min-width: 980px !important;
+    table-layout: auto !important;
+  }
+
+  .entity-management-table table {
+    width: max-content !important;
+    min-width: 760px !important;
+    table-layout: auto !important;
+  }
+
+  .announcement-management-table table {
+    width: max-content !important;
+    min-width: 860px !important;
+    table-layout: auto !important;
+  }
+
+  .holiday-management-table table {
+    width: max-content !important;
+    min-width: 980px !important;
+    table-layout: auto !important;
+  }
+
+  .audit-log-table table {
+    width: max-content !important;
+    min-width: 980px !important;
+    table-layout: auto !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .settings-page-header {
+    gap: 12px;
+  }
+
+  .settings-export-bar .ant-space,
+  .settings-export-bar .ant-space-item,
+  .settings-export-bar .ant-btn {
+    width: 100%;
+  }
+
+  .settings-export-bar .ant-space {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .settings-export-bar .ant-picker {
+    width: 100%;
+  }
+
+  .settings-tabs-card.ant-card > .ant-card-body {
+    padding: 12px;
+  }
+
+  .settings-tabs .ant-tabs-nav {
+    margin-bottom: 12px;
+  }
+
+  .settings-tabs .ant-tabs-nav-wrap {
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .settings-tabs .ant-tabs-nav-list {
+    flex-wrap: nowrap;
+  }
+
+  .settings-tabs .ant-tabs-tab {
+    flex: 0 0 auto;
+    padding-inline: 10px;
+  }
+
+  .settings-tab-panel > .table-card .ant-card-extra > .ant-space {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .settings-tab-panel > .table-card .ant-card-extra .ant-btn {
+    width: 100%;
+  }
+
+  .settings-stat-card .ant-statistic {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
   }
 }

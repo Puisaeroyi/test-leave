@@ -14,6 +14,8 @@ from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
     calculate_leave_hours,
+    check_overlapping_custom_hours,
+    infer_custom_hour_offsets,
     validate_leave_request_dates,
     validate_attachment_url
 )
@@ -107,26 +109,49 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         if not is_valid:
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check for overlapping requests
+        shift_type = data.get('shift_type', 'FULL_DAY')
+
+        # Full-day requests conflict by work date. Custom-hour requests need the
+        # actual calendar-time comparison below, but still conflict with full days.
         overlapping = check_overlapping_requests(user, start_date, end_date)
-        if overlapping.exists():
+        has_date_conflict = (
+            overlapping.exists()
+            if shift_type != 'CUSTOM_HOURS'
+            else overlapping.exclude(shift_type=LeaveRequest.ShiftType.CUSTOM_HOURS).exists()
+        )
+        if has_date_conflict:
             return Response(
                 {'error': 'You have an overlapping leave request for these dates'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         # Parse shift type and times
-        shift_type = data.get('shift_type', 'FULL_DAY')
         start_time = None
         end_time = None
+        start_day_offset = 0
+        end_day_offset = 0
 
         if shift_type == 'CUSTOM_HOURS':
             try:
                 start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
                 end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
+                if user.work_shift_id:
+                    start_day_offset, end_day_offset = infer_custom_hour_offsets(
+                        user, start_time, end_time
+                    )
+                else:
+                    start_day_offset = int(data.get('start_day_offset', 0))
+                    end_day_offset = int(data.get('end_day_offset', 0))
             except (ValueError, TypeError):
                 return Response(
                     {'error': 'start_time and end_time required for CUSTOM_HOURS (format: HH:MM)'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if check_overlapping_custom_hours(
+                user, start_date, start_time, end_time, start_day_offset, end_day_offset
+            ):
+                return Response(
+                    {'error': 'You have an overlapping custom-hours leave request'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -145,7 +170,10 @@ class LeaveRequestListView(generics.ListCreateAPIView):
 
         # Calculate hours
         try:
-            total_hours = calculate_leave_hours(user, start_date, end_date, shift_type, start_time, end_time)
+            total_hours = calculate_leave_hours(
+                user, start_date, end_date, shift_type, start_time, end_time,
+                start_day_offset=start_day_offset, end_day_offset=end_day_offset,
+            )
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -190,6 +218,8 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     shift_type=shift_type,
                     start_time=start_time,
                     end_time=end_time,
+                    start_day_offset=start_day_offset,
+                    end_day_offset=end_day_offset,
                     total_hours=total_hours,
                     reason=data.get('reason', ''),
                     attachment_url=attachment_url,

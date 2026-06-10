@@ -343,6 +343,29 @@ class TestEntityCreateAPI:
         assert response.data['entity_name'] == 'New Entity'
         assert response.data['code'] == 'NEW'
 
+    def test_create_entity_persists_department_holiday_leave_rule(self, api_client, hr_user):
+        api_client.force_authenticate(user=hr_user)
+
+        response = api_client.post('/api/v1/organizations/entities/create/', {
+            'entity_name': 'Operations Entity',
+            'code': 'OPS',
+            'locations': [{
+                'name': 'Plant',
+                'city': 'Houston',
+                'country': 'USA',
+                'timezone': 'America/Chicago',
+                'departments': [{
+                    'name': 'Continuous Operations',
+                    'code': '24X7',
+                    'holiday_requires_leave': True,
+                }],
+            }],
+        }, format='json')
+
+        assert response.status_code == 201
+        department = Department.objects.get(entity_id=response.data['id'], code='24X7')
+        assert department.holiday_requires_leave is True
+
     def test_create_entity_admin(self, api_client, admin_user):
         """Admin user can create entity"""
         api_client.force_authenticate(user=admin_user)
@@ -387,6 +410,37 @@ class TestEntityUpdateAPI:
         response = api_client.patch(url, data)
         assert response.status_code == 200
         assert response.data['entity_name'] == 'Updated Name'
+
+    def test_update_entity_can_enable_department_holiday_leave_rule(
+        self, api_client, hr_user, entity_with_relations
+    ):
+        department = entity_with_relations.departments.get()
+        location = entity_with_relations.locations.get()
+        api_client.force_authenticate(user=hr_user)
+
+        response = api_client.patch(
+            f'/api/v1/organizations/entities/{entity_with_relations.id}/update/',
+            {
+                'locations': [{
+                    'id': str(location.id),
+                    'name': location.location_name,
+                    'city': location.city,
+                    'country': location.country,
+                    'timezone': location.timezone,
+                    'departments': [{
+                        'id': str(department.id),
+                        'name': department.department_name,
+                        'code': department.code,
+                        'holiday_requires_leave': True,
+                    }],
+                }],
+            },
+            format='json',
+        )
+
+        assert response.status_code == 200
+        department.refresh_from_db()
+        assert department.holiday_requires_leave is True
 
     def test_update_entity_employee_forbidden(self, api_client, employee_user, sample_entity):
         """Employee user cannot update entity"""

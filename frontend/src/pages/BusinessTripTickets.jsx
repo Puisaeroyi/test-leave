@@ -14,6 +14,7 @@ import { EyeOutlined, ReloadOutlined, PaperClipOutlined } from "@ant-design/icon
 import dayjs from "dayjs";
 import { getTeamBusinessTrips } from "@api/businessTripApi";
 import { getMediaUrl } from "@api/http";
+import ResponsiveRecordCard, { ResponsiveRecordRow } from "@components/ResponsiveRecordCard";
 
 const { Text } = Typography;
 
@@ -99,23 +100,56 @@ export default function BusinessTripTickets() {
           </Button>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={data}
-          rowKey="id"
-          loading={loading}
-          scroll={{ x: 700 }}
-          pagination={{
-            current: pagination.current,
-            pageSize: pagination.pageSize,
-            total: pagination.total,
-            showSizeChanger: false,
-            onChange: (page) => fetchTrips(page, pagination.pageSize),
-          }}
-          locale={{
-            emptyText: !loading ? "No business trips found for your team." : "Loading..."
-          }}
-        />
+        <div className="responsive-desktop-table">
+          <Table
+            columns={columns}
+            dataSource={data}
+            rowKey="id"
+            loading={loading}
+            scroll={{ x: 700 }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: pagination.total,
+              showSizeChanger: false,
+              onChange: (page) => fetchTrips(page, pagination.pageSize),
+            }}
+            locale={{
+              emptyText: !loading ? "No business trips found for your team." : "Loading..."
+            }}
+          />
+        </div>
+        <div className="responsive-mobile-list">
+          <div className="responsive-record-list" aria-live="polite">
+            {data.map((trip) => (
+              <ResponsiveRecordCard
+                key={trip.id}
+                title={trip.user_name}
+                badge={<Tag style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{trip.city}</Tag>}
+                onClick={() => setSelected(trip)}
+                ariaLabel={`View ${trip.user_name}'s business trip`}
+                footer={
+                  <Button type="primary" ghost icon={<EyeOutlined />} onClick={() => setSelected(trip)}>
+                    View Detail
+                  </Button>
+                }
+              >
+                <ResponsiveRecordRow label="Destination">
+                  {trip.city}, {trip.country}
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="Start">
+                  {dayjs(trip.start_date).format("DD/MM/YYYY")}
+                </ResponsiveRecordRow>
+                <ResponsiveRecordRow label="End">
+                  {dayjs(trip.end_date).format("DD/MM/YYYY")}
+                </ResponsiveRecordRow>
+              </ResponsiveRecordCard>
+            ))}
+            {!loading && data.length === 0 && (
+              <div className="responsive-empty-state">No business trips found for your team.</div>
+            )}
+          </div>
+        </div>
       </Card>
 
       {/* DETAIL MODAL */}

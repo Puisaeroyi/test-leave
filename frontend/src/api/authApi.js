@@ -81,6 +81,11 @@ export async function getDepartments(locationId) {
   return res.data;
 }
 
+export async function getWorkShifts(departmentId) {
+  const res = await http.get(`${ORG_API_URL}/work-shifts/?department_id=${departmentId}`);
+  return res.data;
+}
+
 export async function googleLogin(idToken) {
   const res = await http.post(`${API_URL}/google/`, {
     id_token: idToken,

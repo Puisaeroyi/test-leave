@@ -20,8 +20,8 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const screens = useBreakpoint();
 
-  // Mobile = below md (< 768px)
-  const isMobile = !screens.md;
+  // Compact navigation covers phones and portrait tablets (< 992px).
+  const isMobile = !screens.lg;
 
   if (!user) return null;
 
@@ -96,10 +96,11 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
   if (isMobile) {
     return (
       <Drawer
+        className="app-navigation-drawer"
         placement="left"
         open={mobileOpen}
         onClose={onMobileClose}
-        width={248}
+        size="min(288px, calc(100vw - 32px))"
         styles={{ body: { padding: 0 } }}
       >
         <div className="app-sidebar">

@@ -7,8 +7,8 @@ from datetime import date, datetime, timedelta
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from freezegun import freeze_time
-from organizations.models import Entity, Location, Department
-from leaves.models import LeaveCategory, LeaveBalance, LeaveRequest
+from organizations.models import Department, Entity, Location, WorkShift
+from leaves.models import HolidayCalendar, LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday
 
 User = get_user_model()
 
@@ -87,6 +87,42 @@ class TestLeaveRequests:
         assert response.data['total_hours'] == 8.0
         assert LeaveRequest.objects.filter(user=user).count() == 1
 
+    def test_department_requiring_leave_on_holidays_can_request_holiday(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        department = setup_user_with_balance['department']
+        department.holiday_requires_leave = True
+        department.save(update_fields=['holiday_requires_leave'])
+        calendar = HolidayCalendar.objects.create(
+            name='US 2026',
+            country_code='US',
+            year=2026,
+            entity=user.entity,
+            status=HolidayCalendar.Status.PUBLISHED,
+        )
+        PublicHoliday.objects.create(
+            calendar=calendar,
+            entity=user.entity,
+            holiday_name='Operations holiday',
+            start_date=date(2026, 1, 20),
+            end_date=date(2026, 1, 20),
+            year=2026,
+            status=PublicHoliday.Status.PUBLISHED,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-01-20',
+            'end_date': '2026-01-20',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(category.id),
+            'reason': 'Not working the holiday shift',
+        })
+
+        assert response.status_code == 201, response.data
+        assert response.data['total_hours'] == 8.0
+
     def test_create_multi_day_request(self, setup_user_with_balance):
         """Test creating a multi-day leave request"""
         user = setup_user_with_balance['user']
@@ -128,6 +164,125 @@ class TestLeaveRequests:
 
         assert response.status_code == 201
         assert response.data['total_hours'] == 4.0
+
+    def test_create_custom_hours_on_next_calendar_day_of_shift(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-06-15',
+            'end_date': '2026-06-15',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '02:00',
+            'end_time': '06:00',
+            'start_day_offset': 1,
+            'end_day_offset': 1,
+            'leave_category': str(category.id),
+            'reason': 'Second half of night shift',
+        })
+
+        assert response.status_code == 201, response.data
+        request = LeaveRequest.objects.get(id=response.data['id'])
+        assert request.start_date == date(2026, 6, 15)
+        assert request.start_day_offset == 1
+        assert request.end_day_offset == 1
+        assert request.total_hours == Decimal('4.00')
+
+    def test_custom_hours_overlap_uses_actual_calendar_time(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        LeaveRequest.objects.create(
+            user=user,
+            leave_category=category,
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 6, 15),
+            shift_type=LeaveRequest.ShiftType.CUSTOM_HOURS,
+            start_time='02:00',
+            end_time='06:00',
+            start_day_offset=1,
+            end_day_offset=1,
+            total_hours=Decimal('4.00'),
+            status=LeaveRequest.Status.PENDING,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-06-16',
+            'end_date': '2026-06-16',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '03:00',
+            'end_time': '05:00',
+            'start_day_offset': 0,
+            'end_day_offset': 0,
+            'leave_category': str(category.id),
+            'reason': 'Duplicate actual time',
+        })
+
+        assert response.status_code == 400
+        assert 'overlapping custom-hours' in response.data['error']
+
+    def test_non_overlapping_custom_hours_on_same_work_date_are_allowed(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        LeaveRequest.objects.create(
+            user=user,
+            leave_category=category,
+            start_date=date(2026, 6, 15),
+            end_date=date(2026, 6, 15),
+            shift_type=LeaveRequest.ShiftType.CUSTOM_HOURS,
+            start_time='09:00',
+            end_time='11:00',
+            total_hours=Decimal('2.00'),
+            status=LeaveRequest.Status.PENDING,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-06-15',
+            'end_date': '2026-06-15',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '13:00',
+            'end_time': '15:00',
+            'leave_category': str(category.id),
+            'reason': 'Separate appointment',
+        })
+
+        assert response.status_code == 201, response.data
+
+    def test_assigned_night_shift_infers_next_calendar_day(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        shift = WorkShift.objects.create(
+            department=user.department,
+            name='Night Shift',
+            start_time='22:00',
+            end_time='06:00',
+        )
+        user.work_shift = shift
+        user.save()
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-06-15',
+            'end_date': '2026-06-15',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '02:00',
+            'end_time': '06:00',
+            'start_day_offset': 0,
+            'end_day_offset': 0,
+            'leave_category': str(category.id),
+            'reason': 'Second half',
+        })
+
+        assert response.status_code == 201, response.data
+        request = LeaveRequest.objects.get(id=response.data['id'])
+        assert request.start_day_offset == 1
+        assert request.end_day_offset == 1
 
     def test_create_request_insufficient_balance(self, setup_user_with_balance):
         """Test creating request with insufficient balance"""

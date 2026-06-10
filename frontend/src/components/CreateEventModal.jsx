@@ -13,7 +13,7 @@ export default function CreateEventModal({ open, onClose, onSelect, allowLeave =
       footer={null}
       width={520}
       title="Create new request"
-      destroyOnClose
+      destroyOnHidden
     >
       <Space direction="vertical" style={{ width: "100%" }} size={16}>
         {allowLeave ? (

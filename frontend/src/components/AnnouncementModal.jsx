@@ -56,18 +56,20 @@ export default function AnnouncementModal({
               <Typography.Title level={1} className="announcement-article__title">
                 {announcement.title}
               </Typography.Title>
-              {announcement.is_active === false && <Tag>Inactive</Tag>}
-              <Text type="secondary" className="announcement-article__meta">
-              Posted {dayjs(announcement.created_at).format("MMM D, YYYY HH:mm")}
-              {createdBy ? ` by ${createdBy}` : ""}
-              </Text>
-              {(announcement.starts_at || announcement.expires_at) && (
+              <div className="announcement-article__meta-stack">
+                {announcement.is_active === false && <Tag>Inactive</Tag>}
                 <Text type="secondary" className="announcement-article__meta">
-                  Visible {announcement.starts_at ? dayjs(announcement.starts_at).format("MMM D, YYYY HH:mm") : "now"}
-                  {" to "}
-                  {announcement.expires_at ? dayjs(announcement.expires_at).format("MMM D, YYYY HH:mm") : "no end date"}
+                  Posted {dayjs(announcement.created_at).format("MMM D, YYYY HH:mm")}
+                  {createdBy ? ` by ${createdBy}` : ""}
                 </Text>
-              )}
+                {(announcement.starts_at || announcement.expires_at) && (
+                  <Text type="secondary" className="announcement-article__meta">
+                    Visible {announcement.starts_at ? dayjs(announcement.starts_at).format("MMM D, YYYY HH:mm") : "now"}
+                    {" to "}
+                    {announcement.expires_at ? dayjs(announcement.expires_at).format("MMM D, YYYY HH:mm") : "no end date"}
+                  </Text>
+                )}
+              </div>
             </header>
             {announcement.body_html ? (
               <div

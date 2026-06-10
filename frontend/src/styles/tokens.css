@@ -35,6 +35,8 @@
   --shadow-card: 0 18px 45px rgba(77, 67, 48, 0.11);
   --shadow-soft: 0 8px 26px rgba(31, 138, 120, 0.14);
   --layout-gutter: 24px;
+  --layout-max-width: 1680px;
+  --touch-target: 44px;
   --header-height: 72px;
   --sidebar-width: 248px;
 }

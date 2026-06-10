@@ -9,7 +9,7 @@ const { useBreakpoint } = Grid;
 export default function MainLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const screens = useBreakpoint();
-  const isMobile = !screens.md;
+  const isCompact = !screens.lg;
 
   return (
     <Layout className="app-shell">
@@ -19,7 +19,7 @@ export default function MainLayout() {
       />
       <Layout style={{ background: "transparent" }}>
         <AppHeader
-          isMobile={isMobile}
+          isMobile={isCompact}
           onMenuClick={() => setMobileOpen(true)}
         />
         <Layout.Content className="app-content">
