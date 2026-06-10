@@ -11,7 +11,7 @@ export const createEntity = async (data) => {
 };
 
 export const updateEntity = async (id, data) => {
-  const response = await http.patch(`/organizations/entities/${id}/`, data);
+  const response = await http.patch(`/organizations/entities/${id}/update/`, data);
   return response.data;
 };
 

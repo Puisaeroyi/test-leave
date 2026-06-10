@@ -13,6 +13,16 @@ from .views import (
     LeaveRequestRejectView,
     LeaveRequestCancelView,
     PublicHolidayListView,
+    HolidayCalendarListView,
+    HolidayCalendarGenerateView,
+    HolidayCalendarGenerationPreviewView,
+    HolidayCalendarDetailView,
+    HolidayCalendarPublishView,
+    HolidayCalendarPublishPreviewView,
+    HolidayCalendarUnpublishPreviewView,
+    HolidayCalendarUnpublishView,
+    HolidayCalendarHolidayCreateView,
+    HolidayDetailView,
     BusinessTripListCreateView,
     BusinessTripDetailView,
     BusinessTripCancelView,
@@ -45,8 +55,20 @@ urlpatterns = [
     path('requests/<uuid:pk>/reject/', LeaveRequestRejectView.as_view(), name='leave_request_reject'),
     path('requests/<uuid:pk>/cancel/', LeaveRequestCancelView.as_view(), name='leave_request_cancel'),
 
-    # Public Holidays (read-only)
+    # Holiday administration (specific paths before generic holiday detail)
+    path('holiday-calendars/', HolidayCalendarListView.as_view(), name='holiday_calendar_list'),
+    path('holiday-calendars/generation-preview/', HolidayCalendarGenerationPreviewView.as_view(), name='holiday_calendar_generation_preview'),
+    path('holiday-calendars/generate/', HolidayCalendarGenerateView.as_view(), name='holiday_calendar_generate'),
+    path('holiday-calendars/<uuid:pk>/publish/', HolidayCalendarPublishView.as_view(), name='holiday_calendar_publish'),
+    path('holiday-calendars/<uuid:pk>/publish-preview/', HolidayCalendarPublishPreviewView.as_view(), name='holiday_calendar_publish_preview'),
+    path('holiday-calendars/<uuid:pk>/unpublish-preview/', HolidayCalendarUnpublishPreviewView.as_view(), name='holiday_calendar_unpublish_preview'),
+    path('holiday-calendars/<uuid:pk>/unpublish/', HolidayCalendarUnpublishView.as_view(), name='holiday_calendar_unpublish'),
+    path('holiday-calendars/<uuid:pk>/holidays/', HolidayCalendarHolidayCreateView.as_view(), name='holiday_calendar_holiday_create'),
+    path('holiday-calendars/<uuid:pk>/', HolidayCalendarDetailView.as_view(), name='holiday_calendar_detail'),
+
+    # Public Holidays
     path('holidays/', PublicHolidayListView.as_view(), name='public_holiday_list'),
+    path('holidays/<uuid:pk>/', HolidayDetailView.as_view(), name='holiday_detail'),
 
     # Business Trips (auto-approved, no balance deduction)
     # IMPORTANT: More specific patterns must come before generic ones

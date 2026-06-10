@@ -55,6 +55,10 @@ class Department(models.Model):
     department_name = models.CharField(max_length=100)
     code = models.CharField(max_length=20)
     is_active = models.BooleanField(default=True)
+    holiday_requires_leave = models.BooleanField(
+        default=False,
+        help_text="Employees must submit leave requests for published holidays.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -68,6 +72,25 @@ class Department(models.Model):
         if self.location:
             return f"{self.department_name} ({self.code}) @ {self.location.location_name}"
         return f"{self.department_name} ({self.code})"
+
+
+class WorkShift(models.Model):
+    """Named working shift assigned to employees in a department."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='work_shifts')
+    name = models.CharField(max_length=100)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'work_shifts'
+        unique_together = ['department', 'name']
+        ordering = ['department', 'start_time']
+
+    def __str__(self):
+        return f"{self.name} ({self.start_time:%H:%M}-{self.end_time:%H:%M})"
+
 
 class UnifiedImportPlaceholder(models.Model):
     """Placeholder model for unified organization import interface."""

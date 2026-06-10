@@ -139,14 +139,14 @@ export default function AnnouncementManagement() {
       title: "Title",
       dataIndex: "title",
       key: "title",
-      width: 320,
+      width: 260,
       render: (value) => renderAnnouncementText(value),
     },
     {
       title: "Status",
       dataIndex: "is_active",
       key: "is_active",
-      width: 110,
+      width: 100,
       render: (_, record) => {
         const status = getAnnouncementStatus(record);
         return <Tag color={status.color}>{status.label}</Tag>;
@@ -155,7 +155,7 @@ export default function AnnouncementManagement() {
     {
       title: "Visible Window",
       key: "active_range",
-      width: 250,
+      width: 230,
       render: (_, record) => {
         if (!record.starts_at && !record.expires_at) return "Always";
         const start = record.starts_at ? dayjs(record.starts_at).format("YYYY-MM-DD HH:mm") : "Now";
@@ -166,7 +166,7 @@ export default function AnnouncementManagement() {
     {
       title: "Created By",
       key: "created_by",
-      width: 190,
+      width: 160,
       render: (_, record) => renderAnnouncementText(record.created_by_name || record.created_by || "-"),
     },
     {

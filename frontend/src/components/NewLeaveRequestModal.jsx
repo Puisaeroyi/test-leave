@@ -24,6 +24,9 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
+import { getApplicableHolidays } from "../api/holidayApi";
+import { calculateHourRange, inferCustomHourOffsets } from "../lib/time-utils";
+import { useAuth } from "@auth/authContext";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -31,18 +34,15 @@ const { TextArea } = Input;
 
 // Whole-hour options for business hours 6 AM–6 PM, labelled in AM/PM
 // (e.g. "09:00 AM"). Value is the 0-23 hour.
-const HOUR_OPTIONS = Array.from({ length: 13 }, (_, index) => {
-  const hour = 6 + index; // 6 (6 AM) .. 18 (6 PM)
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => {
+  const hour = (6 + index) % 24;
   return { value: hour, label: dayjs().hour(hour).minute(0).format("hh:00 A") };
 });
 
 // Single-column hour chooser used for custom-hour leave. A plain Select selects
 // and closes on one click (no OK button, no lingering panel) while still feeding
 // Form.Item a dayjs value so downstream `.format("HH:mm")`/`.diff()` keep working.
-function HourSelect({ value, onChange, disableHour, ...rest }) {
-  const options = disableHour
-    ? HOUR_OPTIONS.map((opt) => ({ ...opt, disabled: disableHour(opt.value) }))
-    : HOUR_OPTIONS;
+function HourSelect({ value, onChange, ...rest }) {
   return (
     <Select
       {...rest}
@@ -52,7 +52,7 @@ function HourSelect({ value, onChange, disableHour, ...rest }) {
       onChange={(hour) =>
         onChange?.(dayjs().hour(hour).minute(0).second(0).millisecond(0))
       }
-      options={options}
+      options={HOUR_OPTIONS}
     />
   );
 }
@@ -64,6 +64,7 @@ export default function NewLeaveRequestModal({
   balances = [],
   initialDate = null, // Pre-selected date from calendar click
 }) {
+  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
   const [confirmData, setConfirmData] = useState(null);
@@ -139,19 +140,32 @@ export default function NewLeaveRequestModal({
 
   const calculateHours = (start, end) => {
     if (!start || !end) return 0;
-    return end.diff(start, "minute") / 60;
+    return calculateHourRange(start.hour(), end.hour());
   };
 
-  // Calculate working days (Mon-Fri only, excludes weekends)
-  const countWorkingDays = (startDate, endDate) => {
+  // Calculate working days using the user's published holiday calendar.
+  const countWorkingDays = (startDate, endDate, holidays = []) => {
     if (!startDate || !endDate) return 0;
+    const holidayDates = new Set();
+    holidays.forEach((holiday) => {
+      let current = dayjs(holiday.start_date);
+      const holidayEnd = dayjs(holiday.end_date);
+      while (current.isBefore(holidayEnd, "day") || current.isSame(holidayEnd, "day")) {
+        holidayDates.add(current.format("YYYY-MM-DD"));
+        current = current.add(1, "day");
+      }
+    });
     let count = 0;
     let current = startDate.startOf("day");
     const end = endDate.startOf("day");
 
     while (current.isBefore(end) || current.isSame(end, "day")) {
       const dayOfWeek = current.day(); // 0=Sunday, 6=Saturday
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      if (
+        dayOfWeek !== 0 &&
+        dayOfWeek !== 6 &&
+        !holidayDates.has(current.format("YYYY-MM-DD"))
+      ) {
         count++;
       }
       current = current.add(1, "day");
@@ -182,13 +196,13 @@ export default function NewLeaveRequestModal({
       if (hours <= 0) {
         Modal.warning({
           title: "Invalid time range",
-          content: "End time must be after start time.",
+          content: "Start time and end time must be different.",
         });
         return;
       }
     } else {
-      // Count only working days (Mon-Fri), exclude weekends
-      const workingDays = countWorkingDays(data.date[0], data.date[1]);
+      const holidays = await getApplicableHolidays(data.date[0].year());
+      const workingDays = countWorkingDays(data.date[0], data.date[1], holidays);
       hours = workingDays * 8;
     }
 
@@ -200,6 +214,9 @@ export default function NewLeaveRequestModal({
 
     setConfirmData({
       ...data,
+      ...(sameDay && data.dayType === "custom"
+        ? inferCustomHourOffsets(data.startTime.hour(), data.endTime.hour(), user?.work_shift)
+        : {}),
       categoryName: category?.name || "Leave",
       balanceBucket,
       totalHours: hours,
@@ -254,7 +271,7 @@ export default function NewLeaveRequestModal({
       onCancel={success ? null : onCancel}
       footer={null}
       width={720}
-      destroyOnClose
+      destroyOnHidden
     >
       {!success && (
         <>
@@ -292,6 +309,7 @@ export default function NewLeaveRequestModal({
                 <RangePicker
                   size="large"
                   style={{ width: "100%" }}
+                  allowEmpty={[true, true]}
                   disabled={!categoryChosen}
                   disabledDate={disabledDate}
                 />
@@ -311,20 +329,10 @@ export default function NewLeaveRequestModal({
                 <>
                   <Space>
                     <Form.Item name="startTime" label="Start Time" rules={[{ required: true }]}>
-                      <HourSelect
-                        aria-label="Start time"
-                        disableHour={(hour) =>
-                          values?.endTime ? hour >= values.endTime.hour() : false
-                        }
-                      />
+                      <HourSelect aria-label="Start time" />
                     </Form.Item>
                     <Form.Item name="endTime" label="End Time" rules={[{ required: true }]}>
-                      <HourSelect
-                        aria-label="End time"
-                        disableHour={(hour) =>
-                          values?.startTime ? hour <= values.startTime.hour() : false
-                        }
-                      />
+                      <HourSelect aria-label="End time" />
                     </Form.Item>
                   </Space>
 
@@ -333,6 +341,11 @@ export default function NewLeaveRequestModal({
                       <Text>
                         Estimated:{" "}
                         <Text strong>{previewHours.toFixed(1)}h</Text>
+                        {values?.startTime &&
+                          values?.endTime &&
+                          values.endTime.hour() < values.startTime.hour() && (
+                            <Text type="secondary"> · ends next day</Text>
+                          )}
                       </Text>
 
                       {previewHours > 8 && (
@@ -452,6 +465,21 @@ export default function NewLeaveRequestModal({
                     </div>
                   )}
 
+                  {sameDay && confirmData.dayType === "custom" && (
+                    <>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <Text type="secondary">Work shift date</Text>
+                        <Text strong>{confirmData.date[0].format("YYYY-MM-DD")}</Text>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                        <Text type="secondary">Actual leave date</Text>
+                        <Text strong>
+                          {confirmData.date[0].add(confirmData.startDayOffset, "day").format("YYYY-MM-DD")}
+                        </Text>
+                      </div>
+                    </>
+                  )}
+
                   {/* TIME */}
                   {sameDay && confirmData.dayType === "custom" && (
                     <div
@@ -464,6 +492,9 @@ export default function NewLeaveRequestModal({
                       <Text strong>
                         {confirmData.startTime.format("hh:mm A")} →{" "}
                         {confirmData.endTime.format("hh:mm A")}
+                        {confirmData.endTime.hour() < confirmData.startTime.hour()
+                          ? " (next day)"
+                          : ""}
                       </Text>
                     </div>
                   )}

@@ -3,6 +3,7 @@ Custom middleware for the Leave Management System.
 """
 import hashlib
 import json
+import uuid
 from django.core.cache import cache
 from django.http import JsonResponse
 
@@ -71,3 +72,82 @@ class IdempotencyMiddleware:
                 pass
 
         return response
+
+
+class AuditLoggingMiddleware:
+    """Record every successful authenticated mutation without storing request secrets."""
+
+    MUTATING_METHODS = ('POST', 'PUT', 'PATCH', 'DELETE')
+    ACTION_BY_METHOD = {
+        'POST': 'CREATE',
+        'PUT': 'UPDATE',
+        'PATCH': 'UPDATE',
+        'DELETE': 'DELETE',
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if request.method not in self.MUTATING_METHODS or not 200 <= response.status_code < 300:
+            return response
+
+        user = self._authenticated_user(request)
+        if not user:
+            return response
+
+        from core.models import AuditLog
+
+        AuditLog.objects.create(
+            user=user,
+            action=self._action(request),
+            entity_type='APIRequest',
+            entity_id=self._target_id(request, user.id),
+            new_values={
+                'method': request.method,
+                'path': request.path,
+                'status_code': response.status_code,
+            },
+            ip_address=self._client_ip(request),
+        )
+        return response
+
+    @staticmethod
+    def _authenticated_user(request):
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated:
+            return user
+        try:
+            from rest_framework_simplejwt.authentication import JWTAuthentication
+            authenticated = JWTAuthentication().authenticate(request)
+            return authenticated[0] if authenticated else None
+        except Exception:
+            return None
+
+    def _action(self, request):
+        path = request.path.lower()
+        for marker, action in (
+            ('/approve/', 'APPROVE'),
+            ('/reject/', 'REJECT'),
+            ('/publish/', 'PUBLISH'),
+            ('/unpublish/', 'UNPUBLISH'),
+            ('/generate/', 'GENERATE'),
+        ):
+            if marker in path:
+                return action
+        return self.ACTION_BY_METHOD[request.method]
+
+    @staticmethod
+    def _target_id(request, fallback):
+        for part in reversed(request.path.strip('/').split('/')):
+            try:
+                return uuid.UUID(part)
+            except (ValueError, TypeError):
+                continue
+        return fallback
+
+    @staticmethod
+    def _client_ip(request):
+        forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+        return forwarded.split(',')[0].strip() if forwarded else request.META.get('REMOTE_ADDR')

@@ -1,5 +1,14 @@
 from django.contrib import admin
-from .models import LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday, BusinessTrip
+from .models import (
+    BusinessTrip,
+    HolidayCalendar,
+    HolidayTemplate,
+    HolidayTemplateDate,
+    LeaveBalance,
+    LeaveCategory,
+    LeaveRequest,
+    PublicHoliday,
+)
 
 
 @admin.register(LeaveCategory)
@@ -30,6 +39,25 @@ class PublicHolidayAdmin(admin.ModelAdmin):
     list_display = ['holiday_name', 'start_date', 'end_date', 'year', 'entity', 'location', 'is_recurring', 'is_active']
     list_filter = ['year', 'is_active', 'is_recurring']
     search_fields = ['holiday_name']
+
+
+@admin.register(HolidayCalendar)
+class HolidayCalendarAdmin(admin.ModelAdmin):
+    list_display = ['name', 'country_code', 'year', 'entity', 'location', 'status']
+    list_filter = ['country_code', 'year', 'status']
+    search_fields = ['name', 'entity__entity_name', 'location__location_name']
+
+
+class HolidayTemplateDateInline(admin.TabularInline):
+    model = HolidayTemplateDate
+    extra = 0
+
+
+@admin.register(HolidayTemplate)
+class HolidayTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'country_code', 'year', 'version', 'source_name']
+    list_filter = ['country_code', 'year']
+    inlines = [HolidayTemplateDateInline]
 
 
 @admin.register(BusinessTrip)

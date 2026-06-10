@@ -30,10 +30,13 @@ import {
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
 import { getAllUsers, updateUser, deleteUser, createUser } from "@api/userApi";
-import { getEntities, getLocations, getDepartments } from "@api/authApi";
+import { getEntities, getLocations, getDepartments, getWorkShifts } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
 import AnnouncementManagement from "@components/AnnouncementManagement";
+import AuditLogManagement from "@components/AuditLogManagement";
 import EntityManagement from "@components/EntityManagement";
+import HolidayManagement from "@components/HolidayManagement";
+import WorkShiftManagement from "@components/WorkShiftManagement";
 import "./Settings.css";
 
 const { Title, Text } = Typography;
@@ -58,6 +61,7 @@ const Settings = () => {
   const [entities, setEntities] = useState([]);
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [workShifts, setWorkShifts] = useState([]);
   const [creating, setCreating] = useState(false);
   const hasSettingsAccess = user?.role === "HR" || user?.role === "ADMIN";
   const userRows = Array.isArray(users) ? users : users?.results || [];
@@ -90,8 +94,9 @@ const Settings = () => {
     );
   }
 
-  const handleEdit = (userData) => {
+  const handleEdit = async (userData) => {
     setSelectedUser(userData);
+    setWorkShifts(userData.department?.id ? await getWorkShifts(userData.department.id) : []);
     form.setFieldsValue({
       first_name: userData.first_name,
       last_name: userData.last_name,
@@ -99,6 +104,7 @@ const Settings = () => {
       employee_code: userData.employee_code,
       approver: userData.approver?.id || null,
       final_approver: userData.final_approver?.id || null,
+      work_shift: userData.work_shift?.id || null,
     });
     setEditModalVisible(true);
   };
@@ -115,6 +121,7 @@ const Settings = () => {
         employee_code: values.employee_code || null,
         approver: values.approver || null,
         final_approver: values.final_approver || null,
+        work_shift: values.work_shift || null,
       });
 
       message.success("User updated successfully");
@@ -195,7 +202,8 @@ const Settings = () => {
   };
 
   const handleLocationChange = async (locationId) => {
-    addForm.setFieldsValue({ department: undefined });
+    addForm.setFieldsValue({ department: undefined, work_shift: undefined });
+    setWorkShifts([]);
     if (!locationId) { setDepartments([]); return; }
     try {
       const data = await getDepartments(locationId);
@@ -218,6 +226,7 @@ const Settings = () => {
         entity: values.entity,
         location: values.location,
         department: values.department,
+        work_shift: values.work_shift || null,
         approver: values.approver,
         final_approver: values.final_approver || null,
         join_date: values.join_date?.format("YYYY-MM-DD") || null,
@@ -233,6 +242,16 @@ const Settings = () => {
       message.error("Failed to create user: " + errMsg);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDepartmentChange = async (departmentId) => {
+    addForm.setFieldsValue({ work_shift: undefined });
+    if (!departmentId) return setWorkShifts([]);
+    try {
+      setWorkShifts(await getWorkShifts(departmentId));
+    } catch {
+      message.error("Failed to load work shifts");
     }
   };
 
@@ -390,7 +409,7 @@ const Settings = () => {
     {
       title: "Action",
       key: "action",
-      width: "7%",
+      width: 84,
       align: "center",
       render: (_, record) => (
         <div className="settings-action-cell">
@@ -532,6 +551,24 @@ const Settings = () => {
         </div>
       ),
     },
+    {
+      key: 'holidays',
+      label: 'Holidays',
+      children: (
+        <div className="settings-tab-panel settings-tab-panel--single">
+          <HolidayManagement />
+        </div>
+      ),
+    },
+    {
+      key: 'work-shifts',
+      label: 'Work Shifts',
+      children: (
+        <div className="settings-tab-panel settings-tab-panel--single">
+          <WorkShiftManagement />
+        </div>
+      ),
+    },
     ...(user?.role === "ADMIN"
       ? [
           {
@@ -540,6 +577,15 @@ const Settings = () => {
             children: (
               <div className="settings-tab-panel settings-tab-panel--single">
                 <AnnouncementManagement />
+              </div>
+            ),
+          },
+          {
+            key: 'audit-logs',
+            label: 'Audit Logs',
+            children: (
+              <div className="settings-tab-panel settings-tab-panel--single">
+                <AuditLogManagement />
               </div>
             ),
           },
@@ -634,6 +680,21 @@ const Settings = () => {
             name="employee_code"
           >
             <Input placeholder="Optional" />
+          </Form.Item>
+
+          <Form.Item
+            label="Work Shift"
+            name="work_shift"
+            tooltip="Controls automatic calendar-day mapping for Custom Hours."
+          >
+            <Select
+              allowClear
+              placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
+              options={workShifts.map((shift) => ({
+                value: shift.id,
+                label: `${shift.name} (${shift.start_time}-${shift.end_time})`,
+              }))}
+            />
           </Form.Item>
 
           <Form.Item
@@ -830,10 +891,27 @@ const Settings = () => {
                     value: dept.id,
                     label: dept.department_name,
                   }))}
+                  onChange={handleDepartmentChange}
                 />
               </Form.Item>
             </Col>
           </Row>
+
+          <Form.Item
+            label="Work Shift"
+            name="work_shift"
+            tooltip="Used to map after-midnight Custom Hours to the correct calendar date automatically."
+          >
+            <Select
+              allowClear
+              placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
+              disabled={workShifts.length === 0}
+              options={workShifts.map((shift) => ({
+                value: shift.id,
+                label: `${shift.name} (${shift.start_time}-${shift.end_time})`,
+              }))}
+            />
+          </Form.Item>
 
           <Form.Item
             label="First Approver"

@@ -402,7 +402,7 @@ export default function AppHeader({ isMobile, onMenuClick }) {
             if (open) openAnnouncementDropdown();
           }}
           styles={{ root: { width: HEADER_POPUP_WIDTH } }}
-          dropdownRender={() => (
+          popupRender={() => (
             <AnnouncementDropdown
               announcements={announcements}
               count={announcementCount}
@@ -431,7 +431,7 @@ export default function AppHeader({ isMobile, onMenuClick }) {
           trigger={["click"]}
           classNames={{ root: "header-responsive-dropdown" }}
           styles={{ root: { width: HEADER_POPUP_WIDTH } }}
-          dropdownRender={() => (
+          popupRender={() => (
             <NotificationPopup
               notifications={notifications}
               markAllAsRead={markAllAsRead}

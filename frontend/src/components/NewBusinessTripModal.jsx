@@ -79,7 +79,7 @@ export default function NewBusinessTripModal({ open, onCancel, onSubmit, initial
       open={open}
       onCancel={success ? null : onCancel}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
       width={600}
     >
       {!success && (

@@ -100,7 +100,7 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
         placement="left"
         open={mobileOpen}
         onClose={onMobileClose}
-        width="min(288px, calc(100vw - 32px))"
+        size="min(288px, calc(100vw - 32px))"
         styles={{ body: { padding: 0 } }}
       >
         <div className="app-sidebar">

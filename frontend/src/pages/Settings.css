@@ -23,8 +23,6 @@
 
 .settings-page > *,
 .settings-page-header,
-.settings-page-heading,
-.settings-export-bar,
 .settings-tabs-card,
 .settings-tabs,
 .settings-tab-panel,
@@ -42,7 +40,9 @@
 }
 
 .settings-page-heading {
+  flex: 1 1 auto;
   min-width: 0;
+  width: auto;
 }
 
 .settings-page-heading .page-subtitle {
@@ -54,6 +54,7 @@
 
 .settings-export-bar {
   flex: 0 0 auto;
+  width: auto;
   padding: 8px 10px;
   background: rgba(255, 250, 241, 0.78);
   border: 1px solid var(--color-border);
@@ -160,7 +161,9 @@
 
 .settings-users-table .ant-table-cell,
 .entity-management-table .ant-table-cell,
-.announcement-management-table .ant-table-cell {
+.announcement-management-table .ant-table-cell,
+.holiday-management-table .ant-table-cell,
+.audit-log-table .ant-table-cell {
   min-width: 0;
 }
 
@@ -178,33 +181,37 @@
 .announcement-management-table .ant-spin-nested-loading,
 .announcement-management-table .ant-spin-container,
 .announcement-management-table .ant-table,
-.announcement-management-table .ant-table-container {
+.announcement-management-table .ant-table-container,
+.holiday-management-table,
+.holiday-management-table .ant-spin-nested-loading,
+.holiday-management-table .ant-spin-container,
+.holiday-management-table .ant-table,
+.holiday-management-table .ant-table-container,
+.audit-log-table,
+.audit-log-table .ant-spin-nested-loading,
+.audit-log-table .ant-spin-container,
+.audit-log-table .ant-table,
+.audit-log-table .ant-table-container {
   min-width: 0;
 }
 
 .settings-users-table .ant-table-content,
 .entity-management-table .ant-table-content,
-.announcement-management-table .ant-table-content {
+.announcement-management-table .ant-table-content,
+.holiday-management-table .ant-table-content,
+.audit-log-table .ant-table-content {
   overflow-x: auto !important;
   overflow-y: hidden;
   overscroll-behavior-inline: contain;
 }
 
-.settings-users-table table {
-  width: 1120px !important;
-  min-width: 1120px !important;
-  table-layout: fixed !important;
-}
-
-.entity-management-table table {
-  width: 900px !important;
-  min-width: 900px !important;
-  table-layout: fixed !important;
-}
-
-.announcement-management-table table {
-  width: 950px !important;
-  min-width: 950px !important;
+.settings-users-table table,
+.entity-management-table table,
+.announcement-management-table table,
+.holiday-management-table table,
+.audit-log-table table {
+  width: 100% !important;
+  min-width: 0 !important;
   table-layout: fixed !important;
 }
 
@@ -213,7 +220,11 @@
 .entity-management-table .ant-table-thead > tr > th,
 .entity-management-table .ant-table-tbody > tr > td,
 .announcement-management-table .ant-table-thead > tr > th,
-.announcement-management-table .ant-table-tbody > tr > td {
+.announcement-management-table .ant-table-tbody > tr > td,
+.holiday-management-table .ant-table-thead > tr > th,
+.holiday-management-table .ant-table-tbody > tr > td,
+.audit-log-table .ant-table-thead > tr > th,
+.audit-log-table .ant-table-tbody > tr > td {
   padding: 10px 8px;
   font-size: 13px;
   line-height: 1.35;
@@ -221,7 +232,9 @@
 
 .settings-users-table .ant-table-thead > tr > th,
 .entity-management-table .ant-table-thead > tr > th,
-.announcement-management-table .ant-table-thead > tr > th {
+.announcement-management-table .ant-table-thead > tr > th,
+.holiday-management-table .ant-table-thead > tr > th,
+.audit-log-table .ant-table-thead > tr > th {
   font-size: 11px;
   letter-spacing: 0.03em;
 }
@@ -330,7 +343,9 @@
 
   .settings-users-table .ant-table-content,
   .entity-management-table .ant-table-content,
-  .announcement-management-table .ant-table-content {
+  .announcement-management-table .ant-table-content,
+  .holiday-management-table .ant-table-content,
+  .audit-log-table .ant-table-content {
     overflow-x: auto !important;
     overscroll-behavior-inline: contain;
   }
@@ -350,6 +365,18 @@
   .announcement-management-table table {
     width: max-content !important;
     min-width: 860px !important;
+    table-layout: auto !important;
+  }
+
+  .holiday-management-table table {
+    width: max-content !important;
+    min-width: 980px !important;
+    table-layout: auto !important;
+  }
+
+  .audit-log-table table {
+    width: max-content !important;
+    min-width: 980px !important;
     table-layout: auto !important;
   }
 }

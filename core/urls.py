@@ -3,6 +3,7 @@ Core API URLs (Notifications)
 """
 from django.urls import path
 from .views import (
+    AuditLogListView,
     AnnouncementDetailView,
     AnnouncementListCreateView,
     NotificationListView,
@@ -13,6 +14,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path('audit-logs/', AuditLogListView.as_view(), name='audit_log_list'),
     # Announcements
     path('announcements/', AnnouncementListCreateView.as_view(), name='announcement_list_create'),
     path('announcements/<uuid:pk>/', AnnouncementDetailView.as_view(), name='announcement_detail'),

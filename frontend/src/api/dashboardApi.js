@@ -62,6 +62,8 @@ export const getLeaveHistory = async (sort = "new") => {
     hours: item.total_hours,
     startTime: item.start_time || null,
     endTime: item.end_time || null,
+    startDayOffset: item.start_day_offset || 0,
+    endDayOffset: item.end_day_offset || 0,
     status: item.status.charAt(0) + item.status.slice(1).toLowerCase(), // APPROVED -> Approved
     workflowStatus: getEmployeeWorkflowStatus(item),
     reason: item.reason,
@@ -94,6 +96,8 @@ export const createLeaveRequest = async (formData) => {
     shift_type: formData.dayType === "custom" ? "CUSTOM_HOURS" : "FULL_DAY",
     start_time: formData.startTime ? formData.startTime.format("HH:mm") : null,
     end_time: formData.endTime ? formData.endTime.format("HH:mm") : null,
+    start_day_offset: formData.startDayOffset || 0,
+    end_day_offset: formData.endDayOffset || 0,
     total_hours: formData.totalHours,
     reason: formData.reason,
     attachment_url: formData.attachment_url || null,

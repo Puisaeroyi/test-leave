@@ -23,7 +23,11 @@ class PublicHolidayListView(generics.ListAPIView):
         if user.location:
             query &= Q(location__isnull=True) | Q(location=user.location)
 
-        holidays = PublicHoliday.objects.filter(query, is_active=True)
+        holidays = PublicHoliday.objects.filter(
+            query,
+            is_active=True,
+            status=PublicHoliday.Status.PUBLISHED,
+        )
 
         if year:
             holidays = holidays.filter(year=int(year))

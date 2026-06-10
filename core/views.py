@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.utils import timezone
 from html.parser import HTMLParser
 from html import escape
-from .models import Announcement, Notification
+from .models import Announcement, AuditLog, Notification
 
 
 class RichTextSanitizer(HTMLParser):
@@ -136,6 +136,183 @@ def serialize_announcement(announcement):
 
 def is_admin(user):
     return user and user.is_authenticated and getattr(user, 'role', None) == 'ADMIN'
+
+
+AUDIT_ACTION_LABELS = {
+    'CREATE': 'Created',
+    'UPDATE': 'Updated',
+    'DELETE': 'Deleted',
+    'APPROVE': 'Approved',
+    'REJECT': 'Rejected',
+    'GENERATE': 'Generated',
+    'PUBLISH': 'Published',
+    'UNPUBLISH': 'Unpublished',
+    'SPLIT_SCOPE': 'Split scope for',
+}
+AUDIT_ENTITY_LABELS = {
+    'APIRequest': 'request',
+    'LeaveRequest': 'leave request',
+    'User': 'user',
+    'LeaveBalance': 'leave balance',
+    'Entity': 'entity',
+    'Location': 'location',
+    'Department': 'department',
+    'HolidayCalendar': 'holiday calendar',
+    'PublicHoliday': 'holiday',
+}
+AUDIT_FIELD_LABELS = {
+    'status': 'Status',
+    'step': 'Approval step',
+    'comment': 'Comment',
+    'approved_by': 'Approved by',
+    'approved_at': 'Approved at',
+    'rejection_reason': 'Rejection reason',
+    'holiday_calendar_status': 'Calendar status',
+    'holiday_scope': 'Holiday scope',
+    'affected_requests': 'Affected requests',
+    'method': 'HTTP method',
+    'path': 'Endpoint',
+    'status_code': 'HTTP status',
+}
+
+
+def _friendly_audit_value(field, value):
+    if value is None or value == '':
+        return None
+    if isinstance(value, bool):
+        return 'Yes' if value else 'No'
+    if field in {'approved_by', 'user_id', 'published_by'}:
+        from django.contrib.auth import get_user_model
+        user = get_user_model().objects.filter(id=value).first()
+        if user:
+            return user.email
+        return 'Deleted user'
+    if isinstance(value, str) and value.isupper():
+        return value.replace('_', ' ').title()
+    return value
+
+
+def _audit_changes(log):
+    old_values = log.old_values or {}
+    new_values = log.new_values or {}
+    changes = []
+    for field in dict.fromkeys([*old_values, *new_values]):
+        before = _friendly_audit_value(field, old_values.get(field))
+        after = _friendly_audit_value(field, new_values.get(field))
+        if before != after:
+            changes.append({
+                'field': AUDIT_FIELD_LABELS.get(field, field.replace('_', ' ').title()),
+                'before': before,
+                'after': after,
+            })
+    return changes
+
+
+def _audit_target_label(log):
+    if log.entity_type == 'APIRequest':
+        path = (log.new_values or {}).get('path') or ''
+        request_targets = (
+            ('/auth/users/', 'Users'),
+            ('/organizations/entities/', 'Entities'),
+            ('/organizations/locations/', 'Locations'),
+            ('/organizations/departments/', 'Departments'),
+            ('/leaves/holiday-calendars/', 'Holiday calendars'),
+            ('/leaves/requests/', 'Leave requests'),
+            ('/leaves/business-trips/', 'Business trips'),
+            ('/notifications/announcements/', 'Announcements'),
+            ('/notifications/', 'Notifications'),
+            ('/auth/change-password/', 'Password'),
+            ('/auth/logout/', 'Session'),
+        )
+        for marker, label in request_targets:
+            if marker in path:
+                return label
+        return path or 'API request'
+
+    if log.entity_type == 'LeaveRequest':
+        from leaves.models import LeaveRequest
+        leave = LeaveRequest.objects.select_related('user').filter(id=log.entity_id).first()
+        if leave:
+            return f'{leave.user.email} leave, {leave.start_date} to {leave.end_date}'
+
+    model_lookups = {
+        'User': ('users', 'User'),
+        'LeaveBalance': ('leaves', 'LeaveBalance'),
+        'Entity': ('organizations', 'Entity'),
+        'Location': ('organizations', 'Location'),
+        'Department': ('organizations', 'Department'),
+        'HolidayCalendar': ('leaves', 'HolidayCalendar'),
+        'PublicHoliday': ('leaves', 'PublicHoliday'),
+    }
+    if log.entity_type in model_lookups:
+        from django.apps import apps
+        instance = apps.get_model(*model_lookups[log.entity_type]).objects.filter(id=log.entity_id).first()
+        if instance:
+            return str(instance)
+    return f'{AUDIT_ENTITY_LABELS.get(log.entity_type, log.entity_type)} {log.entity_id}'
+
+
+def _serialize_audit_log(log):
+    target_label = _audit_target_label(log)
+    action_label = AUDIT_ACTION_LABELS.get(log.action, log.action.title())
+    entity_label = AUDIT_ENTITY_LABELS.get(log.entity_type, log.entity_type)
+    if log.entity_type == 'LeaveRequest':
+        summary = f'{action_label} leave request for {target_label.split(" leave,")[0]}'
+    elif log.entity_type == 'APIRequest':
+        summary = f'{action_label} {target_label.lower()}'
+    else:
+        summary = f'{action_label} {entity_label}: {target_label}'
+    return {
+        'id': str(log.id),
+        'user_id': str(log.user_id) if log.user_id else None,
+        'user_email': log.user.email if log.user else 'Deleted user',
+        'action': log.action,
+        'action_label': action_label,
+        'entity_type': log.entity_type,
+        'entity_label': entity_label.title(),
+        'entity_id': str(log.entity_id),
+        'target_label': target_label,
+        'summary': summary,
+        'changes': _audit_changes(log),
+        'old_values': log.old_values,
+        'new_values': log.new_values,
+        'ip_address': log.ip_address,
+        'created_at': log.created_at.isoformat(),
+    }
+
+
+class AuditLogListView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        if not is_admin(request.user):
+            return Response({'error': 'Only Admin can view audit logs.'}, status=status.HTTP_403_FORBIDDEN)
+
+        ordering = 'created_at' if request.query_params.get('ordering') == 'oldest' else '-created_at'
+        queryset = AuditLog.objects.select_related('user').order_by(ordering)
+        for field in ('action', 'entity_type'):
+            value = request.query_params.get(field)
+            if value:
+                queryset = queryset.filter(**{field: value})
+        user_id = request.query_params.get('user_id')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+
+        try:
+            page_size = min(max(int(request.query_params.get('page_size', 25)), 1), 100)
+        except (TypeError, ValueError):
+            page_size = 25
+        paginator = Paginator(queryset, page_size)
+        page = paginator.get_page(request.query_params.get('page', 1))
+        return Response({
+            'count': paginator.count,
+            'page': page.number,
+            'page_size': page_size,
+            'total_pages': paginator.num_pages,
+            'has_next': page.has_next(),
+            'has_previous': page.has_previous(),
+            'results': [_serialize_audit_log(log) for log in page.object_list],
+        })
 
 
 class AnnouncementListCreateView(generics.GenericAPIView):

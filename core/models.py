@@ -13,6 +13,8 @@ class NotificationType(models.TextChoices):
     LEAVE_REJECTED = 'LEAVE_REJECTED', 'Leave Rejected'
     LEAVE_CANCELLED = 'LEAVE_CANCELLED', 'Leave Cancelled'
     BALANCE_LOW = 'BALANCE_LOW', 'Balance Low'
+    LEAVE_HOURS_RECALCULATED = 'LEAVE_HOURS_RECALCULATED', 'Leave Hours Recalculated'
+    HOLIDAY_CALENDAR_UPDATED = 'HOLIDAY_CALENDAR_UPDATED', 'Holiday Calendar Updated'
 
 
 class Notification(models.Model):
@@ -76,6 +78,10 @@ class AuditAction(models.TextChoices):
     DELETE = 'DELETE', 'Delete'
     APPROVE = 'APPROVE', 'Approve'
     REJECT = 'REJECT', 'Reject'
+    GENERATE = 'GENERATE', 'Generate'
+    PUBLISH = 'PUBLISH', 'Publish'
+    UNPUBLISH = 'UNPUBLISH', 'Unpublish'
+    SPLIT_SCOPE = 'SPLIT_SCOPE', 'Split Scope'
 
 
 class AuditEntityType(models.TextChoices):
@@ -86,12 +92,20 @@ class AuditEntityType(models.TextChoices):
     ENTITY = 'Entity', 'Entity'
     LOCATION = 'Location', 'Location'
     DEPARTMENT = 'Department', 'Department'
+    HOLIDAY_CALENDAR = 'HolidayCalendar', 'Holiday Calendar'
+    PUBLIC_HOLIDAY = 'PublicHoliday', 'Public Holiday'
+    API_REQUEST = 'APIRequest', 'API Request'
 
 
 class AuditLog(models.Model):
     """Audit log for tracking all actions in the system"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='audit_logs')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='audit_logs',
+    )
     action = models.CharField(max_length=50, choices=AuditAction.choices)  # e.g., 'CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT'
     entity_type = models.CharField(max_length=50, choices=AuditEntityType.choices)  # e.g., 'LeaveRequest', 'User', 'LeaveBalance'
     entity_id = models.UUIDField()
