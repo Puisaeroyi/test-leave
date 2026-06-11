@@ -1193,6 +1193,26 @@ a {
   border-radius: 12px;
 }
 
+.calendar-date-shell {
+  min-height: 118px;
+  padding: 4px;
+  border-radius: 12px;
+}
+
+.calendar-date-shell--today {
+  background: linear-gradient(180deg, var(--color-accent-soft), transparent);
+}
+
+.calendar-date-value {
+  position: relative;
+  z-index: 1;
+  padding: 0 4px 2px;
+  color: var(--color-text-soft);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .calendar-today-dot {
   position: absolute;
   top: 4px;
@@ -1299,6 +1319,23 @@ a {
 .ant-picker-calendar .ant-picker-cell-selected .ant-picker-cell-inner,
 .ant-picker-calendar .ant-picker-cell-today .ant-picker-cell-inner::before {
   border-color: var(--color-accent) !important;
+}
+
+.team-calendar-grid.ant-picker-calendar-full .ant-picker-cell-selected .ant-picker-calendar-date,
+.team-calendar-grid.ant-picker-calendar-full .ant-picker-cell-selected .ant-picker-calendar-date-today,
+.team-calendar-grid .ant-picker-cell-selected .ant-picker-cell-inner {
+  color: inherit !important;
+  background: transparent !important;
+}
+
+.team-calendar-grid.ant-picker-calendar-full .ant-picker-cell-selected .ant-picker-calendar-date-value,
+.team-calendar-grid.ant-picker-calendar-full .ant-picker-cell-selected:hover .ant-picker-calendar-date-value {
+  color: inherit !important;
+}
+
+.team-calendar-grid .ant-picker-cell-selected .ant-picker-cell-inner,
+.team-calendar-grid .ant-picker-cell-selected .ant-picker-cell-inner::before {
+  border-color: transparent !important;
 }
 
 @keyframes spin {

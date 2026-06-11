@@ -294,6 +294,19 @@ export default function TeamCalendar() {
     );
   };
 
+  const desktopFullCellRender = (value, info) => {
+    if (info.type !== "date") return info.originNode;
+
+    const isToday = value.format("YYYY-MM-DD") === today;
+
+    return (
+      <div className={`calendar-date-shell${isToday ? " calendar-date-shell--today" : ""}`}>
+        <div className="calendar-date-value">{value.date()}</div>
+        {dateCellRender(value)}
+      </div>
+    );
+  };
+
   /* =======================
      MOBILE: event list for selected date
   ======================= */
@@ -495,10 +508,11 @@ export default function TeamCalendar() {
           ) : (
             /* ===== DESKTOP: full-size calendar grid ===== */
             <Calendar
+              className="team-calendar-grid"
               value={currentDate}
               onPanelChange={(date) => setCurrentDate(date)}
               onSelect={(date, info) => handleDateSelect(date, info)}
-              cellRender={dateCellRender}
+              fullCellRender={desktopFullCellRender}
             />
           )}
         </Spin>

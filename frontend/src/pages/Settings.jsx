@@ -498,7 +498,7 @@ const Settings = () => {
           </Row>
 
           <Card
-            className="page-panel table-card"
+            className="page-panel table-card settings-users-card"
             title={
               <Space>
                 <SettingOutlined />
@@ -532,6 +532,7 @@ const Settings = () => {
               loading={loading}
               size="small"
               tableLayout="fixed"
+              scroll={{ y: "100%" }}
               pagination={{
                 pageSizeOptions: ['10', '20', '50', '100'],
                 showSizeChanger: true,

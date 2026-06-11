@@ -127,6 +127,67 @@
   overflow: hidden;
 }
 
+/* The users card sits deep inside the Tabs, so the generic
+   `.page-shell > .table-card` flex rules never reach it — make it a
+   column flex itself so its body receives the remaining grid height. */
+.settings-users-card.ant-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.settings-users-card > .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Only the table body scrolls — not the wrapper (keeps header sticky).
+   Specificity (0,3,0) so it beats base.css `.table-card .ant-table-wrapper`
+   regardless of bundle order (prod CSS order differs from dev). */
+.settings-users-card .ant-table-wrapper.settings-users-table {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* antd v6 wraps the table in `.ant-spin` (v5 used `.ant-spin-nested-loading`);
+   keep both so the height chain reaches the table. */
+.settings-users-table > .ant-spin,
+.settings-users-table .ant-spin-nested-loading,
+.settings-users-table .ant-spin-container {
+  height: 100%;
+  min-height: 0;
+}
+
+.settings-users-table .ant-spin-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-users-table .ant-table,
+.settings-users-table .ant-table-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.settings-users-table .ant-table-header {
+  flex: none;
+}
+
+.settings-users-table .ant-table-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important; /* flex sizes the body; ignore antd's inline maxHeight */
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
 .settings-tabs-card.ant-card > .ant-card-body {
   padding: 14px 16px 16px;
 }
