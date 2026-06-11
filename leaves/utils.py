@@ -8,12 +8,20 @@ from .models import PublicHoliday, LeaveRequest
 from django.db.models import Q
 
 
+def is_working_day(user, day):
+    """Return whether this date should deduct full-day leave for the user."""
+    if day.weekday() < 5:
+        return True
+    shift = getattr(user, 'work_shift', None)
+    return bool(shift and shift.includes_weekends)
+
+
 def calculate_leave_hours(
     user, start_date, end_date, shift_type, start_time=None, end_time=None,
     exclude_calendar_id=None, start_day_offset=0, end_day_offset=0,
 ):
     """
-    Calculate total leave hours based on shift type, excluding weekends and holidays
+    Calculate total leave hours based on shift type, excluding non-working days and holidays
 
     Args:
         user: User instance
@@ -46,7 +54,7 @@ def calculate_leave_hours(
             raise ValueError("Custom leave cannot exceed 8 hours")
         return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
-    # FULL_DAY: count working days (excludes weekends and holidays)
+    # FULL_DAY: count working days (excludes non-working days and holidays)
     holidays = (
         PublicHoliday.objects.none()
         if user.department_id and user.department.holiday_requires_leave
@@ -64,8 +72,7 @@ def calculate_leave_hours(
     current = start_date
 
     while current <= end_date:
-        # Skip weekends (5=Saturday, 6=Sunday)
-        if current.weekday() < 5 and current not in holiday_dates:
+        if is_working_day(user, current) and current not in holiday_dates:
             working_days += 1
         current += timedelta(days=1)
 

@@ -1,5 +1,6 @@
 """Avatar upload view for users to update their profile picture."""
 
+from django.core.exceptions import ValidationError
 from rest_framework import parsers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -104,7 +105,11 @@ class AvatarUpdateView(APIView):
         file_url = upload_response.data.get('url')
         user = request.user
         user.avatar_url = file_url
-        user.save(update_fields=['avatar_url'])
+        try:
+            user.save(update_fields=['avatar_url'])
+        except ValidationError as exc:
+            detail = exc.message_dict if hasattr(exc, 'message_dict') else {'error': exc.messages}
+            return Response(detail, status=status.HTTP_400_BAD_REQUEST)
 
         # Return updated user info
         from ..utils import build_user_response

@@ -19,7 +19,7 @@ from .models import (
     LeaveRequest,
     PublicHoliday,
 )
-from .utils import calculate_leave_hours, get_holidays_for_user
+from .utils import calculate_leave_hours, get_holidays_for_user, is_working_day
 
 
 OPM_URL = "https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/"
@@ -135,7 +135,7 @@ def _hours_after_publish(leave, calendar):
     working_days = 0
     current = leave.start_date
     while current <= leave.end_date:
-        if current.weekday() < 5 and current not in holiday_dates:
+        if is_working_day(leave.user, current) and current not in holiday_dates:
             working_days += 1
         current += timedelta(days=1)
     return Decimal(str(working_days * 8))
@@ -414,7 +414,7 @@ def publish_calendar(calendar, actor):
         published_at=now,
     )
     change_by_id = {row["id"]: row for row in preview["changes"]}
-    affected = LeaveRequest.objects.select_for_update().filter(id__in=change_by_id)
+    affected = LeaveRequest.objects.select_for_update(of=("self",)).filter(id__in=change_by_id)
     changed = []
     for leave in affected.select_related("user", "leave_category"):
         old_hours = leave.total_hours
@@ -522,7 +522,7 @@ def unpublish_calendar(calendar, actor, preview_token):
         raise ValueError("One or more employees have insufficient leave balance")
 
     change_by_id = {row["id"]: row for row in preview["changes"]}
-    leaves = LeaveRequest.objects.select_for_update().filter(id__in=change_by_id)
+    leaves = LeaveRequest.objects.select_for_update(of=("self",)).filter(id__in=change_by_id)
     for leave in leaves.select_related("user", "leave_category"):
         row = change_by_id[str(leave.id)]
         new_hours = Decimal(row["new_hours"])

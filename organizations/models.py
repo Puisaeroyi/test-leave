@@ -81,6 +81,10 @@ class WorkShift(models.Model):
     name = models.CharField(max_length=100)
     start_time = models.TimeField()
     end_time = models.TimeField()
+    includes_weekends = models.BooleanField(
+        default=False,
+        help_text="All 7 days count as deductible working days for this shift.",
+    )
     is_active = models.BooleanField(default=True)
 
     class Meta:

@@ -50,8 +50,8 @@ class DepartmentAdmin(ImportExportModelAdmin):
 
 @admin.register(WorkShift)
 class WorkShiftAdmin(admin.ModelAdmin):
-    list_display = ['name', 'department', 'start_time', 'end_time', 'is_active']
-    list_filter = ['is_active', 'department']
+    list_display = ['name', 'department', 'start_time', 'end_time', 'includes_weekends', 'is_active']
+    list_filter = ['includes_weekends', 'is_active', 'department']
 
 
 class UnifiedOrganizationImportAdmin(admin.ModelAdmin):

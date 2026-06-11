@@ -1,7 +1,7 @@
 """
 Organizations API Views
 """
-from django.db import models
+from django.db import models, transaction
 from datetime import time
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -18,6 +18,16 @@ from .services import (
     get_entity_delete_impact,
     soft_delete_entity_cascade
 )
+
+
+def _parse_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+    return bool(value)
 
 
 class EntityListView(generics.ListAPIView):
@@ -81,6 +91,7 @@ class DepartmentListView(APIView):
                 'name': shift.name,
                 'start_time': shift.start_time.strftime('%H:%M'),
                 'end_time': shift.end_time.strftime('%H:%M'),
+                'includes_weekends': shift.includes_weekends,
             } for shift in dept.work_shifts.filter(is_active=True)],
             'is_active': dept.is_active,
         } for dept in departments]
@@ -91,41 +102,78 @@ class WorkShiftListCreateView(APIView):
     permission_classes = [IsAuthenticated, IsHRAdmin]
 
     def get(self, request):
-        shifts = WorkShift.objects.filter(is_active=True).select_related('department')
+        shifts = WorkShift.objects.filter(is_active=True).select_related('department__entity')
         department_id = request.query_params.get('department_id')
         if department_id:
             shifts = shifts.filter(department_id=department_id)
         return Response([{
             'id': str(shift.id),
             'department_id': str(shift.department_id),
+            'department_name': shift.department.department_name,
+            'entity_name': shift.department.entity.entity_name,
             'name': shift.name,
             'start_time': shift.start_time.strftime('%H:%M'),
             'end_time': shift.end_time.strftime('%H:%M'),
+            'includes_weekends': shift.includes_weekends,
         } for shift in shifts])
 
     def post(self, request):
-        department = Department.objects.filter(id=request.data.get('department_id'), is_active=True).first()
-        if not department:
-            return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
         try:
             name = request.data['name'].strip()
             if not name:
                 return Response({'name': ['Shift name is required.']}, status=status.HTTP_400_BAD_REQUEST)
-            if WorkShift.objects.filter(department=department, name=name).exists():
-                return Response(
-                    {'name': ['A work shift with this name already exists in the department.']},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
             start_hour, start_minute = map(int, request.data['start_time'].split(':'))
             end_hour, end_minute = map(int, request.data['end_time'].split(':'))
-            shift = WorkShift.objects.create(
-                department=department,
-                name=name,
-                start_time=time(start_hour, start_minute),
-                end_time=time(end_hour, end_minute),
-            )
+            start_time = time(start_hour, start_minute)
+            end_time = time(end_hour, end_minute)
         except (KeyError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        includes_weekends = _parse_bool(request.data.get('includes_weekends', False))
+
+        if _parse_bool(request.data.get('apply_to_all_departments')):
+            entity = Entity.objects.filter(id=request.data.get('entity_id'), is_active=True).first()
+            if not entity:
+                return Response({'error': 'Entity not found'}, status=status.HTTP_404_NOT_FOUND)
+            departments = list(entity.departments.filter(is_active=True))
+            if not departments:
+                return Response({'error': 'Entity has no active departments'}, status=status.HTTP_400_BAD_REQUEST)
+            created, skipped = 0, []
+            with transaction.atomic():
+                for department in departments:
+                    # Skip departments that already define this shift name instead of failing the batch
+                    if WorkShift.objects.filter(department=department, name=name).exists():
+                        skipped.append(department.department_name)
+                        continue
+                    WorkShift.objects.create(
+                        department=department,
+                        name=name,
+                        start_time=start_time,
+                        end_time=end_time,
+                        includes_weekends=includes_weekends,
+                    )
+                    created += 1
+            if not created:
+                return Response(
+                    {'name': ['A work shift with this name already exists in every department of this entity.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({'created': created, 'skipped': skipped}, status=status.HTTP_201_CREATED)
+
+        department = Department.objects.filter(id=request.data.get('department_id'), is_active=True).first()
+        if not department:
+            return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
+        if WorkShift.objects.filter(department=department, name=name).exists():
+            return Response(
+                {'name': ['A work shift with this name already exists in the department.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        shift = WorkShift.objects.create(
+            department=department,
+            name=name,
+            start_time=start_time,
+            end_time=end_time,
+            includes_weekends=includes_weekends,
+        )
         return Response({'id': str(shift.id)}, status=status.HTTP_201_CREATED)
 
 

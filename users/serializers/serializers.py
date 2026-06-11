@@ -5,6 +5,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.cache import cache
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import URLValidator
 from organizations.models import Entity, Location, Department, WorkShift
 
 from .utils import validate_active_relationship
@@ -16,6 +18,19 @@ MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION = 3600  # 1 hour in seconds
 
 GENERIC_LOGIN_ERROR = "Invalid credentials."
+
+
+def validate_avatar_url_value(value):
+    if not value or value.startswith('/media/'):
+        return value
+    validator = URLValidator(schemes=['http', 'https'])
+    try:
+        validator(value)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(
+            "Avatar must be an http(s) URL or a relative /media/ path."
+        ) from exc
+    return value
 
 
 class LoginSerializer(serializers.Serializer):
@@ -107,6 +122,7 @@ class UserSerializer(serializers.ModelSerializer):
         name = serializers.CharField()
         start_time = serializers.TimeField()
         end_time = serializers.TimeField()
+        includes_weekends = serializers.BooleanField()
 
     approver = ApproverSerializer(source='approver_1', read_only=True, allow_null=True)
     final_approver = ApproverSerializer(source='approver_2', read_only=True, allow_null=True)
@@ -184,6 +200,9 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             if User.objects.filter(email=value).exists():
                 raise serializers.ValidationError("A user with this email already exists.")
         return value
+
+    def validate_avatar_url(self, value):
+        return validate_avatar_url_value(value)
 
     def validate_approver(self, value):
         """Only HR/Admin can assign first approver"""

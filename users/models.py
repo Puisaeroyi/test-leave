@@ -5,6 +5,7 @@ import uuid
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 
 
 class UserManager(BaseUserManager):
@@ -82,7 +83,7 @@ class User(AbstractUser):
         help_text="Optional approver 2 for leave requests.",
     )
     join_date = models.DateField(null=True, blank=True)
-    avatar_url = models.URLField(max_length=500, blank=True)
+    avatar_url = models.CharField(max_length=500, blank=True)
     google_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     first_login = models.BooleanField(
         default=True,
@@ -128,6 +129,18 @@ class User(AbstractUser):
                 })
         if self.work_shift and self.department and self.work_shift.department_id != self.department_id:
             raise ValidationError({'work_shift': "Selected work shift does not belong to the user's department."})
+
+        if self.avatar_url:
+            if not self.avatar_url.startswith('/media/'):
+                validator = URLValidator(schemes=['http', 'https'])
+                try:
+                    validator(self.avatar_url)
+                except ValidationError as exc:
+                    raise ValidationError({
+                        'avatar_url': ValidationError(
+                            "Avatar must be an http(s) URL or a relative /media/ path."
+                        )
+                    }) from exc
 
         # Validate approvers are not self (circular reference prevention)
         if self.approver_1 and self.approver_1 == self:
