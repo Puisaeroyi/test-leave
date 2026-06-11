@@ -75,6 +75,13 @@ venv/
 prompt.md
 ck.md
 
+# Windows dev scripts (hardcoded local paths, not for server use)
+*.ps1
+
+# Root-level package.json/lock (Claude Code CLI install artifact)
+/package.json
+/package-lock.json
+
 # Gemini CLI settings (symlink to .claude/.mcp.json)
 .gemini/settings.json
 .claude/settings.bak.json
