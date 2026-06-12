@@ -8,6 +8,7 @@ from django.contrib.auth import get_user_model
 
 from ..models import LeaveRequest, PublicHoliday, BusinessTrip
 from ..constants import DEFAULT_MONTH, DEFAULT_YEAR
+from ..utils import holiday_country_scope_for_user
 
 User = get_user_model()
 
@@ -120,7 +121,7 @@ class TeamCalendarView(generics.GenericAPIView):
         ).filter(
             Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
         ).filter(
-            Q(entity=user.entity) | Q(entity__isnull=True)
+            (Q(entity=user.entity) | Q(entity__isnull=True)) & holiday_country_scope_for_user(user)
         )
 
         # Filter by location if applicable

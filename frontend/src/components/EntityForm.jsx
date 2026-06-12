@@ -63,7 +63,6 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
               formValues[`loc_${i}_dept_name_${j}`] = dept.department_name;
               formValues[`loc_${i}_dept_code_${j}`] = dept.code;
               formValues[`loc_${i}_dept_id_${j}`] = dept.id;
-              formValues[`loc_${i}_dept_holiday_requires_leave_${j}`] = dept.holiday_requires_leave;
             });
           });
 
@@ -76,7 +75,6 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
             formValues[`entity_dept_name_${i}`] = dept.department_name;
             formValues[`entity_dept_code_${i}`] = dept.code;
             formValues[`entity_dept_id_${i}`] = dept.id;
-            formValues[`entity_dept_holiday_requires_leave_${i}`] = dept.holiday_requires_leave;
           });
 
           form.setFieldsValue(formValues);
@@ -113,7 +111,6 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
                 id: values[`loc_${i}_dept_id_${j}`],
                 name: deptName.trim(),
                 code: values[`loc_${i}_dept_code_${j}`]?.trim() || '',
-                holiday_requires_leave: Boolean(values[`loc_${i}_dept_holiday_requires_leave_${j}`]),
               });
             }
           }
@@ -138,7 +135,6 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
             id: values[`entity_dept_id_${i}`],
             name: deptName.trim(),
             code: values[`entity_dept_code_${i}`]?.trim() || '',
-            holiday_requires_leave: Boolean(values[`entity_dept_holiday_requires_leave_${i}`]),
           });
         }
       }
@@ -299,16 +295,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
                     />
                   </Form.Item>
                 </Col>
-                <Col span={7}>
-                  <Form.Item
-                    name={`loc_${i}_dept_holiday_requires_leave_${j + 1}`}
-                    valuePropName="checked"
-                    style={{ marginBottom: 0 }}
-                  >
-                    <Switch checkedChildren="Holiday leave required" unCheckedChildren="Holiday off" />
-                  </Form.Item>
-                </Col>
-                <Col span={2}>
+                <Col span={9}>
                   <Button
                     size="small"
                     danger
@@ -344,7 +331,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
       <div style={{ padding: 16, backgroundColor: 'var(--color-info-soft)', borderRadius: 8, border: '1px solid var(--color-info)' }}>
         <div style={{ fontWeight: 600, marginBottom: 12, fontSize: 14 }}>🏢 Entity-Wide Departments</div>
         <div style={{ fontSize: 12, color: 'var(--color-muted)', marginBottom: 12 }}>
-          These departments are not tied to any specific location. Enable Holiday leave required for 24/7 operations.
+          These departments are not tied to any specific location.
         </div>
 
         {Array.from({ length: entityDeptCount }, (_, i) => (
@@ -372,16 +359,7 @@ const EntityForm = ({ visible, mode, entity, onCancel, onSuccess, submitting }) 
                 />
               </Form.Item>
             </Col>
-            <Col span={7}>
-              <Form.Item
-                name={`entity_dept_holiday_requires_leave_${i + 1}`}
-                valuePropName="checked"
-                style={{ marginBottom: 0 }}
-              >
-                <Switch checkedChildren="Holiday leave required" unCheckedChildren="Holiday off" />
-              </Form.Item>
-            </Col>
-            <Col span={2}>
+            <Col span={9}>
               <Button
                 size="small"
                 danger

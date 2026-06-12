@@ -1,5 +1,5 @@
 """Administrative holiday calendar API."""
-from datetime import date
+from datetime import date, timedelta
 
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -11,15 +11,51 @@ from users.models import User
 from users.permissions import IsHRAdmin
 
 from ..holiday_management import (
-    generation_preview,
     generate_draft_calendars,
-    publish_impact,
     publish_calendar,
     unpublish_calendar,
     unpublish_impact,
     validate_holiday_dates,
 )
 from ..models import HolidayCalendar, PublicHoliday
+
+
+HOLIDAY_TYPE_LABELS = {
+    PublicHoliday.HolidayType.STATUTORY: "Official holiday",
+    PublicHoliday.HolidayType.OBSERVED: "Observed day off",
+    PublicHoliday.HolidayType.COMPENSATORY: "Compensatory day off",
+    PublicHoliday.HolidayType.COMPANY: "Company holiday",
+}
+
+
+def _holiday_type_label(value):
+    return HOLIDAY_TYPE_LABELS.get(value, value)
+
+
+def _active_holidays(calendar):
+    return calendar.holidays.exclude(status=PublicHoliday.Status.ARCHIVED).order_by("start_date", "holiday_name")
+
+
+def _expanded_holiday_days(calendar):
+    rows = []
+    for holiday in _active_holidays(calendar):
+        current = holiday.start_date
+        while current <= holiday.end_date:
+            rows.append({
+                "id": f"{holiday.id}:{current.isoformat()}",
+                "holiday_id": str(holiday.id),
+                "holiday_name": holiday.holiday_name,
+                "date": current,
+                "start_date": holiday.start_date,
+                "end_date": holiday.end_date,
+                "holiday_type": holiday.holiday_type,
+                "holiday_type_label": _holiday_type_label(holiday.holiday_type),
+                "status": holiday.status,
+                "source_note": holiday.source_note,
+                "is_weekend": current.weekday() >= 5,
+            })
+            current += timedelta(days=1)
+    return rows
 
 
 def _calendar_data(calendar, include_holidays=False):
@@ -33,7 +69,7 @@ def _calendar_data(calendar, include_holidays=False):
         "entity_name": calendar.entity.entity_name,
         "location_id": str(calendar.location_id) if calendar.location_id else None,
         "location_name": calendar.location.location_name if calendar.location else None,
-        "holiday_count": calendar.holidays.exclude(status=PublicHoliday.Status.ARCHIVED).count(),
+        "holiday_count": len(_expanded_holiday_days(calendar)),
         "published_at": calendar.published_at,
     }
     if include_holidays:
@@ -44,11 +80,13 @@ def _calendar_data(calendar, include_holidays=False):
                 "start_date": holiday.start_date,
                 "end_date": holiday.end_date,
                 "holiday_type": holiday.holiday_type,
+                "holiday_type_label": _holiday_type_label(holiday.holiday_type),
                 "status": holiday.status,
                 "source_note": holiday.source_note,
             }
-            for holiday in calendar.holidays.exclude(status=PublicHoliday.Status.ARCHIVED).order_by("start_date")
+            for holiday in _active_holidays(calendar)
         ]
+        data["holiday_days"] = _expanded_holiday_days(calendar)
     return data
 
 
@@ -118,28 +156,6 @@ class HolidayCalendarGenerateView(APIView):
         )
 
 
-class HolidayCalendarGenerationPreviewView(APIView):
-    permission_classes = [IsAuthenticated, IsHRAdmin]
-
-    def post(self, request):
-        try:
-            year = int(request.data["year"])
-        except (KeyError, TypeError, ValueError):
-            return Response({"error": "A valid year is required"}, status=status.HTTP_400_BAD_REQUEST)
-        entities, error = _generation_entities(request)
-        if error:
-            return error
-        return Response(
-            {
-                "results": generation_preview(
-                    year,
-                    entities,
-                    country_overrides=request.data.get("country_overrides") or {},
-                )
-            }
-        )
-
-
 class HolidayCalendarDetailView(APIView):
     permission_classes = [IsAuthenticated, IsHRAdmin]
 
@@ -165,6 +181,18 @@ class HolidayCalendarDetailView(APIView):
         calendar.save(update_fields=["name", "updated_at"])
         return Response(_calendar_data(calendar, include_holidays=True))
 
+    def delete(self, request, pk):
+        calendar = self.get_object(request, pk)
+        if not calendar:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if calendar.status != HolidayCalendar.Status.DRAFT:
+            return Response(
+                {"error": "Published calendars must be unpublished before deleting"},
+                status=status.HTTP_409_CONFLICT,
+            )
+        calendar.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class HolidayCalendarPublishView(APIView):
     permission_classes = [IsAuthenticated, IsHRAdmin]
@@ -180,32 +208,6 @@ class HolidayCalendarPublishView(APIView):
         return Response(result)
 
 
-class HolidayCalendarPublishPreviewView(APIView):
-    permission_classes = [IsAuthenticated, IsHRAdmin]
-
-    def post(self, request, pk):
-        calendar = _calendar_queryset(request.user).filter(pk=pk).first()
-        if not calendar:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        try:
-            return Response(publish_impact(calendar))
-        except ValueError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
-
-
-class HolidayCalendarUnpublishPreviewView(APIView):
-    permission_classes = [IsAuthenticated, IsHRAdmin]
-
-    def post(self, request, pk):
-        calendar = _calendar_queryset(request.user).filter(pk=pk).first()
-        if not calendar:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        try:
-            return Response(unpublish_impact(calendar))
-        except ValueError as exc:
-            return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
-
-
 class HolidayCalendarUnpublishView(APIView):
     permission_classes = [IsAuthenticated, IsHRAdmin]
 
@@ -214,7 +216,8 @@ class HolidayCalendarUnpublishView(APIView):
         if not calendar:
             return Response(status=status.HTTP_404_NOT_FOUND)
         try:
-            result = unpublish_calendar(calendar, request.user, request.data.get("preview_token"))
+            preview = unpublish_impact(calendar)
+            result = unpublish_calendar(calendar, request.user, preview["preview_token"])
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
         return Response(result)

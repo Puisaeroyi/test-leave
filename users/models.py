@@ -59,13 +59,6 @@ class User(AbstractUser):
     entity = models.ForeignKey('organizations.Entity', on_delete=models.PROTECT, null=True, blank=True)
     location = models.ForeignKey('organizations.Location', on_delete=models.SET_NULL, null=True, blank=True)
     department = models.ForeignKey('organizations.Department', on_delete=models.SET_NULL, null=True, blank=True)
-    work_shift = models.ForeignKey(
-        'organizations.WorkShift',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='users',
-    )
     approver_1 = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -127,9 +120,6 @@ class User(AbstractUser):
                         f"Please select a department within {self.entity.entity_name}."
                     )
                 })
-        if self.work_shift and self.department and self.work_shift.department_id != self.department_id:
-            raise ValidationError({'work_shift': "Selected work shift does not belong to the user's department."})
-
         if self.avatar_url:
             if not self.avatar_url.startswith('/media/'):
                 validator = URLValidator(schemes=['http', 'https'])

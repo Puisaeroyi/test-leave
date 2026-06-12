@@ -24,9 +24,7 @@ import {
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
-import { getApplicableHolidays } from "../api/holidayApi";
 import { calculateHourRange, inferCustomHourOffsets } from "../lib/time-utils";
-import { useAuth } from "@auth/authContext";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -64,7 +62,6 @@ export default function NewLeaveRequestModal({
   balances = [],
   initialDate = null, // Pre-selected date from calendar click
 }) {
-  const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
   const [confirmData, setConfirmData] = useState(null);
@@ -143,34 +140,9 @@ export default function NewLeaveRequestModal({
     return calculateHourRange(start.hour(), end.hour());
   };
 
-  // Calculate working days using the user's published holiday calendar.
-  const countWorkingDays = (startDate, endDate, holidays = []) => {
+  const countCalendarDays = (startDate, endDate) => {
     if (!startDate || !endDate) return 0;
-    const holidayDates = new Set();
-    holidays.forEach((holiday) => {
-      let current = dayjs(holiday.start_date);
-      const holidayEnd = dayjs(holiday.end_date);
-      while (current.isBefore(holidayEnd, "day") || current.isSame(holidayEnd, "day")) {
-        holidayDates.add(current.format("YYYY-MM-DD"));
-        current = current.add(1, "day");
-      }
-    });
-    let count = 0;
-    let current = startDate.startOf("day");
-    const end = endDate.startOf("day");
-
-    while (current.isBefore(end) || current.isSame(end, "day")) {
-      const dayOfWeek = current.day(); // 0=Sunday, 6=Saturday
-      if (
-        dayOfWeek !== 0 &&
-        dayOfWeek !== 6 &&
-        !holidayDates.has(current.format("YYYY-MM-DD"))
-      ) {
-        count++;
-      }
-      current = current.add(1, "day");
-    }
-    return count;
+    return endDate.startOf("day").diff(startDate.startOf("day"), "day") + 1;
   };
 
   const previewHours =
@@ -201,9 +173,8 @@ export default function NewLeaveRequestModal({
         return;
       }
     } else {
-      const holidays = await getApplicableHolidays(data.date[0].year());
-      const workingDays = countWorkingDays(data.date[0], data.date[1], holidays);
-      hours = workingDays * 8;
+      const calendarDays = countCalendarDays(data.date[0], data.date[1]);
+      hours = calendarDays * 8;
     }
 
     const category = categories.find((item) => item.id === data.leaveCategory);
@@ -215,7 +186,7 @@ export default function NewLeaveRequestModal({
     setConfirmData({
       ...data,
       ...(sameDay && data.dayType === "custom"
-        ? inferCustomHourOffsets(data.startTime.hour(), data.endTime.hour(), user?.work_shift)
+        ? inferCustomHourOffsets(data.startTime.hour(), data.endTime.hour())
         : {}),
       categoryName: category?.name || "Leave",
       balanceBucket,

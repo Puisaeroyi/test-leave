@@ -1,14 +1,13 @@
 """
 Organizations API Views
 """
-from django.db import models, transaction
-from datetime import time
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsHRAdmin
-from .models import Entity, Location, Department, WorkShift
+from users.models import User
+from .models import Entity, Location, Department
 from .serializers import (
     EntitySerializer,
     EntityCreateSerializer,
@@ -20,14 +19,11 @@ from .services import (
 )
 
 
-def _parse_bool(value):
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    if isinstance(value, str):
-        return value.strip().lower() in {'1', 'true', 'yes', 'on'}
-    return bool(value)
+def _department_queryset(user):
+    departments = Department.objects.filter(is_active=True).select_related('entity', 'location')
+    if user.role == User.Role.HR:
+        departments = departments.filter(entity_id=user.entity_id)
+    return departments
 
 
 class EntityListView(generics.ListAPIView):
@@ -67,7 +63,7 @@ class DepartmentListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        departments = Department.objects.filter(is_active=True)
+        departments = _department_queryset(request.user)
 
         # Filter by entity if provided
         entity_id = request.query_params.get('entity_id')
@@ -82,99 +78,14 @@ class DepartmentListView(APIView):
         data = [{
             'id': str(dept.id),
             'entity': str(dept.entity_id),
+            'entity_name': dept.entity.entity_name,
             'location': str(dept.location_id) if dept.location_id else None,
+            'location_name': dept.location.location_name if dept.location_id else None,
             'department_name': dept.department_name,
             'code': dept.code,
-            'holiday_requires_leave': dept.holiday_requires_leave,
-            'work_shifts': [{
-                'id': str(shift.id),
-                'name': shift.name,
-                'start_time': shift.start_time.strftime('%H:%M'),
-                'end_time': shift.end_time.strftime('%H:%M'),
-                'includes_weekends': shift.includes_weekends,
-            } for shift in dept.work_shifts.filter(is_active=True)],
             'is_active': dept.is_active,
         } for dept in departments]
         return Response(data)
-
-
-class WorkShiftListCreateView(APIView):
-    permission_classes = [IsAuthenticated, IsHRAdmin]
-
-    def get(self, request):
-        shifts = WorkShift.objects.filter(is_active=True).select_related('department__entity')
-        department_id = request.query_params.get('department_id')
-        if department_id:
-            shifts = shifts.filter(department_id=department_id)
-        return Response([{
-            'id': str(shift.id),
-            'department_id': str(shift.department_id),
-            'department_name': shift.department.department_name,
-            'entity_name': shift.department.entity.entity_name,
-            'name': shift.name,
-            'start_time': shift.start_time.strftime('%H:%M'),
-            'end_time': shift.end_time.strftime('%H:%M'),
-            'includes_weekends': shift.includes_weekends,
-        } for shift in shifts])
-
-    def post(self, request):
-        try:
-            name = request.data['name'].strip()
-            if not name:
-                return Response({'name': ['Shift name is required.']}, status=status.HTTP_400_BAD_REQUEST)
-            start_hour, start_minute = map(int, request.data['start_time'].split(':'))
-            end_hour, end_minute = map(int, request.data['end_time'].split(':'))
-            start_time = time(start_hour, start_minute)
-            end_time = time(end_hour, end_minute)
-        except (KeyError, ValueError) as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        includes_weekends = _parse_bool(request.data.get('includes_weekends', False))
-
-        if _parse_bool(request.data.get('apply_to_all_departments')):
-            entity = Entity.objects.filter(id=request.data.get('entity_id'), is_active=True).first()
-            if not entity:
-                return Response({'error': 'Entity not found'}, status=status.HTTP_404_NOT_FOUND)
-            departments = list(entity.departments.filter(is_active=True))
-            if not departments:
-                return Response({'error': 'Entity has no active departments'}, status=status.HTTP_400_BAD_REQUEST)
-            created, skipped = 0, []
-            with transaction.atomic():
-                for department in departments:
-                    # Skip departments that already define this shift name instead of failing the batch
-                    if WorkShift.objects.filter(department=department, name=name).exists():
-                        skipped.append(department.department_name)
-                        continue
-                    WorkShift.objects.create(
-                        department=department,
-                        name=name,
-                        start_time=start_time,
-                        end_time=end_time,
-                        includes_weekends=includes_weekends,
-                    )
-                    created += 1
-            if not created:
-                return Response(
-                    {'name': ['A work shift with this name already exists in every department of this entity.']},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            return Response({'created': created, 'skipped': skipped}, status=status.HTTP_201_CREATED)
-
-        department = Department.objects.filter(id=request.data.get('department_id'), is_active=True).first()
-        if not department:
-            return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
-        if WorkShift.objects.filter(department=department, name=name).exists():
-            return Response(
-                {'name': ['A work shift with this name already exists in the department.']},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        shift = WorkShift.objects.create(
-            department=department,
-            name=name,
-            start_time=start_time,
-            end_time=end_time,
-            includes_weekends=includes_weekends,
-        )
-        return Response({'id': str(shift.id)}, status=status.HTTP_201_CREATED)
 
 
 class EntityCreateView(generics.GenericAPIView):
@@ -227,7 +138,6 @@ class EntityCreateView(generics.GenericAPIView):
                             department_name=department['name'].strip(),
                             code=dept_code,
                             location=loc,
-                            holiday_requires_leave=bool(department.get('holiday_requires_leave', False)),
                             is_active=True
                         )
 
@@ -242,7 +152,6 @@ class EntityCreateView(generics.GenericAPIView):
                     department_name=department['name'].strip(),
                     code=dept_code,
                     location=None,
-                    holiday_requires_leave=bool(department.get('holiday_requires_leave', False)),
                     is_active=True
                 )
 
@@ -337,7 +246,6 @@ class EntityUpdateView(generics.GenericAPIView):
                             dept.department_name = department['name'].strip()
                             dept.code = dept_code
                             dept.location = location_id_map[idx]
-                            dept.holiday_requires_leave = bool(department.get('holiday_requires_leave', False))
                             dept.is_active = True
                             dept.save()
                         else:
@@ -346,7 +254,6 @@ class EntityUpdateView(generics.GenericAPIView):
                                 department_name=department['name'].strip(),
                                 code=dept_code,
                                 location=location_id_map[idx],
-                                holiday_requires_leave=bool(department.get('holiday_requires_leave', False)),
                                 is_active=True
                             )
 
@@ -363,7 +270,6 @@ class EntityUpdateView(generics.GenericAPIView):
                     dept.department_name = department['name'].strip()
                     dept.code = dept_code
                     dept.location = None
-                    dept.holiday_requires_leave = bool(department.get('holiday_requires_leave', False))
                     dept.is_active = True
                     dept.save()
                 else:
@@ -372,7 +278,6 @@ class EntityUpdateView(generics.GenericAPIView):
                         department_name=department['name'].strip(),
                         code=dept_code,
                         location=None,
-                        holiday_requires_leave=bool(department.get('holiday_requires_leave', False)),
                         is_active=True
                     )
 

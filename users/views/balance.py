@@ -26,8 +26,15 @@ class UserBalanceAdjustView(generics.GenericAPIView):
 
         # Get target user
         from users.models import User
+        target_users = User.objects.all()
+        if hr_admin.role == User.Role.HR:
+            target_users = (
+                target_users.filter(entity_id=hr_admin.entity_id)
+                if hr_admin.entity_id
+                else target_users.none()
+            )
         try:
-            target_user = User.objects.get(id=user_id)
+            target_user = target_users.get(id=user_id)
         except User.DoesNotExist:
             return Response(
                 {'error': 'User not found'},

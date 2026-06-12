@@ -6,6 +6,7 @@ from rest_framework.response import Response
 from django.db.models import Q
 
 from ..models import PublicHoliday
+from ..utils import holiday_country_scope_for_user
 
 
 class PublicHolidayListView(generics.ListAPIView):
@@ -24,7 +25,7 @@ class PublicHolidayListView(generics.ListAPIView):
             query &= Q(location__isnull=True) | Q(location=user.location)
 
         holidays = PublicHoliday.objects.filter(
-            query,
+            query & holiday_country_scope_for_user(user),
             is_active=True,
             status=PublicHoliday.Status.PUBLISHED,
         )

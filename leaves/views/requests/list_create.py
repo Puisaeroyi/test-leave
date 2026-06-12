@@ -25,6 +25,18 @@ from core.services.email_service import send_leave_pending_email
 import logging
 logger = logging.getLogger(__name__)
 
+LEAVE_REQUEST_RELATED_FIELDS = (
+    'user',
+    'user__location',
+    'user__department',
+    'user__approver_1',
+    'user__approver_2',
+    'leave_category',
+    'approved_by',
+    'first_approver',
+    'final_approver',
+)
+
 
 class LeaveRequestListView(generics.ListCreateAPIView):
     """List and create leave requests."""
@@ -66,7 +78,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             except (ValueError, TypeError):
                 pass
 
-        queryset = queryset.select_related('user', 'leave_category', 'approved_by').order_by('-created_at')
+        queryset = queryset.select_related(*LEAVE_REQUEST_RELATED_FIELDS).order_by('-created_at')
 
         # Pagination with DoS protection
         try:
@@ -94,6 +106,17 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         user = request.user
         data = request.data
 
+        if not user.approver_1_id and not user.approver_2_id:
+            return Response(
+                {
+                    'error': (
+                        'Cannot submit leave request because no approver is assigned. '
+                        'Please contact HR.'
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         # Parse dates
         try:
             start_date = datetime.strptime(data.get('start_date'), '%Y-%m-%d').date()
@@ -110,6 +133,11 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
 
         shift_type = data.get('shift_type', 'FULL_DAY')
+        if shift_type not in LeaveRequest.ShiftType.values:
+            return Response(
+                {'error': 'Invalid shift_type. Must be FULL_DAY or CUSTOM_HOURS'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         # Full-day requests conflict by work date. Custom-hour requests need the
         # actual calendar-time comparison below, but still conflict with full days.
@@ -135,13 +163,13 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             try:
                 start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
                 end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
-                if user.work_shift_id:
+                if 'start_day_offset' in data or 'end_day_offset' in data:
+                    start_day_offset = int(data.get('start_day_offset', 0))
+                    end_day_offset = int(data.get('end_day_offset', 0))
+                else:
                     start_day_offset, end_day_offset = infer_custom_hour_offsets(
                         user, start_time, end_time
                     )
-                else:
-                    start_day_offset = int(data.get('start_day_offset', 0))
-                    end_day_offset = int(data.get('end_day_offset', 0))
             except (ValueError, TypeError):
                 return Response(
                     {'error': 'start_time and end_time required for CUSTOM_HOURS (format: HH:MM)'},
@@ -213,6 +241,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                 leave_request = LeaveRequest.objects.create(
                     user=user,
                     leave_category_id=category_id,
+                    balance_type_snapshot=balance_type,
                     start_date=start_date,
                     end_date=end_date,
                     shift_type=shift_type,
@@ -235,14 +264,10 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             )
 
         # Notify assigned peers once at creation.
-        notified = False
         for peer in (user.approver_1, user.approver_2):
             if peer:
                 create_leave_pending_notification(peer, leave_request)
                 send_leave_pending_email(peer, leave_request)
-                notified = True
-        if not notified:
-            logger.warning(f"User {user.email} has no approver assigned - no notification sent for leave request {leave_request.id}")
 
         serializer = LeaveRequestSerializer(leave_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

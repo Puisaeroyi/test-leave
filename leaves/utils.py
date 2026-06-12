@@ -4,16 +4,36 @@ Hours calculation logic for leave requests
 """
 from datetime import datetime, timedelta, date, time
 from decimal import Decimal
-from .models import PublicHoliday, LeaveRequest
+import re
+import unicodedata
+
 from django.db.models import Q
+
+from .models import PublicHoliday, LeaveRequest
+
+
+def normalize_country_code(value):
+    """Map supported free-text country names to application country codes."""
+    text = unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode()
+    text = re.sub(r"[^a-zA-Z]", "", text).lower()
+    if text in {"us", "usa", "unitedstates", "unitedstatesofamerica"}:
+        return "US"
+    if text in {"vn", "vietnam"}:
+        return "VN"
+    return None
+
+
+def holiday_country_scope_for_user(user):
+    """Limit calendar-backed holidays to the user's location country when known."""
+    country_code = normalize_country_code(getattr(getattr(user, "location", None), "country", None))
+    if not country_code:
+        return Q()
+    return Q(calendar__country_code=country_code)
 
 
 def is_working_day(user, day):
     """Return whether this date should deduct full-day leave for the user."""
-    if day.weekday() < 5:
-        return True
-    shift = getattr(user, 'work_shift', None)
-    return bool(shift and shift.includes_weekends)
+    return day.weekday() < 5
 
 
 def calculate_leave_hours(
@@ -54,53 +74,14 @@ def calculate_leave_hours(
             raise ValueError("Custom leave cannot exceed 8 hours")
         return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
-    # FULL_DAY: count working days (excludes non-working days and holidays)
-    holidays = (
-        PublicHoliday.objects.none()
-        if user.department_id and user.department.holiday_requires_leave
-        else get_holidays_for_user(user, start_date, end_date, exclude_calendar_id)
-    )
-    # Expand multi-day holidays into individual dates
-    holiday_dates = set()
-    for h in holidays:
-        current = h.start_date
-        while current <= h.end_date:
-            holiday_dates.add(current)
-            current += timedelta(days=1)
-
-    working_days = 0
-    current = start_date
-
-    while current <= end_date:
-        if is_working_day(user, current) and current not in holiday_dates:
-            working_days += 1
-        current += timedelta(days=1)
-
-    # 8 hours per working day
-    return Decimal(str(working_days * 8))
+    # FULL_DAY: every calendar day counts, including weekends and holidays.
+    calendar_days = (end_date - start_date).days + 1
+    return Decimal(str(calendar_days * 8))
 
 
 def infer_custom_hour_offsets(user, start_time, end_time):
-    """Infer actual calendar-day offsets from the employee's assigned overnight shift."""
-    shift = getattr(user, 'work_shift', None)
-    if not shift:
-        return 0, 1 if end_time <= start_time else 0
-    shift_start = (
-        datetime.strptime(shift.start_time, '%H:%M').time()
-        if isinstance(shift.start_time, str) else shift.start_time
-    )
-    shift_end = (
-        datetime.strptime(shift.end_time, '%H:%M').time()
-        if isinstance(shift.end_time, str) else shift.end_time
-    )
-    if shift_end > shift_start:
-        return 0, 1 if end_time <= start_time else 0
-
-    start_offset = 1 if start_time < shift_start else 0
-    end_offset = 1 if end_time <= shift_end else 0
-    if end_time <= start_time and end_offset <= start_offset:
-        end_offset = start_offset + 1
-    return start_offset, end_offset
+    """Infer actual calendar-day offsets from the selected start/end time only."""
+    return 0, 1 if end_time <= start_time else 0
 
 
 def get_holidays_for_user(user, start_date, end_date, exclude_calendar_id=None):
@@ -143,7 +124,7 @@ def get_holidays_for_user(user, start_date, end_date, exclude_calendar_id=None):
         query = Q(entity__isnull=True, location__isnull=True)
 
     holidays = PublicHoliday.objects.filter(
-        query,
+        query & holiday_country_scope_for_user(user),
         start_date__lte=end_date,
         end_date__gte=start_date,
         is_active=True,

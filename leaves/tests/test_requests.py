@@ -5,9 +5,11 @@ import pytest
 from decimal import Decimal
 from datetime import date, datetime, timedelta
 from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from freezegun import freeze_time
-from organizations.models import Department, Entity, Location, WorkShift
+from organizations.models import Department, Entity, Location
 from leaves.models import HolidayCalendar, LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday
 
 User = get_user_model()
@@ -41,6 +43,13 @@ def setup_user_with_balance():
         department=department,
         role=User.Role.EMPLOYEE,
     )
+    approver = User.objects.create_user(
+        email='default-approver@example.com',
+        password='ApproverPass123!',
+        role=User.Role.MANAGER,
+    )
+    user.approver_1 = approver
+    user.save(update_fields=['approver_1'])
 
     # Get or create leave balance (signal may have already created it)
     balance, _ = LeaveBalance.objects.get_or_create(
@@ -60,7 +69,13 @@ def setup_user_with_balance():
         balance_bucket='VACATION',
     )
 
-    return {'user': user, 'balance': balance, 'category': category, 'department': department}
+    return {
+        'user': user,
+        'balance': balance,
+        'category': category,
+        'department': department,
+        'approver': approver,
+    }
 
 
 @pytest.mark.django_db
@@ -87,12 +102,32 @@ class TestLeaveRequests:
         assert response.data['total_hours'] == 8.0
         assert LeaveRequest.objects.filter(user=user).count() == 1
 
-    def test_department_requiring_leave_on_holidays_can_request_holiday(self, setup_user_with_balance):
+    def test_create_request_requires_at_least_one_approver(self, setup_user_with_balance):
         user = setup_user_with_balance['user']
         category = setup_user_with_balance['category']
-        department = setup_user_with_balance['department']
-        department.holiday_requires_leave = True
-        department.save(update_fields=['holiday_requires_leave'])
+        user.approver_1 = None
+        user.approver_2 = None
+        user.save(update_fields=['approver_1', 'approver_2'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-01-20',
+            'end_date': '2026-01-20',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(category.id),
+            'reason': 'Personal business',
+        })
+
+        assert response.status_code == 400
+        assert response.data['error'] == (
+            'Cannot submit leave request because no approver is assigned. Please contact HR.'
+        )
+        assert not LeaveRequest.objects.filter(user=user).exists()
+
+    def test_leave_on_published_holiday_counts_as_normal_workday(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
         calendar = HolidayCalendar.objects.create(
             name='US 2026',
             country_code='US',
@@ -123,6 +158,32 @@ class TestLeaveRequests:
         assert response.status_code == 201, response.data
         assert response.data['total_hours'] == 8.0
 
+    def test_hr_cannot_view_leave_request_from_another_entity(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        other_entity = Entity.objects.create(entity_name='Other Entity', code='OTHER')
+        hr = User.objects.create_user(
+            email='other-entity-hr@example.com',
+            password='Hr123!',
+            role=User.Role.HR,
+            entity=other_entity,
+        )
+        leave_request = LeaveRequest.objects.create(
+            user=user,
+            leave_category=category,
+            start_date=date(2026, 1, 20),
+            end_date=date(2026, 1, 20),
+            shift_type=LeaveRequest.ShiftType.FULL_DAY,
+            total_hours=Decimal('8.00'),
+            status=LeaveRequest.Status.PENDING,
+        )
+        client = APIClient()
+        client.force_authenticate(user=hr)
+
+        response = client.get(f'/api/v1/leaves/requests/{leave_request.id}/')
+
+        assert response.status_code == 403
+
     def test_create_multi_day_request(self, setup_user_with_balance):
         """Test creating a multi-day leave request"""
         user = setup_user_with_balance['user']
@@ -142,6 +203,29 @@ class TestLeaveRequests:
         assert response.status_code == 201
         # 3 days = 24 hours
         assert response.data['total_hours'] == 24.0
+
+    def test_create_full_day_request_counts_weekend_days(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-01-24',
+            'end_date': '2026-01-25',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(category.id),
+            'reason': 'Weekend request',
+        })
+
+        assert response.status_code == 201
+        assert response.data['total_hours'] == 16.0
+        assert LeaveRequest.objects.filter(
+            user=user,
+            start_date=date(2026, 1, 24),
+            end_date=date(2026, 1, 25),
+            total_hours=Decimal('16.00'),
+        ).exists()
 
     def test_create_custom_hours_request(self, setup_user_with_balance):
         """Test creating a custom hours leave request"""
@@ -164,6 +248,24 @@ class TestLeaveRequests:
 
         assert response.status_code == 201
         assert response.data['total_hours'] == 4.0
+
+    def test_create_request_rejects_invalid_shift_type(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-01-20',
+            'end_date': '2026-01-20',
+            'shift_type': 'INVALID',
+            'leave_category': str(category.id),
+            'reason': 'Invalid shift type',
+        })
+
+        assert response.status_code == 400
+        assert response.data['error'] == 'Invalid shift_type. Must be FULL_DAY or CUSTOM_HOURS'
+        assert not LeaveRequest.objects.filter(user=user).exists()
 
     def test_create_custom_hours_on_next_calendar_day_of_shift(self, setup_user_with_balance):
         user = setup_user_with_balance['user']
@@ -253,37 +355,6 @@ class TestLeaveRequests:
 
         assert response.status_code == 201, response.data
 
-    def test_assigned_night_shift_infers_next_calendar_day(self, setup_user_with_balance):
-        user = setup_user_with_balance['user']
-        category = setup_user_with_balance['category']
-        shift = WorkShift.objects.create(
-            department=user.department,
-            name='Night Shift',
-            start_time='22:00',
-            end_time='06:00',
-        )
-        user.work_shift = shift
-        user.save()
-        client = APIClient()
-        client.force_authenticate(user=user)
-
-        response = client.post('/api/v1/leaves/requests/', {
-            'start_date': '2026-06-15',
-            'end_date': '2026-06-15',
-            'shift_type': 'CUSTOM_HOURS',
-            'start_time': '02:00',
-            'end_time': '06:00',
-            'start_day_offset': 0,
-            'end_day_offset': 0,
-            'leave_category': str(category.id),
-            'reason': 'Second half',
-        })
-
-        assert response.status_code == 201, response.data
-        request = LeaveRequest.objects.get(id=response.data['id'])
-        assert request.start_day_offset == 1
-        assert request.end_day_offset == 1
-
     def test_create_request_insufficient_balance(self, setup_user_with_balance):
         """Test creating request with insufficient balance"""
         user = setup_user_with_balance['user']
@@ -331,6 +402,40 @@ class TestLeaveRequests:
 
         assert response.status_code == 200
         assert len(response.data) == 1
+
+    def test_list_my_requests_ignores_invalid_year(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.get('/api/v1/leaves/requests/my/?year=abc')
+
+        assert response.status_code == 200
+        assert response.data == []
+
+    def test_list_my_requests_preloads_serializer_relations(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        for day in range(20, 30):
+            LeaveRequest.objects.create(
+                user=user,
+                leave_category=category,
+                start_date=date(2026, 1, day),
+                end_date=date(2026, 1, day),
+                shift_type=LeaveRequest.ShiftType.FULL_DAY,
+                total_hours=Decimal('8.00'),
+                status=LeaveRequest.Status.PENDING,
+                first_approver=user.approver_1,
+            )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        with CaptureQueriesContext(connection) as queries:
+            response = client.get('/api/v1/leaves/requests/my/')
+
+        assert response.status_code == 200
+        assert len(response.data) == 10
+        assert len(queries) <= 7
 
     def test_cancel_my_request(self, setup_user_with_balance):
         """Test cancelling own leave request"""
@@ -401,6 +506,39 @@ class TestLeaveApprovals:
         leave_request.refresh_from_db()
         assert leave_request.status == 'APPROVED'
         assert leave_request.approved_by == manager
+
+    def test_final_approval_rechecks_remaining_balance(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        balance = setup_user_with_balance['balance']
+        category = setup_user_with_balance['category']
+        manager = User.objects.create_user(
+            email='balance-manager@example.com',
+            password='Manager123!',
+            role=User.Role.MANAGER,
+        )
+        user.approver_1 = manager
+        user.save(update_fields=['approver_1'])
+        leave_request = LeaveRequest.objects.create(
+            user=user,
+            leave_category=category,
+            start_date=date(2026, 1, 20),
+            end_date=date(2026, 1, 20),
+            shift_type=LeaveRequest.ShiftType.FULL_DAY,
+            total_hours=Decimal('8.00'),
+            status=LeaveRequest.Status.PENDING,
+            first_approver=manager,
+        )
+        balance.used_hours = balance.allocated_hours
+        balance.save(update_fields=['used_hours'])
+        client = APIClient()
+        client.force_authenticate(user=manager)
+
+        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/')
+
+        assert response.status_code == 400
+        assert 'Insufficient balance' in response.data['error']
+        leave_request.refresh_from_db()
+        assert leave_request.status == LeaveRequest.Status.PENDING
 
     def test_hr_approve_request(self, setup_user_with_balance):
         """Test HR approving a leave request"""

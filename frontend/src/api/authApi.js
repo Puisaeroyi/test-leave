@@ -77,14 +77,8 @@ export async function getLocations(entityId) {
 }
 
 export async function getDepartments(locationId) {
-  const res = await http.get(`${ORG_API_URL}/departments/?location_id=${locationId}`);
-  return res.data;
-}
-
-export async function getWorkShifts(departmentId) {
-  // Without a departmentId the endpoint returns every active shift (HR/Admin only)
-  const query = departmentId ? `?department_id=${departmentId}` : "";
-  const res = await http.get(`${ORG_API_URL}/work-shifts/${query}`);
+  const query = locationId ? `?location_id=${locationId}` : "";
+  const res = await http.get(`${ORG_API_URL}/departments/${query}`);
   return res.data;
 }
 

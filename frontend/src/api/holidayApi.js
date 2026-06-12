@@ -10,18 +10,11 @@ export const getHolidayCalendar = async (id) => {
   return response.data;
 };
 
-export const previewHolidayCalendarGeneration = async (year, countryOverrides = {}) => {
-  const response = await http.post("/leaves/holiday-calendars/generation-preview/", {
-    year,
-    country_overrides: countryOverrides,
-  });
-  return response.data.results || [];
-};
+export const deleteHolidayCalendar = async (id) => http.delete(`/leaves/holiday-calendars/${id}/`);
 
-export const generateHolidayCalendars = async (year, countryOverrides = {}) => {
+export const generateHolidayCalendars = async (year) => {
   const response = await http.post("/leaves/holiday-calendars/generate/", {
     year,
-    country_overrides: countryOverrides,
   });
   return response.data.results || [];
 };
@@ -43,24 +36,7 @@ export const publishHolidayCalendar = async (id) => {
   return response.data;
 };
 
-export const previewPublishHolidayCalendar = async (id) => {
-  const response = await http.post(`/leaves/holiday-calendars/${id}/publish-preview/`);
-  return response.data;
-};
-
-export const previewUnpublishHolidayCalendar = async (id) => {
-  const response = await http.post(`/leaves/holiday-calendars/${id}/unpublish-preview/`);
-  return response.data;
-};
-
-export const unpublishHolidayCalendar = async (id, previewToken) => {
-  const response = await http.post(`/leaves/holiday-calendars/${id}/unpublish/`, {
-    preview_token: previewToken,
-  });
-  return response.data;
-};
-
-export const getApplicableHolidays = async (year) => {
-  const response = await http.get("/leaves/holidays/", { params: { year } });
+export const unpublishHolidayCalendar = async (id) => {
+  const response = await http.post(`/leaves/holiday-calendars/${id}/unpublish/`);
   return response.data;
 };
