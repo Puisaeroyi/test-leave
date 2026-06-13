@@ -163,13 +163,13 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             try:
                 start_time = datetime.strptime(data.get('start_time'), '%H:%M').time()
                 end_time = datetime.strptime(data.get('end_time'), '%H:%M').time()
-                if 'start_day_offset' in data or 'end_day_offset' in data:
-                    start_day_offset = int(data.get('start_day_offset', 0))
-                    end_day_offset = int(data.get('end_day_offset', 0))
-                else:
+                if user.work_shift_id:
                     start_day_offset, end_day_offset = infer_custom_hour_offsets(
                         user, start_time, end_time
                     )
+                else:
+                    start_day_offset = int(data.get('start_day_offset', 0))
+                    end_day_offset = int(data.get('end_day_offset', 0))
             except (ValueError, TypeError):
                 return Response(
                     {'error': 'start_time and end_time required for CUSTOM_HOURS (format: HH:MM)'},

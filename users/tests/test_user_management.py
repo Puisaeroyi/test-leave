@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from organizations.models import Department, Entity, Location
+from organizations.models import Department, Entity, Location, WorkShift
 from users.models import User
 
 
@@ -58,6 +58,12 @@ class UserManagementApiTests(TestCase):
             location=self.location,
             department=self.department,
         )
+        self.work_shift = WorkShift.objects.create(
+            department=self.department,
+            name='Day Shift',
+            start_time='09:00',
+            end_time='17:00',
+        )
         self.client = APIClient()
         self.client.force_authenticate(user=self.admin)
 
@@ -108,6 +114,7 @@ class UserManagementApiTests(TestCase):
             'entity': str(self.entity.id),
             'location': str(self.location.id),
             'department': str(self.department.id),
+            'work_shift': str(self.work_shift.id),
             'approver': str(self.first_approver.id),
             'final_approver': str(self.second_approver.id),
         }, format='json')
@@ -117,21 +124,24 @@ class UserManagementApiTests(TestCase):
         user = User.objects.get(email='new-user-create-user@example.com')
         self.assertTrue(user.check_password('DefaultPass123!'))
         self.assertTrue(user.first_login)
+        self.assertEqual(user.work_shift, self.work_shift)
         self.assertEqual(user.approver_1, self.first_approver)
         self.assertEqual(user.approver_2, self.second_approver)
-        self.assertNotIn('work_shift', response.data)
+        self.assertEqual(response.data['work_shift']['id'], str(self.work_shift.id))
         self.assertEqual(response.data['approver']['id'], str(self.first_approver.id))
         self.assertEqual(response.data['final_approver']['id'], str(self.second_approver.id))
 
-    def test_user_update_ignores_removed_work_shift_payload(self):
+    def test_admin_can_update_user_work_shift(self):
         response = self.client.patch(
             f'/api/v1/auth/users/{self.first_approver.id}/',
-            {'work_shift': '00000000-0000-0000-0000-000000000000'},
+            {'work_shift': str(self.work_shift.id)},
             format='json',
         )
 
         self.assertEqual(response.status_code, 200, response.content)
-        self.assertNotIn('work_shift', response.data)
+        self.first_approver.refresh_from_db()
+        self.assertEqual(self.first_approver.work_shift, self.work_shift)
+        self.assertEqual(response.data['work_shift']['id'], str(self.work_shift.id))
 
     def test_hr_lists_only_users_in_own_entity(self):
         self.client.force_authenticate(user=self.hr)

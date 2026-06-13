@@ -33,7 +33,8 @@ def holiday_country_scope_for_user(user):
 
 def is_working_day(user, day):
     """Return whether this date should deduct full-day leave for the user."""
-    return day.weekday() < 5
+    shift = getattr(user, 'work_shift', None)
+    return bool(shift and shift.includes_weekends) or day.weekday() < 5
 
 
 def calculate_leave_hours(
@@ -74,13 +75,33 @@ def calculate_leave_hours(
             raise ValueError("Custom leave cannot exceed 8 hours")
         return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
-    # FULL_DAY: every calendar day counts, including weekends and holidays.
-    calendar_days = (end_date - start_date).days + 1
-    return Decimal(str(calendar_days * 8))
+    total_hours = Decimal('0')
+    current = start_date
+    while current <= end_date:
+        if not is_working_day(user, current):
+            current += timedelta(days=1)
+            continue
+        if user.department_id and user.department.holiday_requires_leave:
+            total_hours += Decimal('8')
+            current += timedelta(days=1)
+            continue
+        if not get_holidays_for_user(user, current, current, exclude_calendar_id).exists():
+            total_hours += Decimal('8')
+        current += timedelta(days=1)
+
+    return total_hours
 
 
 def infer_custom_hour_offsets(user, start_time, end_time):
-    """Infer actual calendar-day offsets from the selected start/end time only."""
+    """Infer actual calendar-day offsets from the user's assigned work shift."""
+    shift = getattr(user, 'work_shift', None)
+    if not shift:
+        return 0, 1 if end_time <= start_time else 0
+    if shift.end_time <= shift.start_time:
+        if start_time < shift.start_time:
+            return 1, 1 if end_time >= start_time else 2
+        if end_time <= shift.end_time:
+            return 0, 1
     return 0, 1 if end_time <= start_time else 0
 
 
