@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 
 from leaves.models import HolidayCalendar, PublicHoliday
 from leaves.utils import get_holidays_for_user
-from organizations.models import Entity, Location
+from organizations.models import Department, Entity, Location, WorkShift
 
 
 User = get_user_model()
@@ -216,3 +216,58 @@ def test_team_calendar_filters_holidays_by_user_location_country():
 
     assert response.status_code == 200
     assert [holiday["name"] for holiday in response.data["holidays"]] == ["Vietnam Calendar Holiday"]
+
+
+@pytest.mark.django_db
+def test_team_calendar_returns_current_user_work_schedule_for_rotating_shift():
+    entity = Entity.objects.create(entity_name="Schedule Entity", code="SCH")
+    location = Location.objects.create(
+        entity=entity,
+        location_name="Vietnam Office",
+        city="Ho Chi Minh City",
+        country="VN",
+        timezone="Asia/Ho_Chi_Minh",
+    )
+    department = Department.objects.create(
+        entity=entity,
+        location=location,
+        department_name="SOC",
+        code="SOC",
+    )
+    shift = WorkShift.objects.create(
+        department=department,
+        name="SOC",
+        pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+        start_time="06:00",
+        end_time="14:00",
+        includes_weekends=True,
+        cycle_days=[
+            {"name": "Morning", "start_time": "06:00", "end_time": "14:00", "is_working": True},
+            {"name": "Evening", "start_time": "14:00", "end_time": "22:00", "is_working": True},
+            {"name": "Night", "start_time": "22:00", "end_time": "06:00", "is_working": True},
+            {"name": "Off", "is_working": False},
+        ],
+    )
+    user = User.objects.create_user(
+        email="soc-calendar-user@example.com",
+        password="TestPass123!",
+        entity=entity,
+        location=location,
+        department=department,
+        work_shift=shift,
+        shift_cycle_start_date=date(2027, 7, 11),
+    )
+    client = APIClient()
+    client.force_authenticate(user)
+
+    response = client.get("/api/v1/leaves/calendar/?month=7&year=2027")
+
+    assert response.status_code == 200
+    days = {item["date"]: item for item in response.data["work_schedule"]}
+    assert days["2027-07-11"]["shift_name"] == "Morning"
+    assert days["2027-07-11"]["start_time"] == "06:00"
+    assert days["2027-07-12"]["shift_name"] == "Evening"
+    assert days["2027-07-13"]["shift_name"] == "Night"
+    assert days["2027-07-14"]["shift_name"] == "Off"
+    assert days["2027-07-14"]["is_working"] is False
+    assert days["2027-07-14"]["start_time"] is None

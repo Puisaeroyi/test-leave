@@ -76,11 +76,21 @@ class Department(models.Model):
 
 class WorkShift(models.Model):
     """Named working shift assigned to employees in a department."""
+    class PatternType(models.TextChoices):
+        FIXED_WEEKLY = 'FIXED_WEEKLY', 'Fixed weekly'
+        ROTATING_CYCLE = 'ROTATING_CYCLE', 'Rotating cycle'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='work_shifts')
     name = models.CharField(max_length=100)
+    pattern_type = models.CharField(
+        max_length=20,
+        choices=PatternType.choices,
+        default=PatternType.FIXED_WEEKLY,
+    )
     start_time = models.TimeField()
     end_time = models.TimeField()
+    cycle_days = models.JSONField(blank=True, default=list)
     includes_weekends = models.BooleanField(
         default=False,
         help_text="All 7 days count as deductible working days for this shift.",
@@ -94,6 +104,24 @@ class WorkShift(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.start_time:%H:%M}-{self.end_time:%H:%M})"
+
+    def clean(self):
+        super().clean()
+        if self.pattern_type != self.PatternType.ROTATING_CYCLE:
+            return
+        if not isinstance(self.cycle_days, list) or not self.cycle_days:
+            raise ValidationError({'cycle_days': 'Rotating shifts require at least one cycle day.'})
+        for index, item in enumerate(self.cycle_days):
+            if not isinstance(item, dict):
+                raise ValidationError({'cycle_days': f'Cycle day {index + 1} must be an object.'})
+            if not item.get('is_working', True):
+                continue
+            if not item.get('start_time') or not item.get('end_time'):
+                raise ValidationError({'cycle_days': f'Working cycle day {index + 1} requires start_time and end_time.'})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class UnifiedImportPlaceholder(models.Model):

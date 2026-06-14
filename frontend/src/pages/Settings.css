@@ -16,6 +16,14 @@
   background: transparent;
 }
 
+.work-shift-select .ant-select-selection-item,
+.work-shift-select .ant-select-selection-placeholder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .settings-page {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;

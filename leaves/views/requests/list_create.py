@@ -14,6 +14,7 @@ from ...constants import DEFAULT_PAGE_SIZE
 from ...utils import (
     check_overlapping_requests,
     calculate_leave_hours,
+    calculate_full_day_leave_breakdown,
     check_overlapping_custom_hours,
     infer_custom_hour_offsets,
     validate_leave_request_dates,
@@ -198,10 +199,16 @@ class LeaveRequestListView(generics.ListCreateAPIView):
 
         # Calculate hours
         try:
-            total_hours = calculate_leave_hours(
-                user, start_date, end_date, shift_type, start_time, end_time,
-                start_day_offset=start_day_offset, end_day_offset=end_day_offset,
-            )
+            if shift_type == 'FULL_DAY':
+                total_hours, leave_breakdown = calculate_full_day_leave_breakdown(
+                    user, start_date, end_date,
+                )
+            else:
+                total_hours = calculate_leave_hours(
+                    user, start_date, end_date, shift_type, start_time, end_time,
+                    start_day_offset=start_day_offset, end_day_offset=end_day_offset,
+                )
+                leave_breakdown = []
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -250,6 +257,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                     start_day_offset=start_day_offset,
                     end_day_offset=end_day_offset,
                     total_hours=total_hours,
+                    leave_breakdown=leave_breakdown,
                     reason=data.get('reason', ''),
                     attachment_url=attachment_url,
                     status='PENDING',

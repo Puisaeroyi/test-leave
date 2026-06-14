@@ -9,7 +9,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APIClient
 from freezegun import freeze_time
-from organizations.models import Department, Entity, Location
+from organizations.models import Department, Entity, Location, WorkShift
 from leaves.models import HolidayCalendar, LeaveCategory, LeaveBalance, LeaveRequest, PublicHoliday
 
 User = get_user_model()
@@ -203,6 +203,76 @@ class TestLeaveRequests:
         assert response.status_code == 201
         # 3 days = 24 hours
         assert response.data['total_hours'] == 24.0
+
+    def test_hr_night_weekly_shift_skips_weekend_days(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='HR Night Weekdays',
+            start_time='22:00',
+            end_time='06:00',
+            includes_weekends=False,
+        )
+        user.save(update_fields=['work_shift'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-07-10',
+            'end_date': '2026-07-13',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(category.id),
+            'reason': 'Family business',
+        })
+
+        assert response.status_code == 201, response.data
+        assert response.data['total_hours'] == 16.0
+        leave = LeaveRequest.objects.get(user=user, start_date=date(2026, 7, 10))
+        assert leave.total_hours == Decimal('16.00')
+
+    def test_soc_rotating_shift_uses_employee_cycle_anchor_and_off_days(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        category = setup_user_with_balance['category']
+        user.department.holiday_requires_leave = True
+        user.department.save(update_fields=['holiday_requires_leave'])
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='SOC Four Day Rotation',
+            pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+            start_time='06:00',
+            end_time='14:00',
+            includes_weekends=True,
+            cycle_days=[
+                {'name': 'Morning', 'start_time': '06:00', 'end_time': '14:00', 'is_working': True},
+                {'name': 'Evening', 'start_time': '14:00', 'end_time': '22:00', 'is_working': True},
+                {'name': 'Night', 'start_time': '22:00', 'end_time': '06:00', 'is_working': True},
+                {'name': 'Off', 'is_working': False},
+            ],
+        )
+        user.shift_cycle_start_date = date(2026, 7, 11)
+        user.save(update_fields=['work_shift', 'shift_cycle_start_date'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2026-07-13',
+            'end_date': '2026-07-15',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(category.id),
+            'reason': 'Family business',
+        })
+
+        assert response.status_code == 201, response.data
+        assert response.data['total_hours'] == 16.0
+        assert response.data['leave_breakdown'] == [
+            {'date': '2026-07-13', 'shift_name': 'Night', 'start_time': '22:00', 'end_time': '06:00', 'hours': 8.0, 'reason': 'WORK'},
+            {'date': '2026-07-14', 'shift_name': 'Off', 'start_time': None, 'end_time': None, 'hours': 0.0, 'reason': 'OFF'},
+            {'date': '2026-07-15', 'shift_name': 'Morning', 'start_time': '06:00', 'end_time': '14:00', 'hours': 8.0, 'reason': 'WORK'},
+        ]
+        leave = LeaveRequest.objects.get(user=user, start_date=date(2026, 7, 13))
+        assert leave.total_hours == Decimal('16.00')
+        assert leave.leave_breakdown == response.data['leave_breakdown']
 
     def test_create_full_day_request_counts_weekend_days(self, setup_user_with_balance):
         user = setup_user_with_balance['user']

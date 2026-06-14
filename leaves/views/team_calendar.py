@@ -1,4 +1,5 @@
 """Team calendar views."""
+from datetime import date, timedelta
 
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -8,7 +9,7 @@ from django.contrib.auth import get_user_model
 
 from ..models import LeaveRequest, PublicHoliday, BusinessTrip
 from ..constants import DEFAULT_MONTH, DEFAULT_YEAR
-from ..utils import holiday_country_scope_for_user
+from ..utils import holiday_country_scope_for_user, resolve_work_shift_day
 
 User = get_user_model()
 
@@ -63,11 +64,12 @@ class TeamCalendarView(generics.GenericAPIView):
             })
 
         # Get approved leaves for team members in the month
-        start_date = f"{year}-{month:02d}-01"
+        start_day = date(year, month, 1)
         if month == 12:
-            end_date = f"{year + 1}-01-01"
+            next_month_day = date(year + 1, 1, 1)
         else:
-            end_date = f"{year}-{month + 1:02d}-01"
+            next_month_day = date(year, month + 1, 1)
+        end_day = next_month_day - timedelta(days=1)
 
         member_id_list = [m['id'] for m in team_data]
 
@@ -76,7 +78,7 @@ class TeamCalendarView(generics.GenericAPIView):
             user_id__in=member_id_list,
             status='APPROVED'
         ).filter(
-            Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
+            Q(start_date__lte=end_day) & Q(end_date__gte=start_day)
         ).select_related('leave_category', 'user')
 
         leaves_data = []
@@ -98,7 +100,7 @@ class TeamCalendarView(generics.GenericAPIView):
         trips_query = BusinessTrip.objects.filter(
             user_id__in=member_id_list
         ).filter(
-            Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
+            Q(start_date__lte=end_day) & Q(end_date__gte=start_day)
         ).select_related('user')
 
         business_trips_data = []
@@ -119,7 +121,7 @@ class TeamCalendarView(generics.GenericAPIView):
             is_active=True,
             status=PublicHoliday.Status.PUBLISHED,
         ).filter(
-            Q(start_date__lte=end_date) & Q(end_date__gte=start_date)
+            Q(start_date__lte=end_day) & Q(end_date__gte=start_day)
         ).filter(
             (Q(entity=user.entity) | Q(entity__isnull=True)) & holiday_country_scope_for_user(user)
         )
@@ -139,11 +141,30 @@ class TeamCalendarView(generics.GenericAPIView):
             for holiday in holidays_query
         ]
 
+        work_schedule_data = []
+        if user.work_shift_id:
+            current = start_day
+            while current <= end_day:
+                resolved = resolve_work_shift_day(user, current)
+                if resolved:
+                    work_schedule_data.append({
+                        'date': current.isoformat(),
+                        'shift_name': resolved['shift_name'],
+                        'work_shift_name': user.work_shift.name,
+                        'pattern_type': user.work_shift.pattern_type,
+                        'is_working': resolved['is_working'],
+                        'start_time': resolved.get('start_time').strftime('%H:%M') if resolved.get('start_time') else None,
+                        'end_time': resolved.get('end_time').strftime('%H:%M') if resolved.get('end_time') else None,
+                        'hours': float(resolved['hours']),
+                    })
+                current += timedelta(days=1)
+
         return Response({
             'month': month,
             'year': year,
             'team_members': team_data,
             'leaves': leaves_data,
             'business_trips': business_trips_data,
-            'holidays': holidays_data
+            'holidays': holidays_data,
+            'work_schedule': work_schedule_data,
         }, status=status.HTTP_200_OK)

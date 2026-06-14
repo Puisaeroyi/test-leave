@@ -9,6 +9,11 @@ export const getAllUsers = async (params = {}) => {
   return response.data;
 };
 
+export const getApproverOptions = async () => {
+  const response = await http.get("/auth/users/approver-options/");
+  return response.data;
+};
+
 /**
  * Get user by ID
  */
