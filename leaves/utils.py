@@ -33,8 +33,77 @@ def holiday_country_scope_for_user(user):
 
 def is_working_day(user, day):
     """Return whether this date should deduct full-day leave for the user."""
+    resolved = resolve_work_shift_day(user, day)
+    if resolved:
+        return resolved['is_working']
     shift = getattr(user, 'work_shift', None)
+    if not shift:
+        return True
     return bool(shift and shift.includes_weekends) or day.weekday() < 5
+
+
+def _time_from_cycle_value(value):
+    if isinstance(value, time):
+        return value
+    hour, minute = map(int, value.split(':'))
+    return time(hour, minute)
+
+
+def _hours_between(start, end):
+    start = _time_from_cycle_value(start)
+    end = _time_from_cycle_value(end)
+    start_dt = datetime.combine(date.min, start)
+    end_dt = datetime.combine(date.min, end)
+    if end_dt <= start_dt:
+        end_dt += timedelta(days=1)
+    return Decimal(str((end_dt - start_dt).total_seconds() / 3600)).quantize(Decimal('0.01'))
+
+
+def resolve_work_shift_day(user, day):
+    """Resolve the user's assigned shift for a work date without materializing schedules."""
+    shift = getattr(user, 'work_shift', None)
+    if not shift:
+        return None
+    if shift.pattern_type == 'ROTATING_CYCLE':
+        anchor = getattr(user, 'shift_cycle_start_date', None)
+        if not anchor:
+            raise ValueError('Rotating shift users require a cycle start date')
+        cycle_days = shift.cycle_days or []
+        if not cycle_days:
+            raise ValueError('Rotating shift has no cycle days configured')
+        item = cycle_days[(day - anchor).days % len(cycle_days)]
+        if not item.get('is_working', True):
+            return {
+                'date': day,
+                'shift_name': item.get('name') or 'Off',
+                'is_working': False,
+                'hours': Decimal('0.00'),
+            }
+        start = _time_from_cycle_value(item['start_time'])
+        end = _time_from_cycle_value(item['end_time'])
+        return {
+            'date': day,
+            'shift_name': item.get('name') or shift.name,
+            'is_working': True,
+            'start_time': start,
+            'end_time': end,
+            'hours': _hours_between(start, end),
+        }
+    if shift.includes_weekends or day.weekday() < 5:
+        return {
+            'date': day,
+            'shift_name': shift.name,
+            'is_working': True,
+            'start_time': shift.start_time,
+            'end_time': shift.end_time,
+            'hours': _hours_between(shift.start_time, shift.end_time),
+        }
+    return {
+        'date': day,
+        'shift_name': 'Off',
+        'is_working': False,
+        'hours': Decimal('0.00'),
+    }
 
 
 def calculate_leave_hours(
@@ -75,21 +144,57 @@ def calculate_leave_hours(
             raise ValueError("Custom leave cannot exceed 8 hours")
         return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
 
+    total_hours, _ = calculate_full_day_leave_breakdown(user, start_date, end_date, exclude_calendar_id)
+    return total_hours
+
+
+def calculate_full_day_leave_breakdown(user, start_date, end_date, exclude_calendar_id=None):
     total_hours = Decimal('0')
+    breakdown = []
     current = start_date
     while current <= end_date:
+        resolved = resolve_work_shift_day(user, current)
         if not is_working_day(user, current):
+            breakdown.append({
+                'date': current.isoformat(),
+                'shift_name': (resolved or {}).get('shift_name', 'Off'),
+                'start_time': None,
+                'end_time': None,
+                'hours': 0.0,
+                'reason': 'OFF',
+            })
+            current += timedelta(days=1)
+            continue
+        hours = resolved['hours'] if resolved else Decimal('8')
+        if not resolved:
+            total_hours += hours
+            breakdown.append(_breakdown_row(current, resolved, hours, 'WORK'))
             current += timedelta(days=1)
             continue
         if user.department_id and user.department.holiday_requires_leave:
-            total_hours += Decimal('8')
+            total_hours += hours
+            breakdown.append(_breakdown_row(current, resolved, hours, 'WORK'))
             current += timedelta(days=1)
             continue
         if not get_holidays_for_user(user, current, current, exclude_calendar_id).exists():
-            total_hours += Decimal('8')
+            total_hours += hours
+            breakdown.append(_breakdown_row(current, resolved, hours, 'WORK'))
+        else:
+            breakdown.append(_breakdown_row(current, resolved, Decimal('0.00'), 'HOLIDAY'))
         current += timedelta(days=1)
 
-    return total_hours
+    return total_hours, breakdown
+
+
+def _breakdown_row(day, resolved, hours, reason):
+    return {
+        'date': day.isoformat(),
+        'shift_name': (resolved or {}).get('shift_name', 'Standard day'),
+        'start_time': (resolved or {}).get('start_time').strftime('%H:%M') if (resolved or {}).get('start_time') else None,
+        'end_time': (resolved or {}).get('end_time').strftime('%H:%M') if (resolved or {}).get('end_time') else None,
+        'hours': float(hours),
+        'reason': reason,
+    }
 
 
 def infer_custom_hour_offsets(user, start_time, end_time):

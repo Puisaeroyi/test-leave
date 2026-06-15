@@ -63,14 +63,15 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'id', 'user', 'user_name', 'user_email', 'user_timezone', 'user_location_name',
             'department_name', 'leave_category', 'category',
             'start_date', 'end_date', 'shift_type',
-            'start_time', 'end_time', 'start_day_offset', 'end_day_offset', 'total_hours', 'reason',
+            'start_time', 'end_time', 'start_day_offset', 'end_day_offset', 'total_hours',
+            'leave_breakdown', 'reason',
             'attachment_url', 'status', 'approved_by', 'approved_by_name',
             'approved_at', 'rejection_reason', 'approver_comment',
             'current_approval_step', 'current_approver_id', 'current_approver_name',
             'action_required_user_ids', 'approval_timeline',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'total_hours', 'approved_by', 'approved_at', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'total_hours', 'leave_breakdown', 'approved_by', 'approved_at', 'created_at', 'updated_at']
 
     def get_total_hours(self, obj):
         """Return total hours as float"""

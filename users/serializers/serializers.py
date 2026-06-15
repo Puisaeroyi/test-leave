@@ -120,9 +120,11 @@ class UserSerializer(serializers.ModelSerializer):
     class WorkShiftSerializer(serializers.Serializer):
         id = serializers.UUIDField()
         name = serializers.CharField()
+        pattern_type = serializers.CharField()
         start_time = serializers.TimeField(format='%H:%M')
         end_time = serializers.TimeField(format='%H:%M')
         includes_weekends = serializers.BooleanField()
+        cycle_days = serializers.JSONField()
 
     approver = ApproverSerializer(source='approver_1', read_only=True, allow_null=True)
     final_approver = ApproverSerializer(source='approver_2', read_only=True, allow_null=True)
@@ -145,6 +147,7 @@ class UserSerializer(serializers.ModelSerializer):
             'location',
             'department',
             'work_shift',
+            'shift_cycle_start_date',
             'approver',  # First approval step
             'final_approver',  # Optional final approval step
             'join_date',
@@ -175,6 +178,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         required=False,
         allow_null=True,
     )
+    shift_cycle_start_date = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -185,6 +189,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             'employee_code',
             'avatar_url',
             'work_shift',
+            'shift_cycle_start_date',
             'approver',  # HR/Admin can assign first approver
             'final_approver',  # HR/Admin can assign second approver
         ]
@@ -257,7 +262,16 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             })
         if work_shift and self.instance.department_id and work_shift.department_id != self.instance.department_id:
             raise serializers.ValidationError({'work_shift': "Selected shift does not belong to department."})
+        shift_cycle_start_date = attrs.get(
+            'shift_cycle_start_date',
+            getattr(self.instance, 'shift_cycle_start_date', None),
+        )
+        if work_shift and work_shift.pattern_type == WorkShift.PatternType.ROTATING_CYCLE and not shift_cycle_start_date:
+            raise serializers.ValidationError({'shift_cycle_start_date': 'Cycle start date is required for rotating shifts.'})
         return attrs
+
+    def to_representation(self, instance):
+        return UserSerializer(instance, context=self.context).data
 
 
 class UserCreateSerializer(serializers.Serializer):
@@ -274,6 +288,7 @@ class UserCreateSerializer(serializers.Serializer):
     location = serializers.UUIDField(required=True)
     department = serializers.UUIDField(required=True)
     work_shift = serializers.UUIDField(required=False, allow_null=True)
+    shift_cycle_start_date = serializers.DateField(required=False, allow_null=True)
     approver = serializers.UUIDField(required=True)
     final_approver = serializers.UUIDField(required=False, allow_null=True)
     join_date = serializers.DateField(required=False, allow_null=True)
@@ -319,6 +334,7 @@ class UserCreateSerializer(serializers.Serializer):
         location = attrs.get('location')
         department = attrs.get('department')
         work_shift = attrs.get('work_shift')
+        shift_cycle_start_date = attrs.get('shift_cycle_start_date')
 
         if location and entity and location.entity != entity:
             raise serializers.ValidationError({
@@ -330,6 +346,8 @@ class UserCreateSerializer(serializers.Serializer):
             })
         if work_shift and department and work_shift.department_id != department.id:
             raise serializers.ValidationError({"work_shift": "Selected shift does not belong to department."})
+        if work_shift and work_shift.pattern_type == WorkShift.PatternType.ROTATING_CYCLE and not shift_cycle_start_date:
+            raise serializers.ValidationError({"shift_cycle_start_date": "Cycle start date is required for rotating shifts."})
         approver = attrs.get('approver')
         final_approver = attrs.get('final_approver')
         if approver and final_approver and approver.id == final_approver.id:
@@ -353,6 +371,7 @@ class UserCreateSerializer(serializers.Serializer):
             location=validated_data['location'],
             department=validated_data['department'],
             work_shift=validated_data.get('work_shift'),
+            shift_cycle_start_date=validated_data.get('shift_cycle_start_date'),
             approver_1=validated_data.get('approver'),
             approver_2=validated_data.get('final_approver'),
             join_date=validated_data.get('join_date') or date.today(),

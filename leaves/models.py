@@ -105,6 +105,7 @@ class LeaveRequest(models.Model):
     start_day_offset = models.PositiveSmallIntegerField(default=0)
     end_day_offset = models.PositiveSmallIntegerField(default=0)
     total_hours = models.DecimalField(max_digits=5, decimal_places=2)
+    leave_breakdown = models.JSONField(blank=True, default=list)
     reason = models.TextField(blank=True)
     attachment_url = models.CharField(max_length=500, blank=True, null=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)

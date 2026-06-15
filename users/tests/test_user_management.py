@@ -143,6 +143,54 @@ class UserManagementApiTests(TestCase):
         self.assertEqual(self.first_approver.work_shift, self.work_shift)
         self.assertEqual(response.data['work_shift']['id'], str(self.work_shift.id))
 
+    def test_rotating_work_shift_requires_cycle_start_date(self):
+        rotating_shift = WorkShift.objects.create(
+            department=self.department,
+            name='SOC Rotation',
+            pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+            start_time='06:00',
+            end_time='14:00',
+            includes_weekends=True,
+            cycle_days=[
+                {'name': 'Morning', 'start_time': '06:00', 'end_time': '14:00', 'is_working': True},
+                {'name': 'Off', 'is_working': False},
+            ],
+        )
+
+        response = self.client.patch(
+            f'/api/v1/auth/users/{self.first_approver.id}/',
+            {'work_shift': str(rotating_shift.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('shift_cycle_start_date', response.data)
+
+    def test_admin_can_update_user_rotating_work_shift_with_cycle_start_date(self):
+        rotating_shift = WorkShift.objects.create(
+            department=self.department,
+            name='SOC Rotation',
+            pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+            start_time='06:00',
+            end_time='14:00',
+            includes_weekends=True,
+            cycle_days=[
+                {'name': 'Morning', 'start_time': '06:00', 'end_time': '14:00', 'is_working': True},
+                {'name': 'Off', 'is_working': False},
+            ],
+        )
+
+        response = self.client.patch(
+            f'/api/v1/auth/users/{self.first_approver.id}/',
+            {'work_shift': str(rotating_shift.id), 'shift_cycle_start_date': '2026-07-11'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.first_approver.refresh_from_db()
+        self.assertEqual(self.first_approver.work_shift, rotating_shift)
+        self.assertEqual(str(self.first_approver.shift_cycle_start_date), '2026-07-11')
+
     def test_hr_lists_only_users_in_own_entity(self):
         self.client.force_authenticate(user=self.hr)
 
@@ -152,6 +200,30 @@ class UserManagementApiTests(TestCase):
         user_ids = {item['id'] for item in response.data}
         self.assertIn(str(self.first_approver.id), user_ids)
         self.assertNotIn(str(self.other_user.id), user_ids)
+
+    def test_hr_can_list_cross_entity_approver_options_without_expanding_user_management(self):
+        self.client.force_authenticate(user=self.hr)
+
+        options_response = self.client.get('/api/v1/auth/users/approver-options/')
+        users_response = self.client.get('/api/v1/auth/users/')
+
+        self.assertEqual(options_response.status_code, 200)
+        option_ids = {item['id'] for item in options_response.data}
+        managed_user_ids = {item['id'] for item in users_response.data}
+        self.assertIn(str(self.other_user.id), option_ids)
+        self.assertNotIn(str(self.other_user.id), managed_user_ids)
+        other_option = next(
+            item for item in options_response.data
+            if item['id'] == str(self.other_user.id)
+        )
+        self.assertEqual(other_option['entity_name'], self.other_entity.entity_name)
+
+    def test_employee_cannot_list_cross_entity_approver_options(self):
+        self.client.force_authenticate(user=self.other_user)
+
+        response = self.client.get('/api/v1/auth/users/approver-options/')
+
+        self.assertEqual(response.status_code, 403)
 
     def test_admin_still_lists_users_across_entities(self):
         response = self.client.get('/api/v1/auth/users/')
@@ -241,6 +313,28 @@ class UserManagementApiTests(TestCase):
         employee.refresh_from_db()
         self.assertEqual(employee.approver_1, self.second_approver)
         self.assertEqual(employee.approver_2, self.third_approver)
+
+    def test_hr_can_assign_cross_entity_approver_to_user_in_own_entity(self):
+        employee = User.objects.create_user(
+            email='vn-employee-cross-approver@example.com',
+            password='EmployeePass123!',
+            role=User.Role.EMPLOYEE,
+            entity=self.entity,
+            location=self.location,
+            department=self.department,
+            approver_1=self.first_approver,
+        )
+        self.client.force_authenticate(user=self.hr)
+
+        response = self.client.patch(
+            f'/api/v1/auth/users/{employee.id}/',
+            {'approver': str(self.other_user.id)},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        employee.refresh_from_db()
+        self.assertEqual(employee.approver_1, self.other_user)
 
     def test_admin_can_change_approvers_for_any_user(self):
         response = self.client.patch(

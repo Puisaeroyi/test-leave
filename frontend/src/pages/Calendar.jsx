@@ -8,6 +8,7 @@ import {
   Spin,
   Grid,
   Space,
+  Switch,
   Tag,
   Empty,
   message,
@@ -65,6 +66,21 @@ const mapCategoryToType = (category) => {
   if (cat.includes("sick")) return "sick";
   if (cat.includes("remote")) return "remote";
   return "vacation";
+};
+
+const formatTimeAmPm = (value) => {
+  if (!value) return "";
+  const [hourPart, minutePart = "00"] = String(value).split(":");
+  const hour = Number(hourPart);
+  if (Number.isNaN(hour)) return value;
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minutePart.padStart(2, "0")} ${period}`;
+};
+
+const getScheduleLabel = (item) => {
+  if (!item.is_working) return "Off";
+  return `${item.shift_name} | ${formatTimeAmPm(item.start_time)} - ${formatTimeAmPm(item.end_time)}`;
 };
 
 const getEventKey = (item, index) =>
@@ -136,6 +152,14 @@ function transformToEvents(data) {
   return evts;
 }
 
+function transformToWorkSchedule(data) {
+  return (data.work_schedule || []).map((item) => ({
+    ...item,
+    type: "work_schedule",
+    note: getScheduleLabel(item),
+  }));
+}
+
 export default function TeamCalendar() {
   const today = dayjs().format("YYYY-MM-DD");
   const screens = useBreakpoint();
@@ -146,6 +170,8 @@ export default function TeamCalendar() {
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState([]);
+  const [scheduleEvents, setScheduleEvents] = useState([]);
+  const [showWorkSchedule, setShowWorkSchedule] = useState(true);
   const [balance, setBalance] = useState([]);
 
   // Create event modal states
@@ -171,6 +197,7 @@ export default function TeamCalendar() {
 
       const transformedEvents = transformToEvents(data);
       setEvents(transformedEvents);
+      setScheduleEvents(transformToWorkSchedule(data));
     } catch (error) {
       console.error("Failed to load calendar data:", error);
       message.error("Failed to load calendar data");
@@ -193,18 +220,24 @@ export default function TeamCalendar() {
     );
   };
 
+  const getScheduleByDate = (value) => {
+    if (!showWorkSchedule) return null;
+    const date = dayjs(value).format("YYYY-MM-DD");
+    return scheduleEvents.find((item) => item.date === date) || null;
+  };
+
   /* =======================
      BUILD CELL LABEL
   ======================= */
   const getCellLabel = (item) => {
     if (item.type === "holiday") return item.note;
     if (!item.is_full_day && item.start_time && item.end_time) {
-      return `${item.user} (${item.start_time} - ${item.end_time})`;
+      return `${item.user} - ${item.note} (${formatTimeAmPm(item.start_time)} - ${formatTimeAmPm(item.end_time)})`;
     }
     if (item.type === "business") {
       return `${item.user} - ${item.city}, ${item.country}`;
     }
-    return item.user;
+    return item.note ? `${item.user} - ${item.note}` : item.user;
   };
 
   /* =======================
@@ -233,6 +266,7 @@ export default function TeamCalendar() {
   ======================= */
   const dateCellRender = (value) => {
     const list = getEventsByDate(value);
+    const schedule = getScheduleByDate(value);
     const isToday = value.format("YYYY-MM-DD") === today;
     const isPast = value.isBefore(dayjs(), "day");
 
@@ -249,6 +283,13 @@ export default function TeamCalendar() {
         }}
       >
         {isToday && <span className="calendar-today-dot" />}
+
+        {schedule && (
+          <div className={`calendar-work-schedule-chip${schedule.is_working ? "" : " calendar-work-schedule-chip--off"}`}>
+            <span className="calendar-work-schedule-chip__eyebrow">My shift</span>
+            <span className="calendar-work-schedule-chip__label">{getScheduleLabel(schedule)}</span>
+          </div>
+        )}
 
         {list.map((item, index) => {
           const style = TYPE_STYLE[item.type];
@@ -311,16 +352,21 @@ export default function TeamCalendar() {
      MOBILE: event list for selected date
   ======================= */
   const selectedDateEvents = getEventsByDate(selectedDate);
+  const selectedDateSchedule = getScheduleByDate(selectedDate);
 
   /* =======================
      MOBILE: dot indicators on calendar cells
   ======================= */
   const mobileCellRender = (value) => {
     const list = getEventsByDate(value);
-    if (list.length === 0) return null;
+    const schedule = getScheduleByDate(value);
+    if (list.length === 0 && !schedule) return null;
 
     // Show colored dots for event types present on this day
-    const types = [...new Set(list.map((e) => e.type))];
+    const types = [...new Set([
+      ...(schedule ? ["work_schedule"] : []),
+      ...list.map((e) => e.type),
+    ])];
     return (
       <div className="calendar-mobile-dots">
         {types.slice(0, 3).map((type) => (
@@ -328,7 +374,7 @@ export default function TeamCalendar() {
             key={type}
             className="calendar-mobile-dot"
             style={{
-              background: TYPE_STYLE[type]?.border || "#999",
+              background: type === "work_schedule" ? "var(--color-text-soft)" : TYPE_STYLE[type]?.border || "#999",
             }}
           />
         ))}
@@ -342,6 +388,30 @@ export default function TeamCalendar() {
   const legendBadges = ["holiday", "vacation", "sick", "business"].map((type) => (
     <Badge key={type} color={TYPE_STYLE[type].border} text={TYPE_STYLE[type].label} />
   ));
+  const workScheduleToggle = (
+    <Space size={6} className="calendar-work-schedule-toggle">
+      <Switch size="small" checked={showWorkSchedule} onChange={setShowWorkSchedule} />
+      <span>My Work Shift</span>
+    </Space>
+  );
+  const renderMobileSchedule = () => {
+    if (!selectedDateSchedule) return null;
+    const className = "calendar-mobile-event calendar-mobile-schedule"
+      + (selectedDateSchedule.is_working ? "" : " calendar-mobile-schedule--off");
+    return (
+      <div className={className}>
+        <div className="calendar-mobile-event__bar" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Text strong style={{ fontSize: 14 }}>
+            {getScheduleLabel(selectedDateSchedule)}
+          </Text>
+          <div>
+            <Tag style={{ marginTop: 4, fontSize: 11 }}>My Work Shift</Tag>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="page-shell">
@@ -359,18 +429,21 @@ export default function TeamCalendar() {
         extra={
           isMobile ? (
             // Mobile: only filter dropdown
-            <Select
-              value={filter}
-              onChange={setFilter}
-              style={{ width: 140 }}
-              size="small"
-              options={[
-                { value: "all", label: "All types" },
-                { value: "business", label: "Business Trip" },
-                { value: "vacation", label: "Vacation" },
-                { value: "holiday", label: "Holidays" },
-              ]}
-            />
+            <div className="calendar-filter-row">
+              <Select
+                value={filter}
+                onChange={setFilter}
+                style={{ width: 140 }}
+                size="small"
+                options={[
+                  { value: "all", label: "All types" },
+                  { value: "business", label: "Business Trip" },
+                  { value: "vacation", label: "Vacation" },
+                  { value: "holiday", label: "Holidays" },
+                ]}
+              />
+              {workScheduleToggle}
+            </div>
           ) : (
             // Desktop: filter + legend badges
             <div className="calendar-filter-row">
@@ -385,6 +458,7 @@ export default function TeamCalendar() {
                   { value: "holiday", label: "Holidays only" },
                 ]}
               />
+              {workScheduleToggle}
               {legendBadges}
             </div>
           )
@@ -461,7 +535,7 @@ export default function TeamCalendar() {
               </div>
 
               {/* Event list for selected date */}
-              {selectedDateEvents.length === 0 ? (
+              {selectedDateEvents.length === 0 && !selectedDateSchedule ? (
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
                   description="No events on this day"
@@ -469,6 +543,7 @@ export default function TeamCalendar() {
                 />
               ) : (
                 <div className="calendar-event-list">
+                  {renderMobileSchedule()}
                   {selectedDateEvents.map((item, index) => {
                     const style = TYPE_STYLE[item.type];
                     return (

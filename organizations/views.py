@@ -31,6 +31,30 @@ def _parse_bool(value):
     return bool(value)
 
 
+def _parse_cycle_days(value):
+    if value in (None, ''):
+        return []
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _serialize_shift(shift):
+    return {
+        'id': str(shift.id),
+        'department_id': str(shift.department_id),
+        'department_name': shift.department.department_name,
+        'entity_name': shift.department.entity.entity_name,
+        'location_name': shift.department.location.location_name if shift.department.location else 'Entity-wide',
+        'name': shift.name,
+        'pattern_type': shift.pattern_type,
+        'start_time': shift.start_time.strftime('%H:%M'),
+        'end_time': shift.end_time.strftime('%H:%M'),
+        'includes_weekends': shift.includes_weekends,
+        'cycle_days': shift.cycle_days,
+    }
+
+
 def _department_queryset(user):
     departments = Department.objects.filter(is_active=True).select_related('entity', 'location')
     if user.role == User.Role.HR:
@@ -118,16 +142,7 @@ class WorkShiftListCreateView(APIView):
         department_id = request.query_params.get('department_id')
         if department_id:
             shifts = shifts.filter(department_id=department_id)
-        return Response([{
-            'id': str(shift.id),
-            'department_id': str(shift.department_id),
-            'department_name': shift.department.department_name,
-            'entity_name': shift.department.entity.entity_name,
-            'name': shift.name,
-            'start_time': shift.start_time.strftime('%H:%M'),
-            'end_time': shift.end_time.strftime('%H:%M'),
-            'includes_weekends': shift.includes_weekends,
-        } for shift in shifts])
+        return Response([_serialize_shift(shift) for shift in shifts])
 
     def post(self, request):
         try:
@@ -141,6 +156,10 @@ class WorkShiftListCreateView(APIView):
         except (KeyError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         includes_weekends = _parse_bool(request.data.get('includes_weekends', False))
+        pattern_type = request.data.get('pattern_type') or WorkShift.PatternType.FIXED_WEEKLY
+        if pattern_type not in WorkShift.PatternType.values:
+            return Response({'pattern_type': ['Invalid pattern type.']}, status=status.HTTP_400_BAD_REQUEST)
+        cycle_days = _parse_cycle_days(request.data.get('cycle_days'))
 
         if _parse_bool(request.data.get('apply_to_all_departments')):
             entity = Entity.objects.filter(id=request.data.get('entity_id'), is_active=True).first()
@@ -162,6 +181,8 @@ class WorkShiftListCreateView(APIView):
                         name=name,
                         start_time=start_time_value,
                         end_time=end_time_value,
+                        pattern_type=pattern_type,
+                        cycle_days=cycle_days,
                         includes_weekends=includes_weekends,
                     )
                     created += 1
@@ -185,9 +206,71 @@ class WorkShiftListCreateView(APIView):
             name=name,
             start_time=start_time_value,
             end_time=end_time_value,
+            pattern_type=pattern_type,
+            cycle_days=cycle_days,
             includes_weekends=includes_weekends,
         )
-        return Response({'id': str(shift.id)}, status=status.HTTP_201_CREATED)
+        return Response(_serialize_shift(shift), status=status.HTTP_201_CREATED)
+
+
+class WorkShiftDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsHRAdmin]
+
+    def get_shift(self, request, pk):
+        return WorkShift.objects.filter(
+            id=pk,
+            is_active=True,
+            department__in=_department_queryset(request.user),
+        ).select_related('department__entity', 'department__location').first()
+
+    def patch(self, request, pk):
+        shift = self.get_shift(request, pk)
+        if not shift:
+            return Response({'error': 'Work shift not found'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            if 'name' in request.data:
+                shift.name = request.data['name'].strip()
+                if not shift.name:
+                    return Response({'name': ['Shift name is required.']}, status=status.HTTP_400_BAD_REQUEST)
+            if 'start_time' in request.data:
+                start_hour, start_minute = map(int, request.data['start_time'].split(':'))
+                shift.start_time = time(start_hour, start_minute)
+            if 'end_time' in request.data:
+                end_hour, end_minute = map(int, request.data['end_time'].split(':'))
+                shift.end_time = time(end_hour, end_minute)
+        except ValueError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        pattern_type = request.data.get('pattern_type')
+        if pattern_type:
+            if pattern_type not in WorkShift.PatternType.values:
+                return Response({'pattern_type': ['Invalid pattern type.']}, status=status.HTTP_400_BAD_REQUEST)
+            shift.pattern_type = pattern_type
+        if 'cycle_days' in request.data:
+            shift.cycle_days = _parse_cycle_days(request.data.get('cycle_days'))
+        if 'includes_weekends' in request.data:
+            shift.includes_weekends = _parse_bool(request.data.get('includes_weekends'))
+
+        duplicate = WorkShift.objects.filter(
+            department=shift.department,
+            name=shift.name,
+            is_active=True,
+        ).exclude(id=shift.id).exists()
+        if duplicate:
+            return Response(
+                {'name': ['A work shift with this name already exists in the department.']},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        shift.save()
+        return Response(_serialize_shift(shift))
+
+    def delete(self, request, pk):
+        shift = self.get_shift(request, pk)
+        if not shift:
+            return Response({'error': 'Work shift not found'}, status=status.HTTP_404_NOT_FOUND)
+        shift.is_active = False
+        shift.save(update_fields=['is_active'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EntityCreateView(generics.GenericAPIView):

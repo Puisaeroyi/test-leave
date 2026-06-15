@@ -66,6 +66,7 @@ class User(AbstractUser):
         blank=True,
         related_name='users',
     )
+    shift_cycle_start_date = models.DateField(null=True, blank=True)
     approver_1 = models.ForeignKey(
         'self',
         on_delete=models.SET_NULL,
@@ -129,6 +130,12 @@ class User(AbstractUser):
                 })
         if self.work_shift and self.department and self.work_shift.department_id != self.department_id:
             raise ValidationError({'work_shift': "Selected work shift does not belong to the user's department."})
+        if (
+            self.work_shift
+            and self.work_shift.pattern_type == 'ROTATING_CYCLE'
+            and not self.shift_cycle_start_date
+        ):
+            raise ValidationError({'shift_cycle_start_date': 'Rotating shifts require a cycle start date.'})
         if self.avatar_url:
             if not self.avatar_url.startswith('/media/'):
                 validator = URLValidator(schemes=['http', 'https'])

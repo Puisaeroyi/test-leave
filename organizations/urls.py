@@ -11,6 +11,7 @@ from .views import (
     EntitySoftDeleteView,
     EntityDeleteImpactView,
     WorkShiftListCreateView,
+    WorkShiftDetailView,
 )
 
 urlpatterns = [
@@ -29,4 +30,5 @@ urlpatterns = [
     # Departments
     path('departments/', DepartmentListView.as_view(), name='department_list'),
     path('work-shifts/', WorkShiftListCreateView.as_view(), name='work_shift_list'),
+    path('work-shifts/<uuid:pk>/', WorkShiftDetailView.as_view(), name='work_shift_detail'),
 ]

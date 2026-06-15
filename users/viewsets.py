@@ -147,6 +147,30 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return super().destroy(request, *args, **kwargs)
 
+    @action(detail=False, methods=['get'], url_path='approver-options')
+    def approver_options(self, request):
+        """Return active users across entities for HR/Admin approver assignment."""
+        if request.user.role not in [User.Role.HR, User.Role.ADMIN]:
+            return Response(
+                {'error': 'Only HR and Admin can view approver options.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        users = User.objects.filter(
+            is_active=True,
+            status=User.Status.ACTIVE,
+        ).select_related('entity').order_by('first_name', 'last_name', 'email')
+        return Response([
+            {
+                'id': str(user.id),
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'entity_name': user.entity.entity_name if user.entity else None,
+            }
+            for user in users
+        ])
+
     @action(detail=False, methods=['get'], url_path='my-subordinates')
     def my_subordinates(self, request):
         """

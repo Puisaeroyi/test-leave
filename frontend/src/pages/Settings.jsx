@@ -29,7 +29,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
-import { getAllUsers, updateUser, deleteUser, createUser } from "@api/userApi";
+import { getAllUsers, getApproverOptions, updateUser, deleteUser, createUser } from "@api/userApi";
 import { getEntities, getLocations, getDepartments, getWorkShifts } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
 import AnnouncementManagement from "@components/AnnouncementManagement";
@@ -41,10 +41,27 @@ import "./Settings.css";
 
 const { Title, Text } = Typography;
 
+const getWorkShiftOptionLabel = (shift) => {
+  if (shift.pattern_type !== "ROTATING_CYCLE") {
+    return `${shift.name} (${shift.start_time}-${shift.end_time})`;
+  }
+
+  const cycleDays = Array.isArray(shift.cycle_days) ? shift.cycle_days : [];
+  const workingDays = cycleDays.filter((day) => day.is_working !== false).length;
+  const offDays = cycleDays.filter((day) => day.is_working === false).length;
+  const summary = workingDays && offDays
+    ? `${workingDays} shifts + ${offDays} off`
+    : "Rotating cycle";
+
+  return `${shift.name} - Rotating cycle (${summary})`;
+};
+
 const Settings = () => {
   const { user } = useAuth();
   const [form] = Form.useForm();
+  const editWorkShiftId = Form.useWatch("work_shift", form);
   const [users, setUsers] = useState([]);
+  const [approverOptions, setApproverOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -58,6 +75,7 @@ const Settings = () => {
   // Add User modal state
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addForm] = Form.useForm();
+  const addWorkShiftId = Form.useWatch("work_shift", addForm);
   const [entities, setEntities] = useState([]);
   const [locations, setLocations] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -65,6 +83,8 @@ const Settings = () => {
   const [creating, setCreating] = useState(false);
   const hasSettingsAccess = user?.role === "HR" || user?.role === "ADMIN";
   const userRows = Array.isArray(users) ? users : users?.results || [];
+  const selectedEditShift = workShifts.find((shift) => shift.id === editWorkShiftId);
+  const selectedAddShift = workShifts.find((shift) => shift.id === addWorkShiftId);
 
   const fetchUsers = useCallback(async () => {
     if (!hasSettingsAccess) return;
@@ -80,9 +100,19 @@ const Settings = () => {
     }
   }, [hasSettingsAccess]);
 
+  const fetchApproverOptions = useCallback(async () => {
+    if (!hasSettingsAccess) return;
+    try {
+      setApproverOptions(await getApproverOptions());
+    } catch (error) {
+      message.error("Failed to load approver options: " + (error.response?.data?.error || error.message));
+    }
+  }, [hasSettingsAccess]);
+
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchApproverOptions();
+  }, [fetchApproverOptions, fetchUsers]);
 
   // Check if user has access (HR or Admin only)
   if (!hasSettingsAccess) {
@@ -105,6 +135,7 @@ const Settings = () => {
       approver: userData.approver?.id || null,
       final_approver: userData.final_approver?.id || null,
       work_shift: userData.work_shift?.id || null,
+      shift_cycle_start_date: userData.shift_cycle_start_date ? dayjs(userData.shift_cycle_start_date) : null,
     });
     setEditModalVisible(true);
   };
@@ -122,13 +153,16 @@ const Settings = () => {
         approver: values.approver || null,
         final_approver: values.final_approver || null,
         work_shift: values.work_shift || null,
+        shift_cycle_start_date: values.shift_cycle_start_date?.format("YYYY-MM-DD") || null,
       });
 
       message.success("User updated successfully");
       setEditModalVisible(false);
       await fetchUsers();
     } catch (error) {
-      message.error("Failed to update user: " + (error.response?.data?.error || error.message));
+      const errData = error.response?.data;
+      const errMsg = errData?.error || Object.values(errData || {}).flat()[0] || error.message;
+      message.error("Failed to update user: " + errMsg);
     } finally {
       setSaving(false);
     }
@@ -199,7 +233,7 @@ const Settings = () => {
   };
 
   const handleEntityChange = async (entityId) => {
-    addForm.setFieldsValue({ location: undefined, department: undefined, work_shift: undefined });
+    addForm.setFieldsValue({ location: undefined, department: undefined, work_shift: undefined, shift_cycle_start_date: null });
     setDepartments([]);
     setWorkShifts([]);
     if (!entityId) { setLocations([]); return; }
@@ -212,7 +246,7 @@ const Settings = () => {
   };
 
   const handleLocationChange = async (locationId) => {
-    addForm.setFieldsValue({ department: undefined, work_shift: undefined });
+    addForm.setFieldsValue({ department: undefined, work_shift: undefined, shift_cycle_start_date: null });
     setWorkShifts([]);
     if (!locationId) { setDepartments([]); return; }
     try {
@@ -237,6 +271,7 @@ const Settings = () => {
         location: values.location,
         department: values.department,
         work_shift: values.work_shift || null,
+        shift_cycle_start_date: values.shift_cycle_start_date?.format("YYYY-MM-DD") || null,
         approver: values.approver,
         final_approver: values.final_approver || null,
         join_date: values.join_date?.format("YYYY-MM-DD") || null,
@@ -248,7 +283,7 @@ const Settings = () => {
     } catch (error) {
       if (error.errorFields) return; // Form validation errors
       const errData = error.response?.data;
-      const errMsg = errData?.error || errData?.email?.[0] || error.message;
+      const errMsg = errData?.error || Object.values(errData || {}).flat()[0] || error.message;
       message.error("Failed to create user: " + errMsg);
     } finally {
       setCreating(false);
@@ -256,7 +291,7 @@ const Settings = () => {
   };
 
   const handleDepartmentChange = async (departmentId) => {
-    addForm.setFieldsValue({ work_shift: undefined });
+    addForm.setFieldsValue({ work_shift: undefined, shift_cycle_start_date: null });
     if (!departmentId) return setWorkShifts([]);
     try {
       setWorkShifts(await getWorkShifts(departmentId));
@@ -458,12 +493,17 @@ const Settings = () => {
 
   const getUserOptionLabel = (u) =>
     `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email;
+  const getApproverOptionLabel = (u) => {
+    const name = getUserOptionLabel(u);
+    const entityName = u.entity_name || u.entity?.entity_name;
+    return `${name} (${u.email})${entityName ? ` - ${entityName}` : ""}`;
+  };
 
   // Filter users for approver dropdown (exclude self and inactive users).
   // Include the current saved approvers so cross-entity approvers render by name
   // instead of falling back to their raw UUID value.
-  const availableApprovers = userRows.filter(
-    (u) => u.status === "ACTIVE" && u.id !== selectedUser?.id
+  const availableApprovers = approverOptions.filter(
+    (u) => u.id !== selectedUser?.id
   );
   const editApproverOptions = [
     ...availableApprovers,
@@ -720,13 +760,25 @@ const Settings = () => {
           >
             <Select
               allowClear
+              className="work-shift-select"
               placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
               options={workShifts.map((shift) => ({
                 value: shift.id,
-                label: `${shift.name} (${shift.start_time}-${shift.end_time})`,
+                label: getWorkShiftOptionLabel(shift),
               }))}
             />
           </Form.Item>
+
+          {selectedEditShift?.pattern_type === "ROTATING_CYCLE" && (
+            <Form.Item
+              label="Cycle Start Date"
+              name="shift_cycle_start_date"
+              tooltip="This date maps to the first cycle step, e.g. SOC Morning shift."
+              rules={[{ required: true, message: "Please select the cycle start date" }]}
+            >
+              <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+            </Form.Item>
+          )}
 
           <Form.Item
             label="First Approver"
@@ -747,7 +799,7 @@ const Settings = () => {
               }
               options={editApproverOptions.map((u) => ({
                 value: u.id,
-                label: getUserOptionLabel(u),
+                label: getApproverOptionLabel(u),
               }))}
             />
           </Form.Item>
@@ -782,7 +834,7 @@ const Settings = () => {
               }
               options={editApproverOptions.map((u) => ({
                 value: u.id,
-                label: getUserOptionLabel(u),
+                label: getApproverOptionLabel(u),
               }))}
             />
           </Form.Item>
@@ -949,14 +1001,26 @@ const Settings = () => {
           >
             <Select
               allowClear
+              className="work-shift-select"
               placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
               disabled={workShifts.length === 0}
               options={workShifts.map((shift) => ({
                 value: shift.id,
-                label: `${shift.name} (${shift.start_time}-${shift.end_time})`,
+                label: getWorkShiftOptionLabel(shift),
               }))}
             />
           </Form.Item>
+
+          {selectedAddShift?.pattern_type === "ROTATING_CYCLE" && (
+            <Form.Item
+              label="Cycle Start Date"
+              name="shift_cycle_start_date"
+              tooltip="This date maps to the first cycle step, e.g. SOC Morning shift."
+              rules={[{ required: true, message: "Please select the cycle start date" }]}
+            >
+              <DatePicker style={{ width: "100%" }} format="YYYY-MM-DD" />
+            </Form.Item>
+          )}
 
           <Form.Item
             label="First Approver"
@@ -969,11 +1033,9 @@ const Settings = () => {
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={userRows
-                .filter((u) => u.status === "ACTIVE")
-                .map((u) => ({
+              options={approverOptions.map((u) => ({
                   value: u.id,
-                  label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                  label: getApproverOptionLabel(u),
                 }))}
             />
           </Form.Item>
@@ -1001,11 +1063,9 @@ const Settings = () => {
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={userRows
-                .filter((u) => u.status === "ACTIVE")
-                .map((u) => ({
+              options={approverOptions.map((u) => ({
                   value: u.id,
-                  label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                  label: getApproverOptionLabel(u),
                 }))}
             />
           </Form.Item>
