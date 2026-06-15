@@ -107,6 +107,31 @@ export const createLeaveRequest = async (formData) => {
   return res.data;
 };
 
+/* ================= PREVIEW HOURS ================= */
+// Ask the backend for the real deductible hours + per-day breakdown.
+// Reuses the same calculation as create, so the preview matches the deduction.
+export const previewLeaveRequest = async ({
+  startDate,
+  endDate,
+  shiftType = "FULL_DAY",
+  startTime = null,
+  endTime = null,
+  startDayOffset = 0,
+  endDayOffset = 0,
+}) => {
+  const payload = {
+    start_date: startDate.format("YYYY-MM-DD"),
+    end_date: endDate.format("YYYY-MM-DD"),
+    shift_type: shiftType,
+    start_time: startTime ? startTime.format("HH:mm") : null,
+    end_time: endTime ? endTime.format("HH:mm") : null,
+    start_day_offset: startDayOffset,
+    end_day_offset: endDayOffset,
+  };
+  const res = await http.post(`${API_URL}/requests/preview/`, payload);
+  return res.data; // { total_hours, breakdown }
+};
+
 /* ================= BALANCE ================= */
 export const getLeaveBalance = async (year = new Date().getFullYear()) => {
   const res = await http.get(`${API_URL}/balances/me/`, {

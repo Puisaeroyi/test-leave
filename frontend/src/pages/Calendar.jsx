@@ -171,7 +171,7 @@ export default function TeamCalendar() {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState([]);
   const [scheduleEvents, setScheduleEvents] = useState([]);
-  const [showWorkSchedule, setShowWorkSchedule] = useState(true);
+  const [showWorkSchedule, setShowWorkSchedule] = useState(false);
   const [balance, setBalance] = useState([]);
 
   // Create event modal states

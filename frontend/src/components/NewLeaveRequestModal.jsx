@@ -23,7 +23,11 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
+import {
+  getLeaveCategories,
+  uploadFile,
+  previewLeaveRequest,
+} from "../api/dashboardApi";
 import { calculateHourRange, inferCustomHourOffsets } from "../lib/time-utils";
 
 const { Title, Text } = Typography;
@@ -66,6 +70,7 @@ export default function NewLeaveRequestModal({
   const [form] = Form.useForm();
   const [confirmData, setConfirmData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [continuing, setContinuing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -140,11 +145,6 @@ export default function NewLeaveRequestModal({
     return calculateHourRange(start.hour(), end.hour());
   };
 
-  const countCalendarDays = (startDate, endDate) => {
-    if (!startDate || !endDate) return 0;
-    return endDate.startOf("day").diff(startDate.startOf("day"), "day") + 1;
-  };
-
   const previewHours =
     sameDay && dayType === "custom"
       ? calculateHours(values?.startTime, values?.endTime)
@@ -153,6 +153,7 @@ export default function NewLeaveRequestModal({
   const handleContinue = async () => {
     const data = await form.validateFields();
     let hours = 0;
+    let breakdown = [];
 
     if (sameDay && data.dayType === "custom") {
       hours = calculateHours(data.startTime, data.endTime);
@@ -173,8 +174,28 @@ export default function NewLeaveRequestModal({
         return;
       }
     } else {
-      const calendarDays = countCalendarDays(data.date[0], data.date[1]);
-      hours = calendarDays * 8;
+      // Ask the backend for the real deductible hours so the preview matches
+      // the deduction (excludes Off days, non-working weekends, and holidays).
+      setContinuing(true);
+      try {
+        const preview = await previewLeaveRequest({
+          startDate: data.date[0],
+          endDate: data.date[1],
+          shiftType: "FULL_DAY",
+        });
+        hours = preview.total_hours;
+        breakdown = preview.breakdown || [];
+      } catch (err) {
+        Modal.error({
+          title: "Could not calculate hours",
+          content:
+            err?.response?.data?.error ||
+            "Unable to calculate leave hours. Please try again.",
+        });
+        return;
+      } finally {
+        setContinuing(false);
+      }
     }
 
     const category = categories.find((item) => item.id === data.leaveCategory);
@@ -191,6 +212,7 @@ export default function NewLeaveRequestModal({
       categoryName: category?.name || "Leave",
       balanceBucket,
       totalHours: hours,
+      breakdown,
       remainingHours: selectedBalance?.remaining_hours ?? null,
       allocated_hours: selectedBalance?.allocated_hours ?? null,
     });
@@ -365,6 +387,7 @@ export default function NewLeaveRequestModal({
                 size="large"
                 icon={<ArrowRightOutlined />}
                 onClick={handleContinue}
+                loading={continuing}
               >
                 Continue
               </Button>
@@ -507,6 +530,51 @@ export default function NewLeaveRequestModal({
                           </Text>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* PER-DAY BREAKDOWN */}
+                  {confirmData.breakdown?.length > 0 && (
+                    <div>
+                      <Text type="secondary">Daily breakdown</Text>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          borderRadius: 8,
+                          border: "1px solid var(--color-border-strong)",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {confirmData.breakdown.map((row) => {
+                          const nonWorking =
+                            row.reason === "OFF" || row.reason === "HOLIDAY";
+                          return (
+                            <div
+                              key={row.date}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                padding: "6px 12px",
+                                background: nonWorking
+                                  ? "var(--color-surface-muted)"
+                                  : "transparent",
+                                opacity: nonWorking ? 0.7 : 1,
+                              }}
+                            >
+                              <Text>{row.date}</Text>
+                              <Text type="secondary">
+                                {nonWorking
+                                  ? row.reason === "OFF"
+                                    ? "Off"
+                                    : "Holiday"
+                                  : row.shift_name}
+                              </Text>
+                              <Text strong>{Number(row.hours).toFixed(1)}h</Text>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

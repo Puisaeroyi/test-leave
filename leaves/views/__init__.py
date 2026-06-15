@@ -24,6 +24,7 @@ from .export_leaves import ExportApprovedLeavesView
 
 from .requests import (
     LeaveRequestListView,
+    LeaveRequestPreviewView,
     LeaveRequestMyView,
     LeaveRequestDetailView,
     LeaveRequestApproveView,
@@ -36,6 +37,7 @@ __all__ = [
     'LeaveCategoryListView',
     'LeaveBalanceMeView',
     'LeaveRequestListView',
+    'LeaveRequestPreviewView',
     'LeaveRequestMyView',
     'LeaveRequestDetailView',
     'LeaveRequestApproveView',
