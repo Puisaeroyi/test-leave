@@ -180,18 +180,28 @@ const Settings = () => {
     addForm.resetFields();
     setLocations([]);
     setDepartments([]);
+    setWorkShifts([]);
     setAddModalVisible(true);
     try {
       const data = await getEntities();
-      setEntities(data.results || data);
+      const availableEntities = data.results || data;
+      const scopedEntities = user?.role === "HR"
+        ? availableEntities.filter((entity) => entity.id === user.entity?.id)
+        : availableEntities;
+      setEntities(scopedEntities);
+      if (user?.role === "HR" && user.entity?.id) {
+        addForm.setFieldValue("entity", user.entity.id);
+        await handleEntityChange(user.entity.id);
+      }
     } catch {
       message.error("Failed to load entities");
     }
   };
 
   const handleEntityChange = async (entityId) => {
-    addForm.setFieldsValue({ location: undefined, department: undefined });
+    addForm.setFieldsValue({ location: undefined, department: undefined, work_shift: undefined });
     setDepartments([]);
+    setWorkShifts([]);
     if (!entityId) { setLocations([]); return; }
     try {
       const data = await getLocations(entityId);
@@ -446,10 +456,26 @@ const Settings = () => {
     },
   ];
 
-  // Filter users for approver dropdown (exclude self and inactive users)
+  const getUserOptionLabel = (u) =>
+    `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email;
+
+  // Filter users for approver dropdown (exclude self and inactive users).
+  // Include the current saved approvers so cross-entity approvers render by name
+  // instead of falling back to their raw UUID value.
   const availableApprovers = userRows.filter(
     (u) => u.status === "ACTIVE" && u.id !== selectedUser?.id
   );
+  const editApproverOptions = [
+    ...availableApprovers,
+    selectedUser?.approver,
+    selectedUser?.final_approver,
+  ].filter((candidate, index, list) =>
+    candidate?.id
+    && candidate.id !== selectedUser?.id
+    && list.findIndex((item) => item?.id === candidate.id) === index
+  );
+  const isEditingOwnHrAccount =
+    user?.role === "HR" && selectedUser?.id && String(selectedUser.id) === String(user.id);
 
   // Statistics
   const stats = {
@@ -482,7 +508,7 @@ const Settings = () => {
                 <Statistic
                   title="Active Users"
                   value={stats.active}
-                  valueStyle={{ color: "var(--color-success)" }}
+                  styles={{ content: { color: "var(--color-success)" } }}
                 />
               </Card>
             </Col>
@@ -491,7 +517,11 @@ const Settings = () => {
                 <Statistic
                   title="Users Without Approver"
                   value={stats.withoutApprover}
-                  valueStyle={{ color: stats.withoutApprover > 0 ? "var(--color-danger)" : undefined }}
+                  styles={{
+                    content: {
+                      color: stats.withoutApprover > 0 ? "var(--color-danger)" : undefined,
+                    },
+                  }}
                 />
               </Card>
             </Col>
@@ -701,18 +731,23 @@ const Settings = () => {
           <Form.Item
             label="First Approver"
             name="approver"
-            tooltip="Leave empty for HR/Admin/Manager roles"
+            tooltip={
+              isEditingOwnHrAccount
+                ? "Only Admin can change approvers for your HR account"
+                : "Leave empty for HR/Admin/Manager roles"
+            }
           >
             <Select
               allowClear
               showSearch
+              disabled={isEditingOwnHrAccount}
               placeholder="Select a first approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={availableApprovers.map((u) => ({
+              options={editApproverOptions.map((u) => ({
                 value: u.id,
-                label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                label: getUserOptionLabel(u),
               }))}
             />
           </Form.Item>
@@ -721,7 +756,11 @@ const Settings = () => {
             label="Second Approver"
             name="final_approver"
             dependencies={["approver"]}
-            tooltip="Optional second approval step"
+            tooltip={
+              isEditingOwnHrAccount
+                ? "Only Admin can change approvers for your HR account"
+                : "Optional second approval step"
+            }
             rules={[
               ({ getFieldValue }) => ({
                 validator(_, value) {
@@ -736,13 +775,14 @@ const Settings = () => {
             <Select
               allowClear
               showSearch
+              disabled={isEditingOwnHrAccount}
               placeholder="Select a second approver"
               filterOption={(input, option) =>
                 (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
               }
-              options={availableApprovers.map((u) => ({
+              options={editApproverOptions.map((u) => ({
                 value: u.id,
-                label: `${u.first_name} ${u.last_name}`.trim() || u.email,
+                label: getUserOptionLabel(u),
               }))}
             />
           </Form.Item>
@@ -759,6 +799,7 @@ const Settings = () => {
           addForm.resetFields();
           setLocations([]);
           setDepartments([]);
+          setWorkShifts([]);
         }}
         confirmLoading={creating}
         okText="Create User"
@@ -818,7 +859,9 @@ const Settings = () => {
                   <Select.Option value="EMPLOYEE">Employee</Select.Option>
                   <Select.Option value="MANAGER">Manager</Select.Option>
                   <Select.Option value="HR">HR</Select.Option>
-                  <Select.Option value="ADMIN">Admin</Select.Option>
+                  {user?.role === "ADMIN" && (
+                    <Select.Option value="ADMIN">Admin</Select.Option>
+                  )}
                 </Select>
               </Form.Item>
             </Col>
@@ -842,6 +885,7 @@ const Settings = () => {
               >
                 <Select
                   placeholder="Select entity"
+                  disabled={user?.role === "HR"}
                   showSearch
                   filterOption={(input, option) =>
                     (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
@@ -888,11 +932,11 @@ const Settings = () => {
                   filterOption={(input, option) =>
                     (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
                   }
+                  onChange={handleDepartmentChange}
                   options={departments.map((dept) => ({
                     value: dept.id,
                     label: dept.department_name,
                   }))}
-                  onChange={handleDepartmentChange}
                 />
               </Form.Item>
             </Col>
@@ -901,7 +945,7 @@ const Settings = () => {
           <Form.Item
             label="Work Shift"
             name="work_shift"
-            tooltip="Used to map after-midnight Custom Hours to the correct calendar date automatically."
+            tooltip="Controls automatic calendar-day mapping for Custom Hours."
           >
             <Select
               allowClear

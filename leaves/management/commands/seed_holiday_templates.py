@@ -5,7 +5,7 @@ from leaves.holiday_management import seed_holiday_templates
 
 
 class Command(BaseCommand):
-    help = "Seed reviewed US 2026-2027 and Vietnam 2026 holiday templates"
+    help = "Seed US 2026-2027 and Vietnam 2026-2035 holiday templates"
 
     def handle(self, *args, **options):
         templates = seed_holiday_templates()

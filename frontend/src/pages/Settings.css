@@ -359,6 +359,60 @@
   background-color: rgba(31, 138, 120, 0.07);
 }
 
+.holiday-detail-modal .ant-modal-content {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  max-height: calc(100dvh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+
+.holiday-detail-modal .ant-modal-header,
+.holiday-detail-modal .ant-modal-footer {
+  flex: 0 0 auto;
+}
+
+.holiday-detail-modal .ant-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.holiday-detail-modal .ant-modal-body::-webkit-scrollbar,
+.holiday-detail-modal .ant-table-content::-webkit-scrollbar,
+.holiday-detail-modal .ant-table-body::-webkit-scrollbar {
+  display: none;
+}
+
+.holiday-detail-modal .ant-table-content,
+.holiday-detail-modal .ant-table-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.holiday-detail-table .ant-table-content {
+  overflow-x: hidden !important;
+}
+
+.holiday-detail-table table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+
+.holiday-detail-table .ant-table-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.holiday-detail-modal .ant-table-wrapper,
+.holiday-detail-modal .ant-spin-nested-loading,
+.holiday-detail-modal .ant-spin-container {
+  min-width: 0;
+}
+
 /* Approver tag styling */
 .settings-page .approver-tag {
   max-width: 140px;

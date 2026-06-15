@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 
 from leaves.models import LeaveRequest
+from users.models import User
 from users.permissions import IsHROrAdmin
 
 
@@ -41,15 +42,21 @@ class ExportApprovedLeavesView(APIView):
                 status=400,
             )
 
-        # Build query filters - HR and ADMIN both have global access for export
         filters = {
             "status": "APPROVED",
             "start_date__lte": end,
             "end_date__gte": start,
         }
 
+        queryset = LeaveRequest.objects.filter(**filters)
+        if request.user.role == User.Role.HR:
+            if not request.user.entity_id:
+                queryset = queryset.none()
+            else:
+                queryset = queryset.filter(user__entity_id=request.user.entity_id)
+
         queryset = (
-            LeaveRequest.objects.filter(**filters)
+            queryset
             .select_related(
                 "user",
                 "leave_category",

@@ -150,6 +150,79 @@ def test_vacation_and_sick_buckets_deduct_their_own_balances():
 
 
 @pytest.mark.django_db
+def test_pending_request_uses_balance_bucket_snapshot_when_category_changes():
+    manager = create_user('snapshot-manager@example.com', role=User.Role.MANAGER)
+    employee = create_user('snapshot-employee@example.com', role=User.Role.EMPLOYEE)
+    employee.approver_1 = manager
+    employee.save(update_fields=['approver_1'])
+    vacation = get_category('SNAPSHOT_VACATION', 'Snapshot Vacation', 'VACATION')
+    vacation_balance = LeaveBalance.objects.create(
+        user=employee,
+        year=2027,
+        balance_type='VACATION',
+        allocated_hours=Decimal('80.00'),
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=employee)
+    response = client.post('/api/v1/leaves/requests/', {
+        'start_date': '2027-03-01',
+        'end_date': '2027-03-01',
+        'shift_type': 'FULL_DAY',
+        'leave_category': str(vacation.id),
+        'reason': 'Snapshot category before approval',
+    })
+    assert response.status_code == 201
+
+    vacation.balance_bucket = LeaveCategory.BalanceBucket.NONE
+    vacation.save(update_fields=['balance_bucket'])
+    leave_request = LeaveRequest.objects.get(id=response.data['id'])
+    LeaveApprovalService.approve_leave_request(leave_request, manager)
+
+    vacation_balance.refresh_from_db()
+    assert vacation_balance.used_hours == Decimal('8.00')
+
+
+@pytest.mark.django_db
+def test_approved_request_restores_snapshot_bucket_after_category_deleted():
+    manager = create_user('deleted-category-manager@example.com', role=User.Role.MANAGER)
+    employee = create_user('deleted-category-employee@example.com', role=User.Role.EMPLOYEE)
+    employee.approver_1 = manager
+    employee.save(update_fields=['approver_1'])
+    vacation = get_category('DELETED_VACATION', 'Deleted Vacation', 'VACATION')
+    vacation_balance = LeaveBalance.objects.create(
+        user=employee,
+        year=2027,
+        balance_type='VACATION',
+        allocated_hours=Decimal('80.00'),
+    )
+
+    client = APIClient()
+    client.force_authenticate(user=employee)
+    response = client.post('/api/v1/leaves/requests/', {
+        'start_date': '2027-04-01',
+        'end_date': '2027-04-01',
+        'shift_type': 'FULL_DAY',
+        'leave_category': str(vacation.id),
+        'reason': 'Snapshot category before deletion',
+    })
+    assert response.status_code == 201
+
+    leave_request = LeaveRequest.objects.get(id=response.data['id'])
+    LeaveApprovalService.approve_leave_request(leave_request, manager)
+    vacation.delete()
+    leave_request.refresh_from_db()
+    LeaveApprovalService.reject_leave_request(
+        leave_request,
+        manager,
+        'Category was removed after approval',
+    )
+
+    vacation_balance.refresh_from_db()
+    assert vacation_balance.used_hours == Decimal('0.00')
+
+
+@pytest.mark.django_db
 def test_recalculate_command_writes_only_vacation_and_sick(organization):
     user = create_user(
         'onboarded@example.com',

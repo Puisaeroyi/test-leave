@@ -33,8 +33,14 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         user = self.request.user
 
-        if user.role in [User.Role.HR, User.Role.ADMIN]:
+        if user.role == User.Role.ADMIN:
             return User.objects.all().select_related(
+                'entity', 'location', 'department', 'approver_1', 'approver_2'
+            )
+        elif user.role == User.Role.HR:
+            if not user.entity_id:
+                return User.objects.none()
+            return User.objects.filter(entity_id=user.entity_id).select_related(
                 'entity', 'location', 'department', 'approver_1', 'approver_2'
             )
         elif user.role == User.Role.MANAGER:
@@ -63,6 +69,24 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(
                 {'error': 'Only HR and Admin can create users.'},
                 status=status.HTTP_403_FORBIDDEN
+            )
+
+        if (
+            request.user.role == User.Role.HR
+            and str(request.data.get('entity', '')) != str(request.user.entity_id)
+        ):
+            return Response(
+                {'error': 'HR can only create users in their own entity.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if (
+            request.user.role == User.Role.HR
+            and request.data.get('role') == User.Role.ADMIN
+        ):
+            return Response(
+                {'error': 'Only Admin can create Admin users.'},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         serializer = UserCreateSerializer(data=request.data)

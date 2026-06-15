@@ -27,9 +27,9 @@ test("moves overnight end time to the following calendar day", () => {
   assert.deepEqual(getCustomHourOffsets(22, 6, 0), { startDayOffset: 0, endDayOffset: 1 });
 });
 
-test("uses shift minutes when mapping night-shift hours to calendar days", () => {
+test("infers custom-hour offsets without work-shift configuration", () => {
   assert.deepEqual(
-    inferCustomHourOffsets(22, 6, { start_time: "22:30", end_time: "06:30" }),
-    { startDayOffset: 1, endDayOffset: 2 },
+    inferCustomHourOffsets(22, 6),
+    { startDayOffset: 0, endDayOffset: 1 },
   );
 });

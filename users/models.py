@@ -129,7 +129,6 @@ class User(AbstractUser):
                 })
         if self.work_shift and self.department and self.work_shift.department_id != self.department_id:
             raise ValidationError({'work_shift': "Selected work shift does not belong to the user's department."})
-
         if self.avatar_url:
             if not self.avatar_url.startswith('/media/'):
                 validator = URLValidator(schemes=['http', 'https'])

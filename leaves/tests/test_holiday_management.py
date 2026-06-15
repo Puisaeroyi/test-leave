@@ -5,7 +5,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from core.models import AuditLog, Notification, NotificationType
+from core.models import AuditLog
 from leaves.models import (
     HolidayCalendar,
     HolidayTemplate,
@@ -25,6 +25,7 @@ from leaves.holiday_management import (
     unpublish_impact,
     validate_holiday_dates,
 )
+from leaves.views.holiday_calendars import _calendar_data
 from organizations.models import Department, Entity, Location
 
 
@@ -48,15 +49,96 @@ def test_seed_templates_contains_complete_supported_calendars():
     us_2026 = HolidayTemplate.objects.get(country_code="US", year=2026)
     us_2027 = HolidayTemplate.objects.get(country_code="US", year=2027)
     vn_2026 = HolidayTemplate.objects.get(country_code="VN", year=2026)
+    vn_2027 = HolidayTemplate.objects.get(country_code="VN", year=2027)
 
     assert us_2026.dates.count() == 11
     assert us_2027.dates.count() == 11
     assert vn_2026.dates.count() == 7
+    assert HolidayTemplate.objects.filter(
+        country_code="VN", year__range=(2026, 2035)
+    ).count() == 10
     assert us_2026.dates.filter(start_date=date(2026, 7, 3)).exists()
     assert vn_2026.dates.filter(
         start_date=date(2026, 2, 16),
         end_date=date(2026, 2, 20),
     ).exists()
+    assert vn_2027.dates.filter(
+        holiday_name="Lunar New Year",
+        start_date=date(2027, 2, 5),
+        end_date=date(2027, 2, 9),
+    ).exists()
+    assert vn_2027.dates.filter(
+        holiday_name="Hung Kings Commemoration Day",
+        start_date=date(2027, 4, 16),
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_calendar_data_expands_multi_day_holidays_for_display():
+    entity = Entity.objects.create(entity_name="VN Display Co", code="VNDISP")
+    calendar = HolidayCalendar.objects.create(
+        name="VN Display 2026",
+        country_code="VN",
+        year=2026,
+        entity=entity,
+        status=HolidayCalendar.Status.DRAFT,
+    )
+    PublicHoliday.objects.create(
+        calendar=calendar,
+        entity=entity,
+        holiday_name="Lunar New Year",
+        start_date=date(2026, 2, 16),
+        end_date=date(2026, 2, 20),
+        year=2026,
+        holiday_type=PublicHoliday.HolidayType.STATUTORY,
+        status=PublicHoliday.Status.DRAFT,
+    )
+
+    data = _calendar_data(calendar, include_holidays=True)
+
+    assert data["holiday_count"] == 5
+    assert [row["date"] for row in data["holiday_days"]] == [
+        date(2026, 2, 16),
+        date(2026, 2, 17),
+        date(2026, 2, 18),
+        date(2026, 2, 19),
+        date(2026, 2, 20),
+    ]
+    assert all(row["holiday_type_label"] == "Official holiday" for row in data["holiday_days"])
+
+
+@pytest.mark.django_db
+def test_admin_can_delete_draft_calendar_but_not_published_calendar():
+    entity = Entity.objects.create(entity_name="Delete Calendar Co", code="DELCAL")
+    admin = User.objects.create_user(
+        email="delete-calendar-admin@example.com",
+        password="Password123!",
+        role=User.Role.ADMIN,
+    )
+    draft = HolidayCalendar.objects.create(
+        name="Draft Calendar",
+        country_code="VN",
+        year=2026,
+        entity=entity,
+        status=HolidayCalendar.Status.DRAFT,
+    )
+    published = HolidayCalendar.objects.create(
+        name="Published Calendar",
+        country_code="US",
+        year=2026,
+        entity=entity,
+        status=HolidayCalendar.Status.PUBLISHED,
+    )
+    client = APIClient()
+    client.force_authenticate(admin)
+
+    draft_response = client.delete(f"/api/v1/leaves/holiday-calendars/{draft.id}/")
+    published_response = client.delete(f"/api/v1/leaves/holiday-calendars/{published.id}/")
+
+    assert draft_response.status_code == 204
+    assert not HolidayCalendar.objects.filter(id=draft.id).exists()
+    assert published_response.status_code == 409
+    assert HolidayCalendar.objects.filter(id=published.id).exists()
 
 
 @pytest.mark.django_db
@@ -103,6 +185,25 @@ def test_country_override_maps_unknown_location_before_generation():
 
 
 @pytest.mark.django_db
+def test_generation_creates_empty_draft_when_country_year_template_is_unavailable():
+    entity = Entity.objects.create(entity_name="VN 2040 Co", code="VN2040")
+    make_location(entity, "Ho Chi Minh City", "Vietnam")
+
+    calendars = generate_draft_calendars(
+        year=2040,
+        entities=Entity.objects.filter(id=entity.id),
+    )
+
+    assert len(calendars) == 1
+    calendar = calendars[0]
+    assert calendar.country_code == "VN"
+    assert calendar.year == 2040
+    assert calendar.status == HolidayCalendar.Status.DRAFT
+    assert calendar.source_template is None
+    assert calendar.holidays.count() == 0
+
+
+@pytest.mark.django_db
 def test_hr_can_only_list_and_generate_holidays_for_own_entity():
     seed_holiday_templates()
     own_entity = Entity.objects.create(entity_name="Own", code="OWN")
@@ -134,7 +235,102 @@ def test_hr_can_only_list_and_generate_holidays_for_own_entity():
 
 
 @pytest.mark.django_db
-def test_publish_recalculates_approved_leave_and_refunds_balance():
+def test_hr_cannot_access_another_entity_calendar_by_id():
+    own_entity = Entity.objects.create(entity_name="Own Calendar Co", code="OWNCAL")
+    other_entity = Entity.objects.create(entity_name="Other Calendar Co", code="OTHCAL")
+    hr = User.objects.create_user(
+        email="scoped-hr@example.com",
+        password="Password123!",
+        role=User.Role.HR,
+        entity=own_entity,
+    )
+    other_calendar = HolidayCalendar.objects.create(
+        name="Other Calendar",
+        country_code="US",
+        year=2026,
+        entity=other_entity,
+        status=HolidayCalendar.Status.DRAFT,
+    )
+    other_holiday = PublicHoliday.objects.create(
+        calendar=other_calendar,
+        entity=other_entity,
+        holiday_name="Other Holiday",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 1),
+        year=2026,
+        status=PublicHoliday.Status.DRAFT,
+    )
+    client = APIClient()
+    client.force_authenticate(hr)
+
+    assert client.get(f"/api/v1/leaves/holiday-calendars/{other_calendar.id}/").status_code == 404
+    assert client.post(f"/api/v1/leaves/holiday-calendars/{other_calendar.id}/publish/").status_code == 404
+    assert client.patch(
+        f"/api/v1/leaves/holidays/{other_holiday.id}/",
+        {"holiday_name": "Changed"},
+        format="json",
+    ).status_code == 404
+
+
+@pytest.mark.django_db
+def test_hr_without_entity_has_empty_holiday_scope():
+    hr = User.objects.create_user(
+        email="unassigned-holiday-hr@example.com",
+        password="Password123!",
+        role=User.Role.HR,
+    )
+    client = APIClient()
+    client.force_authenticate(hr)
+
+    listed = client.get("/api/v1/leaves/holiday-calendars/")
+    generated = client.post(
+        "/api/v1/leaves/holiday-calendars/generate/",
+        {"year": 2026},
+        format="json",
+    )
+
+    assert listed.status_code == 200
+    assert listed.data["results"] == []
+    assert generated.status_code == 403
+
+
+@pytest.mark.django_db
+def test_unpublish_api_does_not_require_a_preview_token():
+    entity = Entity.objects.create(entity_name="Direct Unpublish Co", code="DIRECT")
+    admin = User.objects.create_user(
+        email="direct-unpublish-admin@example.com",
+        password="Password123!",
+        role=User.Role.ADMIN,
+    )
+    calendar = HolidayCalendar.objects.create(
+        name="Direct Unpublish Calendar",
+        country_code="US",
+        year=2026,
+        entity=entity,
+        status=HolidayCalendar.Status.PUBLISHED,
+        published_by=admin,
+    )
+    PublicHoliday.objects.create(
+        calendar=calendar,
+        entity=entity,
+        holiday_name="Published Holiday",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 1),
+        year=2026,
+        status=PublicHoliday.Status.PUBLISHED,
+    )
+    client = APIClient()
+    client.force_authenticate(admin)
+
+    response = client.post(f"/api/v1/leaves/holiday-calendars/{calendar.id}/unpublish/")
+
+    assert response.status_code == 200, response.data
+    calendar.refresh_from_db()
+    assert calendar.status == HolidayCalendar.Status.DRAFT
+
+
+@pytest.mark.django_db
+def test_publish_does_not_recalculate_approved_leave_or_balance():
     entity = Entity.objects.create(entity_name="Publish Co", code="PUB")
     location = make_location(entity, "Publish Office", "USA")
     admin = User.objects.create_user(
@@ -191,14 +387,14 @@ def test_publish_recalculates_approved_leave_and_refunds_balance():
     leave.refresh_from_db()
     balance.refresh_from_db()
     calendar.refresh_from_db()
-    assert result["affected_requests"] == 1
-    assert leave.total_hours == Decimal("8.00")
-    assert balance.used_hours == Decimal("8.00")
+    assert result["affected_requests"] == 0
+    assert leave.total_hours == Decimal("16.00")
+    assert balance.used_hours == Decimal("16.00")
     assert calendar.status == HolidayCalendar.Status.PUBLISHED
 
 
 @pytest.mark.django_db
-def test_unpublish_requires_current_preview_and_sufficient_balance():
+def test_unpublish_does_not_recalculate_leave_or_balance():
     entity = Entity.objects.create(entity_name="Unpublish Co", code="UNPUB")
     location = make_location(entity, "Unpublish Office", "USA")
     admin = User.objects.create_user(
@@ -249,20 +445,14 @@ def test_unpublish_requires_current_preview_and_sufficient_balance():
     )
 
     preview = unpublish_impact(calendar)
-    assert preview["affected_requests"] == 1
-    assert preview["blocked"] is True
-
-    balance.allocated_hours = Decimal("16.00")
-    balance.save()
-    preview = unpublish_impact(calendar)
     result = unpublish_calendar(calendar, admin, preview["preview_token"])
 
     leave.refresh_from_db()
     balance.refresh_from_db()
     calendar.refresh_from_db()
-    assert result["affected_requests"] == 1
-    assert leave.total_hours == Decimal("16.00")
-    assert balance.used_hours == Decimal("16.00")
+    assert result["affected_requests"] == 0
+    assert leave.total_hours == Decimal("8.00")
+    assert balance.used_hours == Decimal("8.00")
     assert calendar.status == HolidayCalendar.Status.DRAFT
 
 
@@ -345,7 +535,7 @@ def test_holiday_validation_rejects_invalid_year_and_overlap():
 
 
 @pytest.mark.django_db
-def test_publish_preview_does_not_mutate_and_publish_uses_specific_audit_and_notification():
+def test_publish_preview_does_not_mutate_and_publish_uses_specific_audit():
     entity = Entity.objects.create(entity_name="Preview Co", code="PREVIEW")
     location = make_location(entity, "Preview Office", "USA")
     admin = User.objects.create_user(
@@ -396,8 +586,8 @@ def test_publish_preview_does_not_mutate_and_publish_uses_specific_audit_and_not
     preview = publish_impact(calendar)
     leave.refresh_from_db()
     calendar.refresh_from_db()
-    assert preview["affected_requests"] == 1
-    assert preview["changes"][0]["refunded_hours"] == "8.00"
+    assert preview["affected_requests"] == 0
+    assert preview["changes"] == []
     assert leave.total_hours == Decimal("16.00")
     assert calendar.status == HolidayCalendar.Status.DRAFT
 
@@ -405,9 +595,6 @@ def test_publish_preview_does_not_mutate_and_publish_uses_specific_audit_and_not
 
     assert AuditLog.objects.filter(
         action="PUBLISH", entity_type="HolidayCalendar", entity_id=calendar.id
-    ).exists()
-    assert Notification.objects.filter(
-        user=employee, type=NotificationType.LEAVE_HOURS_RECALCULATED
     ).exists()
 
 
@@ -455,7 +642,7 @@ def test_publish_rejects_overlap_with_published_calendar_in_same_scope():
 
 
 @pytest.mark.django_db
-def test_publish_does_not_refund_leave_for_department_requiring_leave_on_holidays():
+def test_publish_never_recalculates_leave_on_holidays():
     entity = Entity.objects.create(entity_name="24/7 Co", code="247")
     location = make_location(entity, "Operations", "USA")
     department = Department.objects.create(
@@ -463,7 +650,6 @@ def test_publish_does_not_refund_leave_for_department_requiring_leave_on_holiday
         location=location,
         department_name="Continuous Operations",
         code="OPS",
-        holiday_requires_leave=True,
     )
     admin = User.objects.create_user(
         email="ops-admin@example.com", password="Password123!", role=User.Role.ADMIN

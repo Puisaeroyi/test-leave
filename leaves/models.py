@@ -91,6 +91,12 @@ class LeaveRequest(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='leave_requests')
     leave_category = models.ForeignKey(LeaveCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    balance_type_snapshot = models.CharField(
+        max_length=20,
+        choices=LeaveCategory.BalanceBucket.choices,
+        null=True,
+        blank=True,
+    )
     start_date = models.DateField()
     end_date = models.DateField()
     shift_type = models.CharField(max_length=20, choices=ShiftType.choices)
@@ -158,6 +164,15 @@ class LeaveRequest(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.start_date} to {self.end_date}"
+
+    def save(self, *args, **kwargs):
+        if not self.balance_type_snapshot:
+            self.balance_type_snapshot = (
+                self.leave_category.balance_bucket
+                if self.leave_category_id
+                else LeaveCategory.BalanceBucket.NONE
+            )
+        super().save(*args, **kwargs)
 
 
 class HolidayTemplate(models.Model):

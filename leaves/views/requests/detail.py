@@ -30,7 +30,14 @@ class LeaveRequestDetailView(generics.RetrieveAPIView):
             leave_request.first_approver or leave_request.user.approver_1,
             leave_request.final_approver or leave_request.user.approver_2,
         }
-        is_hr_admin = user.role in ['HR', 'ADMIN']
+        is_hr_admin = (
+            user.role == 'ADMIN'
+            or (
+                user.role == 'HR'
+                and user.entity_id is not None
+                and leave_request.user.entity_id == user.entity_id
+            )
+        )
         if not (is_owner or is_approver or is_hr_admin):
             return Response(
                 {'error': 'You do not have permission to view this request'},

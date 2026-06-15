@@ -1,29 +1,40 @@
 """Holiday template generation and publication services."""
 from datetime import date, timedelta
-from decimal import Decimal
-import re
-import unicodedata
-
 from django.db import transaction
 from django.utils import timezone
+from lunardate import LunarDate
 
-from core.models import AuditLog, NotificationType
-from core.services.notification_service import create_notification
+from core.models import AuditLog
 from organizations.models import Entity
 
 from .models import (
     HolidayCalendar,
     HolidayTemplate,
     HolidayTemplateDate,
-    LeaveBalance,
-    LeaveRequest,
     PublicHoliday,
 )
-from .utils import calculate_leave_hours, get_holidays_for_user, is_working_day
+from .utils import normalize_country_code
 
 
 OPM_URL = "https://www.opm.gov/policy-data-oversight/pay-leave/federal-holidays/"
 VN_SOURCE = "Vietnam Labor Code 2019, Article 112"
+
+
+def _vn_template_rows(year):
+    lunar_new_year = LunarDate(year, 1, 1).toSolarDate()
+    hung_kings_day = LunarDate(year, 3, 10).toSolarDate()
+    return [
+        ("New Year's Day", f"{year}-01-01", "STATUTORY"),
+        (
+            "Lunar New Year",
+            f"{lunar_new_year - timedelta(days=1)}/{lunar_new_year + timedelta(days=3)}",
+            "STATUTORY",
+        ),
+        ("Hung Kings Commemoration Day", str(hung_kings_day), "STATUTORY"),
+        ("Reunification Day", f"{year}-04-30", "STATUTORY"),
+        ("International Labor Day", f"{year}-05-01", "STATUTORY"),
+        ("National Day", f"{year}-09-01/{year}-09-02", "STATUTORY"),
+    ]
 
 TEMPLATE_DATA = {
     ("US", 2026): [
@@ -63,16 +74,8 @@ TEMPLATE_DATA = {
     ],
 }
 
-
-def normalize_country_code(value):
-    """Map supported free-text country names to ISO-like application codes."""
-    text = unicodedata.normalize("NFKD", value or "").encode("ascii", "ignore").decode()
-    text = re.sub(r"[^a-zA-Z]", "", text).lower()
-    if text in {"us", "usa", "unitedstates", "unitedstatesofamerica"}:
-        return "US"
-    if text in {"vn", "vietnam"}:
-        return "VN"
-    return None
+for template_year in range(2027, 2036):
+    TEMPLATE_DATA[("VN", template_year)] = _vn_template_rows(template_year)
 
 
 def validate_holiday_dates(calendar, start_date, end_date, exclude_holiday_id=None):
@@ -109,67 +112,12 @@ def validate_publish_conflicts(calendar):
             )
 
 
-def _published_holiday_dates(user, start_date, end_date):
-    if user.department_id and user.department.holiday_requires_leave:
-        return set()
-    dates = set()
-    for holiday in get_holidays_for_user(user, start_date, end_date):
-        current = holiday.start_date
-        while current <= holiday.end_date:
-            dates.add(current)
-            current += timedelta(days=1)
-    return dates
-
-
-def _hours_after_publish(leave, calendar):
-    if leave.shift_type == LeaveRequest.ShiftType.CUSTOM_HOURS:
-        return leave.total_hours
-    if leave.user.department_id and leave.user.department.holiday_requires_leave:
-        return leave.total_hours
-    holiday_dates = _published_holiday_dates(leave.user, leave.start_date, leave.end_date)
-    for holiday in calendar.holidays.exclude(status=PublicHoliday.Status.ARCHIVED):
-        current = holiday.start_date
-        while current <= holiday.end_date:
-            holiday_dates.add(current)
-            current += timedelta(days=1)
-    working_days = 0
-    current = leave.start_date
-    while current <= leave.end_date:
-        if is_working_day(leave.user, current) and current not in holiday_dates:
-            working_days += 1
-        current += timedelta(days=1)
-    return Decimal(str(working_days * 8))
-
-
 def publish_impact(calendar):
-    """Preview leave and balance refunds without mutating a Draft calendar."""
+    """Publishing holidays does not change leave requests or balances."""
     if calendar.status != HolidayCalendar.Status.DRAFT:
         raise ValueError("Only Draft calendars can be published")
     validate_publish_conflicts(calendar)
-    changes = []
-    affected = LeaveRequest.objects.filter(
-        user__entity=calendar.entity,
-        status__in=[LeaveRequest.Status.PENDING, LeaveRequest.Status.APPROVED],
-        start_date__year=calendar.year,
-    ).select_related("user", "leave_category")
-    if calendar.location_id:
-        affected = affected.filter(user__location=calendar.location)
-    for leave in affected:
-        new_hours = _hours_after_publish(leave, calendar)
-        if new_hours >= leave.total_hours:
-            continue
-        changes.append(
-            {
-                "id": str(leave.id),
-                "user_id": str(leave.user_id),
-                "user_email": leave.user.email,
-                "status": leave.status,
-                "old_hours": str(leave.total_hours),
-                "new_hours": str(new_hours),
-                "refunded_hours": str(leave.total_hours - new_hours),
-            }
-        )
-    return {"affected_requests": len(changes), "changes": changes}
+    return {"affected_requests": 0, "changes": []}
 
 
 @transaction.atomic
@@ -239,8 +187,6 @@ def generate_draft_calendars(year, entities=None, country_overrides=None):
             template = HolidayTemplate.objects.filter(
                 country_code=country_code, year=year
             ).order_by("-version").first()
-            if not template:
-                continue
             calendar, was_created = HolidayCalendar.objects.get_or_create(
                 year=year,
                 entity=entity,
@@ -254,23 +200,24 @@ def generate_draft_calendars(year, entities=None, country_overrides=None):
             )
             if not was_created:
                 continue
-            PublicHoliday.objects.bulk_create(
-                [
-                    PublicHoliday(
-                        calendar=calendar,
-                        entity=entity,
-                        location=location,
-                        holiday_name=row.holiday_name,
-                        start_date=row.start_date,
-                        end_date=row.end_date,
-                        year=year,
-                        holiday_type=row.holiday_type,
-                        status=PublicHoliday.Status.DRAFT,
-                        source_note=row.source_note,
-                    )
-                    for row in template.dates.all()
-                ]
-            )
+            if template:
+                PublicHoliday.objects.bulk_create(
+                    [
+                        PublicHoliday(
+                            calendar=calendar,
+                            entity=entity,
+                            location=location,
+                            holiday_name=row.holiday_name,
+                            start_date=row.start_date,
+                            end_date=row.end_date,
+                            year=year,
+                            holiday_type=row.holiday_type,
+                            status=PublicHoliday.Status.DRAFT,
+                            source_note=row.source_note,
+                        )
+                        for row in template.dates.all()
+                    ]
+                )
             created.append(calendar)
     return created
 
@@ -390,7 +337,7 @@ def split_future_entity_calendars(entity, today=None, actor=None):
 
 @transaction.atomic
 def publish_calendar(calendar, actor):
-    """Publish a Draft calendar and refund approved leave hours it removes."""
+    """Publish a Draft calendar without changing leave requests or balances."""
     calendar = HolidayCalendar.objects.select_for_update().get(pk=calendar.pk)
     if calendar.status != HolidayCalendar.Status.DRAFT:
         raise ValueError("Only Draft calendars can be published")
@@ -413,31 +360,6 @@ def publish_calendar(calendar, actor):
         published_by=actor,
         published_at=now,
     )
-    change_by_id = {row["id"]: row for row in preview["changes"]}
-    affected = LeaveRequest.objects.select_for_update(of=("self",)).filter(id__in=change_by_id)
-    changed = []
-    for leave in affected.select_related("user", "leave_category"):
-        old_hours = leave.total_hours
-        new_hours = Decimal(change_by_id[str(leave.id)]["new_hours"])
-        if leave.status == LeaveRequest.Status.APPROVED and leave.leave_category:
-            balance_type = leave.leave_category.balance_bucket
-            if balance_type != "NONE":
-                balance = LeaveBalance.objects.select_for_update().get(
-                    user=leave.user, year=leave.start_date.year, balance_type=balance_type
-                )
-                balance.used_hours = max(Decimal("0.00"), balance.used_hours - (old_hours - new_hours))
-                balance.save(update_fields=["used_hours", "updated_at"])
-        leave.total_hours = new_hours
-        leave.save(update_fields=["total_hours", "updated_at"])
-        create_notification(
-            leave.user,
-            NotificationType.LEAVE_HOURS_RECALCULATED,
-            "Leave hours updated",
-            f"Your leave from {leave.start_date} to {leave.end_date} was recalculated after a holiday calendar update.",
-            related_object_id=leave.id,
-        )
-        changed.append({"id": str(leave.id), "old_hours": str(old_hours), "new_hours": str(new_hours)})
-
     calendar.status = HolidayCalendar.Status.PUBLISHED
     calendar.published_by = actor
     calendar.published_at = now
@@ -448,9 +370,9 @@ def publish_calendar(calendar, actor):
         entity_type="HolidayCalendar",
         entity_id=calendar.id,
         old_values={"holiday_calendar_status": "DRAFT"},
-        new_values={"holiday_calendar_status": "PUBLISHED", "affected_requests": changed},
+        new_values={"holiday_calendar_status": "PUBLISHED", "affected_requests": []},
     )
-    return {"affected_requests": len(changed), "changes": changed}
+    return preview
 
 
 def _preview_token(calendar):
@@ -458,92 +380,27 @@ def _preview_token(calendar):
 
 
 def unpublish_impact(calendar):
-    """Return leave and balance impact without changing a Published calendar."""
+    """Unpublishing holidays does not change leave requests or balances."""
     if calendar.status != HolidayCalendar.Status.PUBLISHED:
         raise ValueError("Only Published calendars can be unpublished")
-    affected = LeaveRequest.objects.filter(
-        user__entity=calendar.entity,
-        status__in=[LeaveRequest.Status.PENDING, LeaveRequest.Status.APPROVED],
-        start_date__year=calendar.year,
-    ).select_related("user", "leave_category")
-    if calendar.location_id:
-        affected = affected.filter(user__location=calendar.location)
-
-    changes = []
-    insufficient = []
-    for leave in affected:
-        new_hours = calculate_leave_hours(
-            leave.user,
-            leave.start_date,
-            leave.end_date,
-            leave.shift_type,
-            leave.start_time,
-            leave.end_time,
-            exclude_calendar_id=calendar.id,
-        )
-        delta = new_hours - leave.total_hours
-        if delta <= 0:
-            continue
-        row = {
-            "id": str(leave.id),
-            "user_id": str(leave.user_id),
-            "user_email": leave.user.email,
-            "status": leave.status,
-            "old_hours": str(leave.total_hours),
-            "new_hours": str(new_hours),
-            "additional_hours": str(delta),
-        }
-        changes.append(row)
-        if leave.status == LeaveRequest.Status.APPROVED and leave.leave_category:
-            balance_type = leave.leave_category.balance_bucket
-            if balance_type != "NONE":
-                balance = LeaveBalance.objects.filter(
-                    user=leave.user, year=leave.start_date.year, balance_type=balance_type
-                ).first()
-                if not balance or balance.remaining_hours < delta:
-                    insufficient.append(row)
     return {
         "preview_token": _preview_token(calendar),
-        "affected_requests": len(changes),
-        "blocked": bool(insufficient),
-        "insufficient_balances": insufficient,
-        "changes": changes,
+        "affected_requests": 0,
+        "blocked": False,
+        "insufficient_balances": [],
+        "changes": [],
     }
 
 
 @transaction.atomic
 def unpublish_calendar(calendar, actor, preview_token):
-    """Apply a confirmed unpublish preview and deduct additional approved hours."""
+    """Return a Published calendar to Draft without changing leave or balances."""
     calendar = HolidayCalendar.objects.select_for_update().get(pk=calendar.pk)
     if preview_token != _preview_token(calendar):
         raise ValueError("Holiday calendar changed; generate a new unpublish preview")
     preview = unpublish_impact(calendar)
     if preview["blocked"]:
         raise ValueError("One or more employees have insufficient leave balance")
-
-    change_by_id = {row["id"]: row for row in preview["changes"]}
-    leaves = LeaveRequest.objects.select_for_update(of=("self",)).filter(id__in=change_by_id)
-    for leave in leaves.select_related("user", "leave_category"):
-        row = change_by_id[str(leave.id)]
-        new_hours = Decimal(row["new_hours"])
-        delta = Decimal(row["additional_hours"])
-        if leave.status == LeaveRequest.Status.APPROVED and leave.leave_category:
-            balance_type = leave.leave_category.balance_bucket
-            if balance_type != "NONE":
-                balance = LeaveBalance.objects.select_for_update().get(
-                    user=leave.user, year=leave.start_date.year, balance_type=balance_type
-                )
-                balance.used_hours += delta
-                balance.save(update_fields=["used_hours", "updated_at"])
-        leave.total_hours = new_hours
-        leave.save(update_fields=["total_hours", "updated_at"])
-        create_notification(
-            leave.user,
-            NotificationType.LEAVE_HOURS_RECALCULATED,
-            "Leave hours updated",
-            f"Your leave from {leave.start_date} to {leave.end_date} was recalculated after a holiday calendar update.",
-            related_object_id=leave.id,
-        )
 
     calendar.holidays.filter(status=PublicHoliday.Status.PUBLISHED).update(
         status=PublicHoliday.Status.DRAFT,

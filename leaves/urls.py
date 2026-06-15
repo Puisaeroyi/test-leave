@@ -15,11 +15,8 @@ from .views import (
     PublicHolidayListView,
     HolidayCalendarListView,
     HolidayCalendarGenerateView,
-    HolidayCalendarGenerationPreviewView,
     HolidayCalendarDetailView,
     HolidayCalendarPublishView,
-    HolidayCalendarPublishPreviewView,
-    HolidayCalendarUnpublishPreviewView,
     HolidayCalendarUnpublishView,
     HolidayCalendarHolidayCreateView,
     HolidayDetailView,
@@ -57,11 +54,8 @@ urlpatterns = [
 
     # Holiday administration (specific paths before generic holiday detail)
     path('holiday-calendars/', HolidayCalendarListView.as_view(), name='holiday_calendar_list'),
-    path('holiday-calendars/generation-preview/', HolidayCalendarGenerationPreviewView.as_view(), name='holiday_calendar_generation_preview'),
     path('holiday-calendars/generate/', HolidayCalendarGenerateView.as_view(), name='holiday_calendar_generate'),
     path('holiday-calendars/<uuid:pk>/publish/', HolidayCalendarPublishView.as_view(), name='holiday_calendar_publish'),
-    path('holiday-calendars/<uuid:pk>/publish-preview/', HolidayCalendarPublishPreviewView.as_view(), name='holiday_calendar_publish_preview'),
-    path('holiday-calendars/<uuid:pk>/unpublish-preview/', HolidayCalendarUnpublishPreviewView.as_view(), name='holiday_calendar_unpublish_preview'),
     path('holiday-calendars/<uuid:pk>/unpublish/', HolidayCalendarUnpublishView.as_view(), name='holiday_calendar_unpublish'),
     path('holiday-calendars/<uuid:pk>/holidays/', HolidayCalendarHolidayCreateView.as_view(), name='holiday_calendar_holiday_create'),
     path('holiday-calendars/<uuid:pk>/', HolidayCalendarDetailView.as_view(), name='holiday_calendar_detail'),

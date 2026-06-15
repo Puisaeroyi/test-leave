@@ -1,13 +1,14 @@
 """
 Organizations API Views
 """
-from django.db import models, transaction
+from django.db import transaction
 from datetime import time
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsHRAdmin
+from users.models import User
 from .models import Entity, Location, Department, WorkShift
 from .serializers import (
     EntitySerializer,
@@ -28,6 +29,13 @@ def _parse_bool(value):
     if isinstance(value, str):
         return value.strip().lower() in {'1', 'true', 'yes', 'on'}
     return bool(value)
+
+
+def _department_queryset(user):
+    departments = Department.objects.filter(is_active=True).select_related('entity', 'location')
+    if user.role == User.Role.HR:
+        departments = departments.filter(entity_id=user.entity_id)
+    return departments
 
 
 class EntityListView(generics.ListAPIView):
@@ -67,7 +75,7 @@ class DepartmentListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        departments = Department.objects.filter(is_active=True)
+        departments = _department_queryset(request.user)
 
         # Filter by entity if provided
         entity_id = request.query_params.get('entity_id')
@@ -82,7 +90,9 @@ class DepartmentListView(APIView):
         data = [{
             'id': str(dept.id),
             'entity': str(dept.entity_id),
+            'entity_name': dept.entity.entity_name,
             'location': str(dept.location_id) if dept.location_id else None,
+            'location_name': dept.location.location_name if dept.location_id else None,
             'department_name': dept.department_name,
             'code': dept.code,
             'holiday_requires_leave': dept.holiday_requires_leave,
@@ -103,6 +113,8 @@ class WorkShiftListCreateView(APIView):
 
     def get(self, request):
         shifts = WorkShift.objects.filter(is_active=True).select_related('department__entity')
+        if request.user.role == User.Role.HR:
+            shifts = shifts.filter(department__entity_id=request.user.entity_id)
         department_id = request.query_params.get('department_id')
         if department_id:
             shifts = shifts.filter(department_id=department_id)
@@ -124,14 +136,16 @@ class WorkShiftListCreateView(APIView):
                 return Response({'name': ['Shift name is required.']}, status=status.HTTP_400_BAD_REQUEST)
             start_hour, start_minute = map(int, request.data['start_time'].split(':'))
             end_hour, end_minute = map(int, request.data['end_time'].split(':'))
-            start_time = time(start_hour, start_minute)
-            end_time = time(end_hour, end_minute)
+            start_time_value = time(start_hour, start_minute)
+            end_time_value = time(end_hour, end_minute)
         except (KeyError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         includes_weekends = _parse_bool(request.data.get('includes_weekends', False))
 
         if _parse_bool(request.data.get('apply_to_all_departments')):
             entity = Entity.objects.filter(id=request.data.get('entity_id'), is_active=True).first()
+            if request.user.role == User.Role.HR and entity and entity.id != request.user.entity_id:
+                entity = None
             if not entity:
                 return Response({'error': 'Entity not found'}, status=status.HTTP_404_NOT_FOUND)
             departments = list(entity.departments.filter(is_active=True))
@@ -140,15 +154,14 @@ class WorkShiftListCreateView(APIView):
             created, skipped = 0, []
             with transaction.atomic():
                 for department in departments:
-                    # Skip departments that already define this shift name instead of failing the batch
                     if WorkShift.objects.filter(department=department, name=name).exists():
                         skipped.append(department.department_name)
                         continue
                     WorkShift.objects.create(
                         department=department,
                         name=name,
-                        start_time=start_time,
-                        end_time=end_time,
+                        start_time=start_time_value,
+                        end_time=end_time_value,
                         includes_weekends=includes_weekends,
                     )
                     created += 1
@@ -159,7 +172,7 @@ class WorkShiftListCreateView(APIView):
                 )
             return Response({'created': created, 'skipped': skipped}, status=status.HTTP_201_CREATED)
 
-        department = Department.objects.filter(id=request.data.get('department_id'), is_active=True).first()
+        department = _department_queryset(request.user).filter(id=request.data.get('department_id')).first()
         if not department:
             return Response({'error': 'Department not found'}, status=status.HTTP_404_NOT_FOUND)
         if WorkShift.objects.filter(department=department, name=name).exists():
@@ -170,8 +183,8 @@ class WorkShiftListCreateView(APIView):
         shift = WorkShift.objects.create(
             department=department,
             name=name,
-            start_time=start_time,
-            end_time=end_time,
+            start_time=start_time_value,
+            end_time=end_time_value,
             includes_weekends=includes_weekends,
         )
         return Response({'id': str(shift.id)}, status=status.HTTP_201_CREATED)

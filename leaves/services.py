@@ -379,6 +379,11 @@ class LeaveApprovalService:
                     f"No {balance_type} balance found for year {leave_request.start_date.year}. "
                     "Cannot approve without an existing balance record."
                 )
+            if leave_request.total_hours > balance.remaining_hours:
+                raise ValueError(
+                    f"Insufficient balance. Requested: {leave_request.total_hours}h, "
+                    f"Available: {balance.remaining_hours}h"
+                )
             balance.used_hours += leave_request.total_hours
             balance.save()
 
@@ -418,8 +423,9 @@ class LeaveApprovalService:
         Returns:
             str: BalanceType key, or NONE for non-deducting categories.
         """
-        return BalanceCalculationService.calculate_balance_type(
-            leave_request.leave_category
+        return (
+            leave_request.balance_type_snapshot
+            or BalanceCalculationService.calculate_balance_type(leave_request.leave_category)
         )
 
     @staticmethod

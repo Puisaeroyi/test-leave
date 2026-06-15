@@ -18,18 +18,23 @@ import dayjs from "dayjs";
 import {
   addHoliday,
   deleteHoliday,
+  deleteHolidayCalendar,
   generateHolidayCalendars,
   getHolidayCalendar,
   getHolidayCalendars,
-  previewHolidayCalendarGeneration,
-  previewPublishHolidayCalendar,
-  previewUnpublishHolidayCalendar,
   publishHolidayCalendar,
   unpublishHolidayCalendar,
   updateHoliday,
 } from "@api/holidayApi";
 
 const statusColor = { DRAFT: "gold", PUBLISHED: "green", ARCHIVED: "default" };
+const holidayTypeOptions = [
+  { value: "STATUTORY", label: "Official holiday" },
+  { value: "OBSERVED", label: "Observed day off" },
+  { value: "COMPENSATORY", label: "Compensatory day off" },
+  { value: "COMPANY", label: "Company holiday" },
+];
+const holidayYears = Array.from({ length: 10 }, (_, index) => 2026 + index);
 
 export default function HolidayManagement() {
   const [calendars, setCalendars] = useState([]);
@@ -38,8 +43,7 @@ export default function HolidayManagement() {
   const [selected, setSelected] = useState(null);
   const [holidayModal, setHolidayModal] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState(null);
-  const [generationPreview, setGenerationPreview] = useState(null);
-  const [countryOverrides, setCountryOverrides] = useState({});
+  const [generating, setGenerating] = useState(false);
   const [countryFilter, setCountryFilter] = useState();
   const [statusFilter, setStatusFilter] = useState();
   const [entityFilter, setEntityFilter] = useState();
@@ -70,64 +74,55 @@ export default function HolidayManagement() {
   };
 
   const generate = async () => {
+    setGenerating(true);
     try {
-      const preview = await previewHolidayCalendarGeneration(year, countryOverrides);
-      setGenerationPreview(preview);
-    } catch (error) {
-      message.error(error.response?.data?.error || "Failed to preview calendars");
-    }
-  };
-
-  const confirmGenerate = async () => {
-    try {
-      const created = await generateHolidayCalendars(year, countryOverrides);
+      const created = await generateHolidayCalendars(year);
       message.success(created.length ? `Created ${created.length} Draft calendars` : "No new calendars to create");
-      setGenerationPreview(null);
       await load();
     } catch (error) {
       message.error(error.response?.data?.error || "Failed to generate calendars");
+    } finally {
+      setGenerating(false);
     }
   };
 
-  const publish = async (calendar) => {
-    try {
-      const preview = await previewPublishHolidayCalendar(calendar.id);
-      Modal.confirm({
-        title: "Publish holiday calendar?",
-        width: 720,
-        content: <ImpactSummary preview={preview} mode="publish" />,
-        okText: "Publish",
-        onOk: async () => {
-          const result = await publishHolidayCalendar(calendar.id);
-          message.success(`Published; recalculated ${result.affected_requests} leave requests`);
+  const publish = (calendar) => {
+    Modal.confirm({
+      title: "Publish holiday calendar?",
+      content: "Published holidays become visible in employee calendars immediately.",
+      okText: "Publish",
+      onOk: async () => {
+        try {
+          await publishHolidayCalendar(calendar.id);
+          message.success("Holiday calendar published");
           setSelected(null);
           await load();
-        },
-      });
-    } catch (error) {
-      message.error(error.response?.data?.error || "Failed to publish calendar");
-    }
+        } catch (error) {
+          message.error(error.response?.data?.error || "Failed to publish calendar");
+          throw error;
+        }
+      },
+    });
   };
 
-  const previewUnpublish = async (calendar) => {
-    try {
-      const preview = await previewUnpublishHolidayCalendar(calendar.id);
-      Modal.confirm({
-        title: "Unpublish holiday calendar?",
-        width: 720,
-        content: <ImpactSummary preview={preview} mode="unpublish" />,
-        okText: "Unpublish",
-        okButtonProps: { danger: true, disabled: preview.blocked },
-        onOk: async () => {
-          await unpublishHolidayCalendar(calendar.id, preview.preview_token);
+  const unpublish = (calendar) => {
+    Modal.confirm({
+      title: "Unpublish holiday calendar?",
+      content: "The calendar will return to Draft and disappear from employee calendars.",
+      okText: "Unpublish",
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await unpublishHolidayCalendar(calendar.id);
           message.success("Calendar returned to Draft");
           setSelected(null);
           await load();
-        },
-      });
-    } catch (error) {
-      message.error(error.response?.data?.error || "Failed to preview unpublish");
-    }
+        } catch (error) {
+          message.error(error.response?.data?.error || "Failed to unpublish calendar");
+          throw error;
+        }
+      },
+    });
   };
 
   const openHoliday = (holiday = null) => {
@@ -166,27 +161,45 @@ export default function HolidayManagement() {
     setSelected(await getHolidayCalendar(selected.id));
   };
 
+  const removeCalendar = async (calendar) => {
+    try {
+      await deleteHolidayCalendar(calendar.id);
+      if (selected?.id === calendar.id) setSelected(null);
+      message.success("Holiday calendar deleted");
+      await load();
+    } catch (error) {
+      message.error(error.response?.data?.error || "Failed to delete holiday calendar");
+    }
+  };
+
   const calendarColumns = [
     { title: "Calendar", dataIndex: "name", key: "name", width: 240 },
     { title: "Country", dataIndex: "country_code", key: "country_code", width: 70 },
     { title: "Entity", dataIndex: "entity_name", key: "entity_name", width: 140 },
     { title: "Location", dataIndex: "location_name", key: "location_name", width: 140, render: (v) => v || "All locations" },
-    { title: "Holidays", dataIndex: "holiday_count", key: "holiday_count", width: 75 },
+    { title: "Days", dataIndex: "holiday_count", key: "holiday_count", width: 75 },
     { title: "Status", dataIndex: "status", key: "status", width: 90, render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
     {
       title: "Action",
       key: "action",
-      width: 90,
+      width: 130,
       render: (_, row) => (
-        <Button
-          size="small"
-          onClick={(event) => {
-            event.stopPropagation();
-            openCalendar(row);
-          }}
-        >
-          Manage
-        </Button>
+        <Space size={6} onClick={(event) => event.stopPropagation()}>
+          <Button size="small" onClick={() => openCalendar(row)}>
+            Manage
+          </Button>
+          {row.status === "DRAFT" && (
+            <Popconfirm
+              title="Delete holiday calendar?"
+              description="This will delete all holidays in this Draft calendar."
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => removeCalendar(row)}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} aria-label="Delete holiday calendar" />
+            </Popconfirm>
+          )}
+        </Space>
       ),
     },
   ];
@@ -195,18 +208,24 @@ export default function HolidayManagement() {
   ).map(([value, label]) => ({ value, label }));
 
   const holidayColumns = [
+    { title: "Date", dataIndex: "date", key: "date", width: 115 },
     { title: "Holiday", dataIndex: "holiday_name", key: "holiday_name", width: 260 },
-    { title: "From", dataIndex: "start_date", key: "start_date", width: 115 },
-    { title: "To", dataIndex: "end_date", key: "end_date", width: 115 },
-    { title: "Type", dataIndex: "holiday_type", key: "holiday_type", width: 130 },
+    {
+      title: "Range",
+      key: "range",
+      width: 210,
+      render: (_, row) => row.start_date === row.end_date ? row.start_date : `${row.start_date} to ${row.end_date}`,
+    },
+    { title: "Type", dataIndex: "holiday_type_label", key: "holiday_type_label", width: 180 },
+    { title: "Weekend", dataIndex: "is_weekend", key: "is_weekend", width: 95, render: (value) => value ? "Yes" : "-" },
     {
       title: "Action",
       key: "action",
       width: 90,
       render: (_, row) => selected?.status === "DRAFT" && (
         <Space>
-          <Button size="small" icon={<EditOutlined />} onClick={() => openHoliday(row)} />
-          <Popconfirm title="Delete holiday?" onConfirm={() => removeHoliday(row)}>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openHoliday({ ...row, id: row.holiday_id })} />
+          <Popconfirm title="Delete holiday?" onConfirm={() => removeHoliday({ ...row, id: row.holiday_id })}>
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
@@ -224,7 +243,7 @@ export default function HolidayManagement() {
             <Select
               value={year}
               onChange={setYear}
-              options={[2026, 2027].map((value) => ({ value, label: value }))}
+              options={holidayYears.map((value) => ({ value, label: value }))}
               style={{ width: 100 }}
             />
             <Select
@@ -254,7 +273,7 @@ export default function HolidayManagement() {
               options={entityOptions}
               style={{ width: 170 }}
             />
-            <Button type="primary" icon={<PlusOutlined />} onClick={generate}>Generate Drafts</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={generate} loading={generating}>Generate Drafts</Button>
             <Button icon={<ReloadOutlined />} onClick={load}>Refresh</Button>
           </Space>
         }
@@ -275,6 +294,7 @@ export default function HolidayManagement() {
       </Card>
 
       <Modal
+        className="holiday-detail-modal"
         title={selected?.name}
         open={Boolean(selected)}
         onCancel={() => setSelected(null)}
@@ -284,54 +304,22 @@ export default function HolidayManagement() {
               {selected.status === "DRAFT" && <Button icon={<PlusOutlined />} onClick={() => openHoliday()}>Add Holiday</Button>}
               {selected.status === "DRAFT"
                 ? <Button type="primary" onClick={() => publish(selected)}>Publish</Button>
-                : <Button danger onClick={() => previewUnpublish(selected)}>Preview Unpublish</Button>}
+                : <Button danger onClick={() => unpublish(selected)}>Unpublish</Button>}
               <Button onClick={() => setSelected(null)}>Close</Button>
             </Space>
           )
         }
-        width={900}
-      >
-        <Table columns={holidayColumns} dataSource={selected?.holidays || []} rowKey="id" pagination={false} scroll={{ x: 750 }} />
-      </Modal>
-
-      <Modal
-        title={`Review ${year} country mapping`}
-        open={Boolean(generationPreview)}
-        onOk={confirmGenerate}
-        onCancel={() => setGenerationPreview(null)}
-        okText="Create Draft Calendars"
-        width={850}
+        style={{ top: 32 }}
+        styles={{ body: { maxHeight: "calc(100dvh - 220px)", overflowY: "auto" } }}
+        width="calc(100vw - 48px)"
       >
         <Table
+          className="holiday-detail-table"
+          columns={holidayColumns}
+          dataSource={selected?.holiday_days || []}
           rowKey="id"
           pagination={false}
-          dataSource={(generationPreview || []).flatMap((entity) =>
-            entity.locations.map((location) => ({ ...location, entity_name: entity.entity_name }))
-          )}
-          columns={[
-            { title: "Entity", dataIndex: "entity_name", key: "entity_name" },
-            { title: "Location", dataIndex: "name", key: "name" },
-            { title: "Current country", dataIndex: "country", key: "country" },
-            {
-              title: "Holiday calendar",
-              dataIndex: "country_code",
-              key: "country_code",
-              render: (value, row) => (
-                <Select
-                  value={countryOverrides[row.id] || value}
-                  placeholder="Select country"
-                  style={{ width: 170 }}
-                  options={[
-                    { value: "US", label: "United States" },
-                    { value: "VN", label: "Vietnam" },
-                  ]}
-                  onChange={(countryCode) =>
-                    setCountryOverrides((current) => ({ ...current, [row.id]: countryCode }))
-                  }
-                />
-              ),
-            },
-          ]}
+          tableLayout="fixed"
         />
       </Modal>
 
@@ -352,7 +340,7 @@ export default function HolidayManagement() {
             <DatePicker.RangePicker style={{ width: "100%" }} />
           </Form.Item>
           <Form.Item name="holiday_type" label="Type" rules={[{ required: true }]}>
-            <Select options={["STATUTORY", "OBSERVED", "COMPENSATORY", "COMPANY"].map((value) => ({ value, label: value }))} />
+            <Select options={holidayTypeOptions} />
           </Form.Item>
           <Form.Item name="source_note" label="Source / note">
             <Input.TextArea rows={3} />
@@ -360,44 +348,5 @@ export default function HolidayManagement() {
         </Form>
       </Modal>
     </>
-  );
-}
-
-function ImpactSummary({ preview, mode }) {
-  const changes = preview?.changes || [];
-  const isPublish = mode === "publish";
-  return (
-    <div style={{ marginTop: 12 }}>
-      <p>
-        <strong>{preview?.affected_requests || 0}</strong> Pending or Approved leave requests
-        will be recalculated.
-      </p>
-      {preview?.blocked && (
-        <p style={{ color: "var(--color-danger)" }}>
-          Unpublish is blocked because {preview.insufficient_balances.length} employees have insufficient balance.
-        </p>
-      )}
-      {changes.length > 0 && (
-        <Table
-          size="small"
-          pagination={false}
-          rowKey="id"
-          dataSource={changes}
-          scroll={{ y: 260 }}
-          columns={[
-            { title: "Employee", dataIndex: "user_email", key: "user_email" },
-            { title: "Status", dataIndex: "status", key: "status", width: 100 },
-            { title: "Old", dataIndex: "old_hours", key: "old_hours", width: 70 },
-            { title: "New", dataIndex: "new_hours", key: "new_hours", width: 70 },
-            {
-              title: isPublish ? "Refund" : "Additional",
-              dataIndex: isPublish ? "refunded_hours" : "additional_hours",
-              key: "delta",
-              width: 95,
-            },
-          ]}
-        />
-      )}
-    </div>
   );
 }
