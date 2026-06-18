@@ -7,6 +7,22 @@ import { useAuth } from "@auth/authContext";
 
 const { Title, Text } = Typography;
 
+// Format today's resolved shift for the Profile row.
+const getTodayShiftLabel = (today, parentName) => {
+  if (!today) return "-";
+  if (!today.is_working) return "Off";
+
+  const range = today.start_time && today.end_time
+    ? `${today.start_time} - ${today.end_time}`
+    : "";
+  const sub = today.shift_name && today.shift_name !== parentName
+    ? ` — ${today.shift_name}`
+    : "";
+  const base = `${parentName || today.shift_name || ""}${sub}`.trim();
+
+  return range ? `${base} | ${range}` : base || "-";
+};
+
 export default function Profile() {
   const navigate = useNavigate();
   const { updateUser } = useAuth();
@@ -185,6 +201,12 @@ export default function Profile() {
 
           <Descriptions.Item label="Department">
             {user.department_name || "-"}
+          </Descriptions.Item>
+
+          <Descriptions.Item label="Work Shift">
+            {user.work_shift
+              ? getTodayShiftLabel(user.work_shift_today, user.work_shift.name)
+              : "-"}
           </Descriptions.Item>
 
           <Descriptions.Item label="Join Date">

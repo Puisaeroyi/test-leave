@@ -9,11 +9,11 @@ from rest_framework.views import APIView
 
 from ...models import LeaveRequest
 from ...utils import (
+    ZERO_DEDUCTIBLE_HOURS_MESSAGE,
     calculate_full_day_leave_breakdown,
     calculate_leave_hours,
     infer_custom_hour_offsets,
     validate_leave_request_dates,
-    ZERO_DEDUCTIBLE_HOURS_MESSAGE,
 )
 
 
@@ -24,8 +24,12 @@ class LeaveRequestPreviewView(APIView):
 
     def post(self, request):
         try:
-            start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
-            end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
+            start_date = datetime.strptime(
+                request.data.get('start_date'), '%Y-%m-%d'
+            ).date()
+            end_date = datetime.strptime(
+                request.data.get('end_date'), '%Y-%m-%d'
+            ).date()
         except (ValueError, TypeError):
             return Response(
                 {'error': 'Invalid date format. Use YYYY-MM-DD'},
@@ -36,7 +40,10 @@ class LeaveRequestPreviewView(APIView):
         if not is_valid:
             return Response({'error': error}, status=status.HTTP_400_BAD_REQUEST)
 
-        shift_type = request.data.get('shift_type', LeaveRequest.ShiftType.FULL_DAY)
+        shift_type = request.data.get(
+            'shift_type',
+            LeaveRequest.ShiftType.FULL_DAY,
+        )
         if shift_type not in LeaveRequest.ShiftType.values:
             return Response(
                 {'error': 'Invalid shift_type. Must be FULL_DAY or CUSTOM_HOURS'},
@@ -74,10 +81,14 @@ class LeaveRequestPreviewView(APIView):
                 )
                 leave_breakdown = []
         except (ValueError, TypeError) as exc:
-            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response({
             'total_hours': float(total_hours),
+            'breakdown': leave_breakdown,
             'leave_breakdown': leave_breakdown,
             'zero_hours_message': (
                 ZERO_DEDUCTIBLE_HOURS_MESSAGE if total_hours <= 0 else None
