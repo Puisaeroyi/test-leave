@@ -26,9 +26,10 @@ class PeerApprovalTests(TestCase):
             first_name='Employee',
             last_name='Sender',
         )
-        self.entity = Entity.objects.create(entity_name='VN Branch', code='VNBR')
+        self.entity = Entity.objects.create(entity_name='Viet Nam', code='TEAMPL_VN')
         self.employee.entity = self.entity
         self.employee.save()
+        Entity.objects.filter(pk=self.entity.pk).update(entity_name='TEAMPL')
         self.approver_1 = User.objects.create_user(
             email='approver-1@example.com',
             password='TestPass123!',
@@ -277,14 +278,14 @@ class PeerApprovalTests(TestCase):
         self.assertEqual(data['approval_timeline'][0]['label'], 'Approver')
         self.assertEqual(data['approval_timeline'][0]['approver_id'], str(self.approver_1.id))
 
-    def test_two_approver_timeline_shows_first_and_second_labels(self):
+    def test_two_approver_timeline_uses_equal_approver_labels(self):
         leave_request = self.make_request()
 
         data = LeaveRequestSerializer(leave_request).data
 
         self.assertEqual(
             [step['label'] for step in data['approval_timeline']],
-            ['First Approver', 'Second Approver'],
+            ['Approver', 'Approver'],
         )
 
     def test_user_has_approver_1_and_2_fields(self):
@@ -346,7 +347,7 @@ class PeerApprovalTests(TestCase):
         self.assertEqual(len(requester_emails), 1)
         self.assertEqual(
             requester_emails[0].subject,
-            '[VN Branch] Leave request submitted successfully - Employee Sender',
+            '[TEAMPL] Leave request submitted successfully - Employee Sender',
         )
         self.assertIn('Your leave request has been submitted successfully', requester_emails[0].body)
         self.assertIn('Type: Vacation', requester_emails[0].body)
@@ -359,7 +360,7 @@ class PeerApprovalTests(TestCase):
         )
         self.assertEqual(
             approver_email.subject,
-            '[VN Branch] Review required: Leave request from Employee Sender',
+            '[TEAMPL] Review required: Leave request from Employee Sender',
         )
 
     @override_settings(
@@ -378,15 +379,21 @@ class PeerApprovalTests(TestCase):
         self.assertEqual(len(requester_emails), 1)
         self.assertEqual(
             requester_emails[0].subject,
-            '[VN Branch] Leave request approved by Approver One and Approver Two',
+            '[TEAMPL] Leave request approved by Approver One and Approver Two',
         )
-        self.assertIn('Approved by: Approver Two', requester_emails[0].body)
+        self.assertIn('Approved by: Approver One and Approver Two', requester_emails[0].body)
+        self.assertIn('Approver One - Approved - Note: ok-A', requester_emails[0].body)
+        self.assertIn('Approver Two - Approved - Note: ok-B', requester_emails[0].body)
         self.assertIn('Type: Vacation', requester_emails[0].body)
         html_body = requester_emails[0].alternatives[0][0]
         self.assertIn('Approval progress', html_body)
         self.assertIn('Approver One', html_body)
         self.assertIn('Approved', html_body)
         self.assertIn('Approver Two', html_body)
+        self.assertIn('ok-A', html_body)
+        self.assertIn('ok-B', html_body)
+        self.assertNotIn('First approver', html_body)
+        self.assertNotIn('Second approver', html_body)
 
     @override_settings(
         EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
@@ -404,17 +411,24 @@ class PeerApprovalTests(TestCase):
         self.assertEqual(len(requester_emails), 1)
         self.assertEqual(
             requester_emails[0].subject,
-            '[VN Branch] Leave request denied by Approver One',
+            '[TEAMPL] Leave request denied by Approver One',
         )
         self.assertIn('Rejected by: Approver One', requester_emails[0].body)
         self.assertIn('Reason: Coverage changed', requester_emails[0].body)
+        self.assertIn(
+            'Approver One - Declined - Note: Coverage changed',
+            requester_emails[0].body,
+        )
         html_body = requester_emails[0].alternatives[0][0]
         self.assertIn('Approval progress', html_body)
         self.assertIn('Approver One', html_body)
         self.assertIn('Declined', html_body)
+        self.assertIn('Coverage changed', html_body)
         self.assertIn('Approver Two', html_body)
         self.assertIn('Not required', html_body)
         self.assertNotIn('Pending', html_body)
+        self.assertNotIn('First approver', html_body)
+        self.assertNotIn('Second approver', html_body)
 
     def test_no_email_or_notification_on_first_peer_action(self):
         leave_request = self.make_request()

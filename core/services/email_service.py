@@ -19,8 +19,15 @@ def _display_name(user):
 
 
 def _branch_name(leave_request):
-    entity = getattr(leave_request.user, "entity", None) if leave_request else None
-    return entity.entity_name if entity else "Unknown Branch"
+    if not leave_request or not leave_request.user.entity_id:
+        return "Unknown Branch"
+    entity_model = leave_request.user._meta.get_field("entity").remote_field.model
+    return (
+        entity_model.objects.filter(pk=leave_request.user.entity_id)
+        .values_list("entity_name", flat=True)
+        .first()
+        or "Unknown Branch"
+    )
 
 
 def _category_name(leave_request):
@@ -57,19 +64,17 @@ def _approval_progress(leave_request):
     steps = []
     step_definitions = (
         (
-            "First approver",
             leave_request.first_approver or leave_request.user.approver_1,
             leave_request.first_approval_status,
             leave_request.first_approval_comment,
         ),
         (
-            "Second approver",
             leave_request.final_approver or leave_request.user.approver_2,
             leave_request.final_approval_status,
             leave_request.final_approval_comment,
         ),
     )
-    for label, approver, status, comment in step_definitions:
+    for approver, status, comment in step_definitions:
         if not approver:
             continue
         if leave_request.status == "REJECTED" and status == "PENDING":
@@ -81,12 +86,29 @@ def _approval_progress(leave_request):
             "NOT_REQUIRED": "Not required",
         }.get(status, status.title() if status else "Pending")
         steps.append({
-            "label": label,
             "approver_name": _display_name(approver),
             "status": display_status,
             "comment": comment,
         })
     return steps
+
+
+def _approved_by_names(approval_progress):
+    return [
+        step["approver_name"]
+        for step in approval_progress
+        if step["status"] == "Approved"
+    ]
+
+
+def _progress_text(approval_progress):
+    lines = []
+    for step in approval_progress:
+        note = f" - Note: {step['comment']}" if step["comment"] else ""
+        lines.append(
+            f"{step['approver_name']} - {step['status']}{note}"
+        )
+    return "\n".join(lines)
 
 
 def _send(subject, text_body, html_body, recipient):
@@ -102,6 +124,11 @@ def _send(subject, text_body, html_body, recipient):
         )
         msg.attach_alternative(html_body, "text/html")
         msg.send()
+        logger.info(
+            "Email sent (subject=%s, recipient=%s)",
+            subject,
+            recipient,
+        )
     except Exception as e:
         logger.warning("Email send failed (subject=%s): %s", subject, e)
 
@@ -170,11 +197,10 @@ def send_leave_approved_email(leave_request):
         return
     user = leave_request.user
     category = _category_name(leave_request)
-    approver_name = (
-        _display_name(leave_request.approved_by)
-        if leave_request.approved_by
-        else "Your approver"
-    )
+    approval_progress = _approval_progress(leave_request)
+    approved_by_names = _approved_by_names(approval_progress)
+    approved_by = " and ".join(approved_by_names) or "Your approver"
+    progress_text = _progress_text(approval_progress)
     dashboard_url = f"{settings.FRONTEND_BASE_URL}{MY_REQUESTS_PATH}"
 
     subject = _approved_subject(leave_request)
@@ -183,15 +209,16 @@ def send_leave_approved_email(leave_request):
         f"Type: {category}\n"
         f"From: {leave_request.start_date}\n"
         f"To: {leave_request.end_date}\n"
-        f"Approved by: {approver_name}\n\n"
+        f"Approved by: {approved_by}\n\n"
+        f"Approval progress:\n{progress_text}\n\n"
         f"View your requests: {dashboard_url}"
     )
     html_body = render_to_string("email/leave_approved.html", {
         "category": category,
         "start_date": leave_request.start_date,
         "end_date": leave_request.end_date,
-        "approver_name": approver_name,
-        "approval_progress": _approval_progress(leave_request),
+        "approved_by": approved_by,
+        "approval_progress": approval_progress,
         "dashboard_url": dashboard_url,
     })
     _send(subject, text_body, html_body, user.email)
@@ -214,6 +241,8 @@ def send_leave_rejected_email(leave_request):
         else ""
     )
     dashboard_url = f"{settings.FRONTEND_BASE_URL}{MY_REQUESTS_PATH}"
+    approval_progress = _approval_progress(leave_request)
+    progress_text = _progress_text(approval_progress)
 
     subject = (
         f"[{_branch_name(leave_request)}] Leave request denied by "
@@ -226,6 +255,7 @@ def send_leave_rejected_email(leave_request):
         f"From: {leave_request.start_date}\n"
         f"To: {leave_request.end_date}\n"
         f"Rejected by: {rejected_by_name}{reason_text}\n\n"
+        f"Approval progress:\n{progress_text}\n\n"
         f"View your requests: {dashboard_url}"
     )
     html_body = render_to_string("email/leave_rejected.html", {
@@ -234,7 +264,7 @@ def send_leave_rejected_email(leave_request):
         "end_date": leave_request.end_date,
         "rejected_by_name": rejected_by_name,
         "rejection_reason": rejection_reason,
-        "approval_progress": _approval_progress(leave_request),
+        "approval_progress": approval_progress,
         "dashboard_url": dashboard_url,
     })
     _send(subject, text_body, html_body, user.email)

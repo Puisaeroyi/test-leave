@@ -343,12 +343,14 @@ class TestLeaveRequests:
         assert response.status_code == 200, response.data
         assert response.data['total_hours'] == 0.0
 
-    def test_preview_hr_vn_night_shift_excludes_weekends_and_vn_holidays(
+    def test_preview_hr_vn_night_shift_excludes_weekends_but_counts_vn_holidays(
         self, setup_user_with_balance
     ):
         user = setup_user_with_balance['user']
         user.location.country = 'Vietnam'
         user.location.save(update_fields=['country'])
+        user.department.holiday_requires_leave = True
+        user.department.save(update_fields=['holiday_requires_leave'])
         user.work_shift = WorkShift.objects.create(
             department=user.department,
             name='HR VN Night',
@@ -383,9 +385,9 @@ class TestLeaveRequests:
         }, format='json')
 
         assert response.status_code == 200, response.data
-        assert response.data['total_hours'] == 8.0
+        assert response.data['total_hours'] == 16.0
         assert [row['reason'] for row in response.data['leave_breakdown']] == [
-            'OFF', 'OFF', 'HOLIDAY', 'WORK',
+            'OFF', 'OFF', 'WORK', 'WORK',
         ]
         assert response.data['leave_breakdown'][-1]['start_time'] == '22:00'
         assert response.data['leave_breakdown'][-1]['end_time'] == '06:00'

@@ -52,18 +52,19 @@
               </table>
 
               {% if approval_progress %}
-              <h2 style="margin:24px 0 12px; color:#111827; font-size:16px; font-weight:600;">Approval progress</h2>
+              <h2 style="margin:24px 0 6px; color:#111827; font-size:16px; font-weight:600;">Approval progress</h2>
+              <p style="margin:0 0 12px; color:#6b7280; font-size:13px; line-height:1.5;">Review decisions and notes from each approver.</p>
               <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
                 <tr>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:32%;">Step</td>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:38%;">Approver</td>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Status</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:32%;">Approver</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:20%;">Status</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Note</td>
                 </tr>
                 {% for step in approval_progress %}
                 <tr>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.label }}</td>
                   <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.approver_name }}</td>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.status }}</td>
+                  <td style="background-color:#ffffff; color:{% if step.status == 'Declined' %}#b91c1c{% else %}#6b7280{% endif %}; font-weight:600; border:1px solid #e5e7eb;">{{ step.status }}</td>
+                  <td style="background-color:#ffffff; color:#374151; border:1px solid #e5e7eb;">{{ step.comment|default:"-" }}</td>
                 </tr>
                 {% endfor %}
               </table>

@@ -199,7 +199,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         return [
             self.build_approval_step(
                 'FIRST',
-                'First Approver',
+                'Approver',
                 first_approver,
                 first_status,
                 obj.first_approval_comment,
@@ -207,7 +207,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             ),
             self.build_approval_step(
                 'FINAL',
-                'Second Approver',
+                'Approver',
                 second_approver,
                 final_status,
                 obj.final_approval_comment,

@@ -411,7 +411,7 @@ LOGGING = {
         },
         'core.services.email_service': {
             'handlers': ['console'],
-            'level': 'WARNING',
+            'level': 'INFO',
             'propagate': False,
         },
     },
