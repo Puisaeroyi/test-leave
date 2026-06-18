@@ -90,6 +90,8 @@ class WorkShift(models.Model):
     )
     start_time = models.TimeField()
     end_time = models.TimeField()
+    break_start_time = models.TimeField(null=True, blank=True)
+    break_end_time = models.TimeField(null=True, blank=True)
     cycle_days = models.JSONField(blank=True, default=list)
     includes_weekends = models.BooleanField(
         default=False,
@@ -107,6 +109,10 @@ class WorkShift(models.Model):
 
     def clean(self):
         super().clean()
+        if bool(self.break_start_time) != bool(self.break_end_time):
+            raise ValidationError({
+                'break_start_time': 'Break start and end times must be provided together.',
+            })
         if self.pattern_type != self.PatternType.ROTATING_CYCLE:
             return
         if not isinstance(self.cycle_days, list) or not self.cycle_days:

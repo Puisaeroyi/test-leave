@@ -23,12 +23,23 @@ import {
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
-import { getLeaveCategories, uploadFile } from "../api/dashboardApi";
+import {
+  getLeaveCategories,
+  previewLeaveRequest,
+  uploadFile,
+} from "../api/dashboardApi";
 import { calculateHourRange, inferCustomHourOffsets } from "../lib/time-utils";
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
+
+const formatTimeAmPm = (value) => {
+  if (!value) return "";
+  const [hourText, minute = "00"] = value.split(":");
+  const hour = Number(hourText);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
+};
 
 // Whole-hour options for business hours 6 AM–6 PM, labelled in AM/PM
 // (e.g. "09:00 AM"). Value is the 0-23 hour.
@@ -66,6 +77,7 @@ export default function NewLeaveRequestModal({
   const [form] = Form.useForm();
   const [confirmData, setConfirmData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -140,11 +152,6 @@ export default function NewLeaveRequestModal({
     return calculateHourRange(start.hour(), end.hour());
   };
 
-  const countCalendarDays = (startDate, endDate) => {
-    if (!startDate || !endDate) return 0;
-    return endDate.startOf("day").diff(startDate.startOf("day"), "day") + 1;
-  };
-
   const previewHours =
     sameDay && dayType === "custom"
       ? calculateHours(values?.startTime, values?.endTime)
@@ -152,10 +159,9 @@ export default function NewLeaveRequestModal({
 
   const handleContinue = async () => {
     const data = await form.validateFields();
-    let hours = 0;
 
     if (sameDay && data.dayType === "custom") {
-      hours = calculateHours(data.startTime, data.endTime);
+      const hours = calculateHours(data.startTime, data.endTime);
 
       if (hours > 8) {
         Modal.warning({
@@ -172,29 +178,46 @@ export default function NewLeaveRequestModal({
         });
         return;
       }
-    } else {
-      const calendarDays = countCalendarDays(data.date[0], data.date[1]);
-      hours = calendarDays * 8;
     }
 
-    const category = categories.find((item) => item.id === data.leaveCategory);
-    const balanceBucket = category?.balanceBucket || "NONE";
-    const selectedBalance = balanceBucket === "NONE"
-      ? null
-      : balances.find((balance) => balance.type === balanceBucket);
+    setPreviewLoading(true);
+    try {
+      const preview = await previewLeaveRequest(data);
+      if (preview.total_hours <= 0) {
+        Modal.warning({
+          title: "No working hours to deduct",
+          content:
+            preview.zero_hours_message ||
+            "The selected dates contain only weekends, public holidays, or scheduled off days. Choose at least one scheduled working day.",
+        });
+        return;
+      }
+      const category = categories.find((item) => item.id === data.leaveCategory);
+      const balanceBucket = category?.balanceBucket || "NONE";
+      const selectedBalance = balanceBucket === "NONE"
+        ? null
+        : balances.find((balance) => balance.type === balanceBucket);
 
-    setConfirmData({
-      ...data,
-      ...(sameDay && data.dayType === "custom"
-        ? inferCustomHourOffsets(data.startTime.hour(), data.endTime.hour())
-        : {}),
-      categoryName: category?.name || "Leave",
-      balanceBucket,
-      totalHours: hours,
-      remainingHours: selectedBalance?.remaining_hours ?? null,
-      allocated_hours: selectedBalance?.allocated_hours ?? null,
-    });
-    setStep(1);
+      setConfirmData({
+        ...data,
+        ...(sameDay && data.dayType === "custom"
+          ? inferCustomHourOffsets(data.startTime.hour(), data.endTime.hour())
+          : {}),
+        categoryName: category?.name || "Leave",
+        balanceBucket,
+        totalHours: preview.total_hours,
+        leaveBreakdown: preview.leave_breakdown || [],
+        remainingHours: selectedBalance?.remaining_hours ?? null,
+        allocated_hours: selectedBalance?.allocated_hours ?? null,
+      });
+      setStep(1);
+    } catch (error) {
+      message.error(
+        error.response?.data?.error || "Failed to calculate deductible hours"
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
   };
 
   const handleConfirm = async () => {
@@ -365,6 +388,7 @@ export default function NewLeaveRequestModal({
                 size="large"
                 icon={<ArrowRightOutlined />}
                 onClick={handleContinue}
+                loading={previewLoading}
               >
                 Continue
               </Button>
@@ -507,6 +531,64 @@ export default function NewLeaveRequestModal({
                           </Text>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {confirmData.leaveBreakdown?.length > 0 && (
+                    <div>
+                      <Text type="secondary">Deduction breakdown</Text>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          border: "1px solid var(--color-border-strong)",
+                          borderRadius: 8,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {confirmData.leaveBreakdown.map((item, index) => {
+                          const reasonLabel = {
+                            WORK: "Working day",
+                            OFF: "Scheduled off",
+                            HOLIDAY: "Public holiday",
+                          }[item.reason] || item.reason;
+                          const timeRange = item.start_time && item.end_time
+                            ? `${formatTimeAmPm(item.start_time)} - ${formatTimeAmPm(item.end_time)}`
+                            : reasonLabel;
+                          const breakRange = item.break_start_time && item.break_end_time
+                            ? `${formatTimeAmPm(item.break_start_time)} - ${formatTimeAmPm(item.break_end_time)}`
+                            : null;
+
+                          return (
+                            <div
+                              key={item.date}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "110px minmax(0, 1fr) 64px",
+                                gap: 12,
+                                alignItems: "center",
+                                padding: "10px 12px",
+                                borderTop: index ? "1px solid var(--color-border)" : "none",
+                              }}
+                            >
+                              <Text>{item.date}</Text>
+                              <div style={{ minWidth: 0 }}>
+                                <Text strong>{item.shift_name}</Text>
+                                <div>
+                                  <Text type="secondary">{timeRange}</Text>
+                                </div>
+                                {breakRange && (
+                                  <div>
+                                    <Text type="secondary">Break {breakRange}</Text>
+                                  </div>
+                                )}
+                              </div>
+                              <Text strong style={{ textAlign: "right" }}>
+                                {Number(item.hours).toFixed(1)}h
+                              </Text>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

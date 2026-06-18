@@ -16,10 +16,9 @@ const STATUS_META = {
 };
 
 export default function ApprovalProgress({ timeline = [], currentStep, actionRequired = false }) {
-  const visibleTimeline = timeline.filter((step) => step.status !== "NOT_REQUIRED");
-  const displayTimeline = visibleTimeline.length === 1
-    ? [{ ...visibleTimeline[0], label: "Approver" }]
-    : visibleTimeline;
+  const displayTimeline = timeline.length === 1
+    ? [{ ...timeline[0], label: "Approver" }]
+    : timeline;
 
   if (!displayTimeline.length) return null;
 

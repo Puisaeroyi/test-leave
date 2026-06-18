@@ -12,18 +12,20 @@
 
         <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
 
-          <!-- Header -->
           <tr>
-            <td style="background-color:#16a34a; padding:24px 32px;">
-              <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:600;">Leave Request Approved</h1>
+            <td style="background-color:#2563eb; padding:24px 32px;">
+              <p style="margin:0 0 6px; color:#dbeafe; font-size:13px; font-weight:600; text-transform:uppercase;">Request received</p>
+              <h1 style="margin:0; color:#ffffff; font-size:21px; font-weight:600;">Your leave request was submitted</h1>
             </td>
           </tr>
 
-          <!-- Body -->
           <tr>
             <td style="padding:24px 32px;">
-              <p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.5;">
-                Your leave request has been approved. Details below:
+              <p style="margin:0 0 16px; color:#374151; font-size:15px; line-height:1.6;">
+                Hi {{ employee_name }},
+              </p>
+              <p style="margin:0 0 20px; color:#374151; font-size:15px; line-height:1.6;">
+                Your request has been sent to your approver. You will receive another email when the request is approved or declined.
               </p>
 
               <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
@@ -40,40 +42,27 @@
                   <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ end_date }}</td>
                 </tr>
                 <tr>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Approved By</td>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ approver_name }}</td>
-                </tr>
-              </table>
-
-              {% if approval_progress %}
-              <h2 style="margin:24px 0 12px; color:#111827; font-size:16px; font-weight:600;">Approval progress</h2>
-              <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
-                <tr>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:32%;">Step</td>
-                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:38%;">Approver</td>
                   <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Status</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ status }}</td>
                 </tr>
-                {% for step in approval_progress %}
+                {% if reason %}
                 <tr>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.label }}</td>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.approver_name }}</td>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.status }}</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; vertical-align:top;">Reason</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ reason }}</td>
                 </tr>
-                {% endfor %}
+                {% endif %}
               </table>
-              {% endif %}
 
               <p style="margin:24px 0 0; text-align:center;">
-                <a href="{{ dashboard_url }}" style="display:inline-block; padding:10px 24px; background-color:#16a34a; color:#ffffff; text-decoration:none; border-radius:6px; font-size:14px; font-weight:600;">View Your Requests</a>
+                <a href="{{ dashboard_url }}" style="display:inline-block; padding:10px 24px; background-color:#2563eb; color:#ffffff; text-decoration:none; border-radius:6px; font-size:14px; font-weight:600;">View Your Requests</a>
               </p>
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
             <td style="padding:16px 32px; background-color:#f9fafb; border-top:1px solid #e5e7eb;">
               <p style="margin:0; color:#9ca3af; font-size:12px; text-align:center;">
-                Leave Management System &mdash; This is an automated notification.
+                Leave Management System - This is an automated notification.
               </p>
             </td>
           </tr>

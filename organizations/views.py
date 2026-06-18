@@ -39,6 +39,13 @@ def _parse_cycle_days(value):
     return []
 
 
+def _parse_optional_time(value):
+    if not value:
+        return None
+    hour, minute = map(int, value.split(':'))
+    return time(hour, minute)
+
+
 def _serialize_shift(shift):
     return {
         'id': str(shift.id),
@@ -50,6 +57,14 @@ def _serialize_shift(shift):
         'pattern_type': shift.pattern_type,
         'start_time': shift.start_time.strftime('%H:%M'),
         'end_time': shift.end_time.strftime('%H:%M'),
+        'break_start_time': (
+            shift.break_start_time.strftime('%H:%M')
+            if shift.break_start_time else None
+        ),
+        'break_end_time': (
+            shift.break_end_time.strftime('%H:%M')
+            if shift.break_end_time else None
+        ),
         'includes_weekends': shift.includes_weekends,
         'cycle_days': shift.cycle_days,
     }
@@ -125,6 +140,14 @@ class DepartmentListView(APIView):
                 'name': shift.name,
                 'start_time': shift.start_time.strftime('%H:%M'),
                 'end_time': shift.end_time.strftime('%H:%M'),
+                'break_start_time': (
+                    shift.break_start_time.strftime('%H:%M')
+                    if shift.break_start_time else None
+                ),
+                'break_end_time': (
+                    shift.break_end_time.strftime('%H:%M')
+                    if shift.break_end_time else None
+                ),
                 'includes_weekends': shift.includes_weekends,
             } for shift in dept.work_shifts.filter(is_active=True)],
             'is_active': dept.is_active,
@@ -153,6 +176,8 @@ class WorkShiftListCreateView(APIView):
             end_hour, end_minute = map(int, request.data['end_time'].split(':'))
             start_time_value = time(start_hour, start_minute)
             end_time_value = time(end_hour, end_minute)
+            break_start_time = _parse_optional_time(request.data.get('break_start_time'))
+            break_end_time = _parse_optional_time(request.data.get('break_end_time'))
         except (KeyError, ValueError) as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         includes_weekends = _parse_bool(request.data.get('includes_weekends', False))
@@ -181,6 +206,8 @@ class WorkShiftListCreateView(APIView):
                         name=name,
                         start_time=start_time_value,
                         end_time=end_time_value,
+                        break_start_time=break_start_time,
+                        break_end_time=break_end_time,
                         pattern_type=pattern_type,
                         cycle_days=cycle_days,
                         includes_weekends=includes_weekends,
@@ -206,6 +233,8 @@ class WorkShiftListCreateView(APIView):
             name=name,
             start_time=start_time_value,
             end_time=end_time_value,
+            break_start_time=break_start_time,
+            break_end_time=break_end_time,
             pattern_type=pattern_type,
             cycle_days=cycle_days,
             includes_weekends=includes_weekends,
@@ -238,6 +267,14 @@ class WorkShiftDetailView(APIView):
             if 'end_time' in request.data:
                 end_hour, end_minute = map(int, request.data['end_time'].split(':'))
                 shift.end_time = time(end_hour, end_minute)
+            if 'break_start_time' in request.data:
+                shift.break_start_time = _parse_optional_time(
+                    request.data.get('break_start_time')
+                )
+            if 'break_end_time' in request.data:
+                shift.break_end_time = _parse_optional_time(
+                    request.data.get('break_end_time')
+                )
         except ValueError as exc:
             return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

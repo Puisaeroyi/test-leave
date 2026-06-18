@@ -107,6 +107,19 @@ export const createLeaveRequest = async (formData) => {
   return res.data;
 };
 
+export const previewLeaveRequest = async (formData) => {
+  const payload = {
+    start_date: formData.date[0].format("YYYY-MM-DD"),
+    end_date: formData.date[1].format("YYYY-MM-DD"),
+    shift_type: formData.dayType === "custom" ? "CUSTOM_HOURS" : "FULL_DAY",
+    start_time: formData.startTime ? formData.startTime.format("HH:mm") : null,
+    end_time: formData.endTime ? formData.endTime.format("HH:mm") : null,
+  };
+
+  const res = await http.post(`${API_URL}/requests/preview/`, payload);
+  return res.data;
+};
+
 /* ================= BALANCE ================= */
 export const getLeaveBalance = async (year = new Date().getFullYear()) => {
   const res = await http.get(`${API_URL}/balances/me/`, {

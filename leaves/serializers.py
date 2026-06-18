@@ -175,6 +175,14 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     def get_approval_timeline(self, obj):
         first_approver = obj.first_approver or obj.user.approver_1
         second_approver = obj.final_approver or obj.user.approver_2
+        first_status = self.get_effective_approval_status(
+            obj,
+            obj.first_approval_status,
+        )
+        final_status = self.get_effective_approval_status(
+            obj,
+            obj.final_approval_status,
+        )
 
         if not second_approver:
             return [
@@ -182,7 +190,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
                     'FIRST',
                     'Approver',
                     first_approver,
-                    obj.first_approval_status,
+                    first_status,
                     obj.first_approval_comment,
                     obj.first_approval_at,
                 ),
@@ -193,7 +201,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
                 'FIRST',
                 'First Approver',
                 first_approver,
-                obj.first_approval_status,
+                first_status,
                 obj.first_approval_comment,
                 obj.first_approval_at,
             ),
@@ -201,12 +209,20 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
                 'FINAL',
                 'Second Approver',
                 second_approver,
-                obj.final_approval_status,
+                final_status,
                 obj.final_approval_comment,
                 obj.final_approval_at,
                 optional=True,
             ),
         ]
+
+    def get_effective_approval_status(self, obj, decision):
+        if (
+            obj.status == LeaveRequest.Status.REJECTED
+            and decision == LeaveRequest.ApprovalDecision.PENDING
+        ):
+            return 'NOT_REQUIRED'
+        return decision
 
     def build_approval_step(self, step, label, approver, decision, note, acted_at, optional=False):
         return {

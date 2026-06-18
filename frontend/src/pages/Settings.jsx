@@ -41,9 +41,16 @@ import "./Settings.css";
 
 const { Title, Text } = Typography;
 
+const formatTimeAmPm = (value) => {
+  if (!value) return "";
+  const [hourText, minute = "00"] = value.split(":");
+  const hour = Number(hourText);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
 const getWorkShiftOptionLabel = (shift) => {
   if (shift.pattern_type !== "ROTATING_CYCLE") {
-    return `${shift.name} (${shift.start_time}-${shift.end_time})`;
+    return `${shift.name} (${formatTimeAmPm(shift.start_time)}-${formatTimeAmPm(shift.end_time)})`;
   }
 
   const cycleDays = Array.isArray(shift.cycle_days) ? shift.cycle_days : [];

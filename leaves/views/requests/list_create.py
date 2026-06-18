@@ -17,12 +17,13 @@ from ...utils import (
     calculate_full_day_leave_breakdown,
     check_overlapping_custom_hours,
     infer_custom_hour_offsets,
+    ZERO_DEDUCTIBLE_HOURS_MESSAGE,
     validate_leave_request_dates,
     validate_attachment_url
 )
 from users.models import User
 from core.services.notification_service import create_leave_pending_notification
-from core.services.email_service import send_leave_pending_email
+from core.services.email_service import send_leave_pending_email, send_leave_submitted_email
 import logging
 logger = logging.getLogger(__name__)
 
@@ -212,6 +213,12 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         except ValueError as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
+        if total_hours <= 0:
+            return Response(
+                {'error': ZERO_DEDUCTIBLE_HOURS_MESSAGE},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         category_id = data.get('leave_category') or data.get('leave_category_id')
         leave_category = LeaveCategory.objects.filter(id=category_id).first() if category_id else None
         if category_id and leave_category is None:
@@ -276,6 +283,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
             if peer:
                 create_leave_pending_notification(peer, leave_request)
                 send_leave_pending_email(peer, leave_request)
+        send_leave_submitted_email(leave_request)
 
         serializer = LeaveRequestSerializer(leave_request)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

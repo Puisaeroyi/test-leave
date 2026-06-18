@@ -7,6 +7,7 @@ from .views import (
     LeaveCategoryListView,
     LeaveBalanceMeView,
     LeaveRequestListView,
+    LeaveRequestPreviewView,
     LeaveRequestMyView,
     LeaveRequestDetailView,
     LeaveRequestApproveView,
@@ -46,6 +47,7 @@ urlpatterns = [
 
     # Leave Requests
     path('requests/', LeaveRequestListView.as_view(), name='leave_request_list'),
+    path('requests/preview/', LeaveRequestPreviewView.as_view(), name='leave_request_preview'),
     path('requests/my/', LeaveRequestMyView.as_view(), name='leave_request_my'),
     path('requests/<uuid:pk>/', LeaveRequestDetailView.as_view(), name='leave_request_detail'),
     path('requests/<uuid:pk>/approve/', LeaveRequestApproveView.as_view(), name='leave_request_approve'),
