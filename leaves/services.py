@@ -182,6 +182,34 @@ class LeaveApprovalService:
         return pending_ids
 
     @staticmethod
+    def _pending_action_query(user):
+        return Q(
+            status=LeaveRequest.Status.PENDING,
+            first_approval_status=LeaveRequest.ApprovalDecision.PENDING,
+            first_approver=user,
+        ) | Q(
+            status=LeaveRequest.Status.PENDING,
+            first_approval_status=LeaveRequest.ApprovalDecision.PENDING,
+            first_approver__isnull=True,
+            user__approver_1=user,
+        ) | Q(
+            status=LeaveRequest.Status.PENDING,
+            final_approval_status=LeaveRequest.ApprovalDecision.PENDING,
+            final_approver=user,
+        ) | Q(
+            status=LeaveRequest.Status.PENDING,
+            final_approval_status=LeaveRequest.ApprovalDecision.PENDING,
+            final_approver__isnull=True,
+            user__approver_2=user,
+        )
+
+    @staticmethod
+    def get_pending_review_count(user):
+        return LeaveRequest.objects.filter(
+            LeaveApprovalService._pending_action_query(user)
+        ).exclude(user=user).distinct().count()
+
+    @staticmethod
     def get_pending_requests_for_manager(user):
         """
         Get pending leave requests for a manager based on approver relationship.
@@ -195,25 +223,7 @@ class LeaveApprovalService:
         Returns:
             QuerySet of pending LeaveRequest objects
         """
-        pending_for_user = Q(
-            status='PENDING',
-            first_approval_status='PENDING',
-            first_approver=user,
-        ) | Q(
-            status='PENDING',
-            first_approval_status='PENDING',
-            first_approver__isnull=True,
-            user__approver_1=user,
-        ) | Q(
-            status='PENDING',
-            final_approval_status='PENDING',
-            final_approver=user,
-        ) | Q(
-            status='PENDING',
-            final_approval_status='PENDING',
-            final_approver__isnull=True,
-            user__approver_2=user,
-        )
+        pending_for_user = LeaveApprovalService._pending_action_query(user)
         acted_pending = Q(status='PENDING') & (
             Q(first_approver=user, first_approval_status__in=['APPROVED', 'REJECTED'])
             | Q(

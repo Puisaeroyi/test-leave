@@ -13,6 +13,7 @@ from .views import (
     LeaveRequestApproveView,
     LeaveRequestRejectView,
     LeaveRequestCancelView,
+    LeaveRequestPendingReviewCountView,
     PublicHolidayListView,
     HolidayCalendarListView,
     HolidayCalendarGenerateView,
@@ -47,6 +48,11 @@ urlpatterns = [
 
     # Leave Requests
     path('requests/', LeaveRequestListView.as_view(), name='leave_request_list'),
+    path(
+        'requests/pending-review-count/',
+        LeaveRequestPendingReviewCountView.as_view(),
+        name='leave_request_pending_review_count',
+    ),
     path('requests/preview/', LeaveRequestPreviewView.as_view(), name='leave_request_preview'),
     path('requests/my/', LeaveRequestMyView.as_view(), name='leave_request_my'),
     path('requests/<uuid:pk>/', LeaveRequestDetailView.as_view(), name='leave_request_detail'),

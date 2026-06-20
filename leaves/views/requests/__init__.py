@@ -7,6 +7,7 @@ from .detail import LeaveRequestDetailView
 from .approve import LeaveRequestApproveView
 from .reject import LeaveRequestRejectView
 from .cancel import LeaveRequestCancelView
+from .pending_review_count import LeaveRequestPendingReviewCountView
 
 __all__ = [
     'LeaveRequestListView',
@@ -16,4 +17,5 @@ __all__ = [
     'LeaveRequestApproveView',
     'LeaveRequestRejectView',
     'LeaveRequestCancelView',
+    'LeaveRequestPendingReviewCountView',
 ]

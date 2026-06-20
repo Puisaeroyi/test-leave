@@ -266,6 +266,53 @@ class PeerApprovalTests(TestCase):
         data = LeaveRequestSerializer(leave_request).data
         self.assertEqual(data['action_required_user_ids'], [])
 
+    def test_pending_review_count_only_includes_requests_requiring_the_users_action(self):
+        approvable_request = self.make_request()
+        rejectable_request = self.make_request(
+            start_date=date(2027, 1, 23),
+            end_date=date(2027, 1, 23),
+        )
+        already_reviewed_request = self.make_request(
+            start_date=date(2027, 1, 21),
+            end_date=date(2027, 1, 21),
+            first_approval_status=LeaveRequest.ApprovalDecision.APPROVED,
+        )
+        self.make_request(
+            start_date=date(2027, 1, 22),
+            end_date=date(2027, 1, 22),
+            status=LeaveRequest.Status.APPROVED,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.approver_1)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'count': 2})
+
+        approval_response = client.post(
+            f'/api/v1/leaves/requests/{approvable_request.id}/approve/',
+            {'comment': 'Reviewed'},
+            format='json',
+            secure=True,
+        )
+        self.assertEqual(approval_response.status_code, 200)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.data, {'count': 1})
+
+        rejection_response = client.post(
+            f'/api/v1/leaves/requests/{rejectable_request.id}/reject/',
+            {'reason': 'Insufficient staffing coverage'},
+            format='json',
+            secure=True,
+        )
+        self.assertEqual(rejection_response.status_code, 200)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.data, {'count': 0})
+        self.assertEqual(already_reviewed_request.status, LeaveRequest.Status.PENDING)
+
     def test_single_approver_timeline_shows_only_approver_label(self):
         self.employee.approver_2 = None
         self.employee.save()

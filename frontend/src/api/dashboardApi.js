@@ -1,4 +1,5 @@
 import http from "./http";
+import { normalizePendingReviewCount } from "../lib/pending-review-notifications";
 
 // Note: http.js baseURL already includes /api/v1, so we only add /leaves
 const API_URL = "/leaves";
@@ -270,6 +271,11 @@ export const getPendingRequests = async () => {
       if (a.status !== "Pending" && b.status === "Pending") return 1;
       return new Date(a.from) - new Date(b.from);
     });
+};
+
+export const getPendingReviewCount = async () => {
+  const res = await http.get(`${API_URL}/requests/pending-review-count/`);
+  return normalizePendingReviewCount(res.data?.count);
 };
 
 /* ================= MANAGER: APPROVE REQUEST ================= */

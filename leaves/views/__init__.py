@@ -30,6 +30,7 @@ from .requests import (
     LeaveRequestApproveView,
     LeaveRequestRejectView,
     LeaveRequestCancelView,
+    LeaveRequestPendingReviewCountView,
 )
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     'LeaveRequestApproveView',
     'LeaveRequestRejectView',
     'LeaveRequestCancelView',
+    'LeaveRequestPendingReviewCountView',
     'PublicHolidayListView',
     'HolidayCalendarListView',
     'HolidayCalendarGenerateView',
