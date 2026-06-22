@@ -1194,6 +1194,14 @@ a {
   border-radius: 12px;
 }
 
+.sidebar-menu-label-with-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
 .calendar-date-shell {
   min-height: 118px;
   padding: 4px;

@@ -123,6 +123,8 @@ class UserSerializer(serializers.ModelSerializer):
         pattern_type = serializers.CharField()
         start_time = serializers.TimeField(format='%H:%M')
         end_time = serializers.TimeField(format='%H:%M')
+        break_start_time = serializers.TimeField(format='%H:%M', allow_null=True)
+        break_end_time = serializers.TimeField(format='%H:%M', allow_null=True)
         includes_weekends = serializers.BooleanField()
         cycle_days = serializers.JSONField()
 

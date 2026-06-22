@@ -61,6 +61,28 @@ def test_create_and_list_work_shift(work_shift_context):
 
 
 @pytest.mark.django_db
+def test_create_and_list_work_shift_with_break(work_shift_context):
+    client, department = work_shift_context
+
+    response = client.post('/api/v1/organizations/work-shifts/', {
+        'department_id': str(department.id),
+        'name': 'US Office',
+        'start_time': '08:00',
+        'end_time': '17:00',
+        'break_start_time': '12:00',
+        'break_end_time': '13:00',
+        'includes_weekends': False,
+    }, format='json', secure=True)
+
+    assert response.status_code == 201, response.data
+    assert response.data['break_start_time'] == '12:00'
+    assert response.data['break_end_time'] == '13:00'
+    shift = WorkShift.objects.get(department=department, name='US Office')
+    assert shift.break_start_time.strftime('%H:%M') == '12:00'
+    assert shift.break_end_time.strftime('%H:%M') == '13:00'
+
+
+@pytest.mark.django_db
 def test_create_and_list_rotating_work_shift(work_shift_context):
     client, department = work_shift_context
     cycle_days = [

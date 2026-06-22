@@ -1,4 +1,5 @@
 import http from "./http";
+import { normalizePendingReviewCount } from "../lib/pending-review-notifications";
 
 // Note: http.js baseURL already includes /api/v1, so we only add /leaves
 const API_URL = "/leaves";
@@ -107,29 +108,17 @@ export const createLeaveRequest = async (formData) => {
   return res.data;
 };
 
-/* ================= PREVIEW HOURS ================= */
-// Ask the backend for the real deductible hours + per-day breakdown.
-// Reuses the same calculation as create, so the preview matches the deduction.
-export const previewLeaveRequest = async ({
-  startDate,
-  endDate,
-  shiftType = "FULL_DAY",
-  startTime = null,
-  endTime = null,
-  startDayOffset = 0,
-  endDayOffset = 0,
-}) => {
+export const previewLeaveRequest = async (formData) => {
   const payload = {
-    start_date: startDate.format("YYYY-MM-DD"),
-    end_date: endDate.format("YYYY-MM-DD"),
-    shift_type: shiftType,
-    start_time: startTime ? startTime.format("HH:mm") : null,
-    end_time: endTime ? endTime.format("HH:mm") : null,
-    start_day_offset: startDayOffset,
-    end_day_offset: endDayOffset,
+    start_date: formData.date[0].format("YYYY-MM-DD"),
+    end_date: formData.date[1].format("YYYY-MM-DD"),
+    shift_type: formData.dayType === "custom" ? "CUSTOM_HOURS" : "FULL_DAY",
+    start_time: formData.startTime ? formData.startTime.format("HH:mm") : null,
+    end_time: formData.endTime ? formData.endTime.format("HH:mm") : null,
   };
+
   const res = await http.post(`${API_URL}/requests/preview/`, payload);
-  return res.data; // { total_hours, breakdown }
+  return res.data;
 };
 
 /* ================= BALANCE ================= */
@@ -282,6 +271,11 @@ export const getPendingRequests = async () => {
       if (a.status !== "Pending" && b.status === "Pending") return 1;
       return new Date(a.from) - new Date(b.from);
     });
+};
+
+export const getPendingReviewCount = async () => {
+  const res = await http.get(`${API_URL}/requests/pending-review-count/`);
+  return normalizePendingReviewCount(res.data?.count);
 };
 
 /* ================= MANAGER: APPROVE REQUEST ================= */

@@ -1,6 +1,9 @@
-import { Layout, Menu, Drawer, Grid } from "antd";
+import { useCallback, useEffect, useState } from "react";
+import { Badge, Layout, Menu, Drawer, Grid } from "antd";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@auth/authContext";
+import { getPendingReviewCount } from "../api/dashboardApi";
+import { PENDING_REVIEW_COUNT_CHANGED_EVENT } from "../lib/pending-review-notifications";
 import {
   DashboardOutlined,
   CalendarOutlined,
@@ -13,15 +16,58 @@ import logo from "@/assets/logo.png";
 
 const { Sider } = Layout;
 const { useBreakpoint } = Grid;
+const REVIEW_COUNT_POLL_INTERVAL_MS = 60_000;
 
 export default function Sidebar({ mobileOpen, onMobileClose }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const screens = useBreakpoint();
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
 
   // Compact navigation covers phones and portrait tablets (< 992px).
   const isMobile = !screens.lg;
+  const canReview = user && (
+    user.role === "MANAGER"
+    || user.role === "HR"
+    || user.role === "ADMIN"
+    || user.isApprover
+  );
+
+  const refreshPendingReviewCount = useCallback(async () => {
+    if (!canReview) {
+      setPendingReviewCount(0);
+      return;
+    }
+
+    try {
+      setPendingReviewCount(await getPendingReviewCount());
+    } catch (error) {
+      console.error("Failed to fetch pending review count:", error);
+    }
+  }, [canReview]);
+
+  useEffect(() => {
+    if (!canReview) return undefined;
+
+    refreshPendingReviewCount();
+    window.addEventListener(
+      PENDING_REVIEW_COUNT_CHANGED_EVENT,
+      refreshPendingReviewCount,
+    );
+    const intervalId = window.setInterval(
+      refreshPendingReviewCount,
+      REVIEW_COUNT_POLL_INTERVAL_MS,
+    );
+
+    return () => {
+      window.removeEventListener(
+        PENDING_REVIEW_COUNT_CHANGED_EVENT,
+        refreshPendingReviewCount,
+      );
+      window.clearInterval(intervalId);
+    };
+  }, [canReview, refreshPendingReviewCount]);
 
   if (!user) return null;
 
@@ -43,11 +89,16 @@ export default function Sidebar({ mobileOpen, onMobileClose }) {
     },
   ];
 
-  if (user.role === "MANAGER" || user.role === "HR" || user.role === "ADMIN" || user.isApprover) {
+  if (canReview) {
     items.push({
       key: "/manager",
       icon: <TeamOutlined />,
-      label: "Manager Reviews",
+      label: (
+        <span className="sidebar-menu-label-with-badge">
+          <span>Manager Reviews</span>
+          <Badge count={pendingReviewCount} overflowCount={99} size="small" />
+        </span>
+      ),
     });
     items.push({
       key: "/business-trip-tickets",

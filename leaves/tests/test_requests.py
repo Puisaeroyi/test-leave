@@ -274,7 +274,204 @@ class TestLeaveRequests:
         assert leave.total_hours == Decimal('16.00')
         assert leave.leave_breakdown == response.data['leave_breakdown']
 
-    def test_create_full_day_request_counts_weekend_days(self, setup_user_with_balance):
+    def test_preview_soc_rotation_excludes_cycle_off_day(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        user.department.holiday_requires_leave = True
+        user.department.save(update_fields=['holiday_requires_leave'])
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='SOC Three On One Off',
+            pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+            start_time='06:00',
+            end_time='14:00',
+            includes_weekends=True,
+            cycle_days=[
+                {'name': 'Day 1', 'start_time': '06:00', 'end_time': '14:00', 'is_working': True},
+                {'name': 'Day 2', 'start_time': '14:00', 'end_time': '22:00', 'is_working': True},
+                {'name': 'Day 3', 'start_time': '22:00', 'end_time': '06:00', 'is_working': True},
+                {'name': 'Off', 'is_working': False},
+            ],
+        )
+        user.shift_cycle_start_date = date(2026, 7, 11)
+        user.save(update_fields=['work_shift', 'shift_cycle_start_date'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/preview/', {
+            'start_date': '2026-07-13',
+            'end_date': '2026-07-15',
+            'shift_type': 'FULL_DAY',
+        }, format='json')
+
+        assert response.status_code == 200, response.data
+        assert response.data['total_hours'] == 16.0
+        assert [row['reason'] for row in response.data['leave_breakdown']] == [
+            'WORK', 'OFF', 'WORK',
+        ]
+
+    def test_preview_custom_hours_on_soc_cycle_off_day_is_zero(
+        self, setup_user_with_balance
+    ):
+        user = setup_user_with_balance['user']
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='SOC Three On One Off Custom',
+            pattern_type=WorkShift.PatternType.ROTATING_CYCLE,
+            start_time='06:00',
+            end_time='14:00',
+            includes_weekends=True,
+            cycle_days=[
+                {'name': 'Day 1', 'start_time': '06:00', 'end_time': '14:00', 'is_working': True},
+                {'name': 'Day 2', 'start_time': '14:00', 'end_time': '22:00', 'is_working': True},
+                {'name': 'Day 3', 'start_time': '22:00', 'end_time': '06:00', 'is_working': True},
+                {'name': 'Off', 'is_working': False},
+            ],
+        )
+        user.shift_cycle_start_date = date(2026, 7, 11)
+        user.save(update_fields=['work_shift', 'shift_cycle_start_date'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/preview/', {
+            'start_date': '2026-07-14',
+            'end_date': '2026-07-14',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '06:00',
+            'end_time': '10:00',
+        }, format='json')
+
+        assert response.status_code == 200, response.data
+        assert response.data['total_hours'] == 0.0
+
+    def test_preview_hr_vn_night_shift_excludes_weekends_but_counts_vn_holidays(
+        self, setup_user_with_balance
+    ):
+        user = setup_user_with_balance['user']
+        user.location.country = 'Vietnam'
+        user.location.save(update_fields=['country'])
+        user.department.holiday_requires_leave = True
+        user.department.save(update_fields=['holiday_requires_leave'])
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='HR VN Night',
+            start_time='22:00',
+            end_time='06:00',
+            includes_weekends=False,
+        )
+        user.save(update_fields=['work_shift'])
+        calendar = HolidayCalendar.objects.create(
+            name='VN 2026',
+            country_code='VN',
+            year=2026,
+            entity=user.entity,
+            status=HolidayCalendar.Status.PUBLISHED,
+        )
+        PublicHoliday.objects.create(
+            calendar=calendar,
+            entity=user.entity,
+            holiday_name='VN Holiday',
+            start_date=date(2026, 7, 13),
+            end_date=date(2026, 7, 13),
+            year=2026,
+            status=PublicHoliday.Status.PUBLISHED,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/preview/', {
+            'start_date': '2026-07-11',
+            'end_date': '2026-07-14',
+            'shift_type': 'FULL_DAY',
+        }, format='json')
+
+        assert response.status_code == 200, response.data
+        assert response.data['total_hours'] == 16.0
+        assert [row['reason'] for row in response.data['leave_breakdown']] == [
+            'OFF', 'OFF', 'WORK', 'WORK',
+        ]
+        assert response.data['leave_breakdown'][-1]['start_time'] == '22:00'
+        assert response.data['leave_breakdown'][-1]['end_time'] == '06:00'
+
+    def test_preview_us_office_shift_excludes_weekends_and_us_holidays(
+        self, setup_user_with_balance
+    ):
+        user = setup_user_with_balance['user']
+        user.location.country = 'USA'
+        user.location.save(update_fields=['country'])
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='US Office',
+            start_time='08:00',
+            end_time='17:00',
+            break_start_time='12:00',
+            break_end_time='13:00',
+            includes_weekends=False,
+        )
+        user.save(update_fields=['work_shift'])
+        calendar = HolidayCalendar.objects.create(
+            name='US 2026',
+            country_code='US',
+            year=2026,
+            entity=user.entity,
+            status=HolidayCalendar.Status.PUBLISHED,
+        )
+        PublicHoliday.objects.create(
+            calendar=calendar,
+            entity=user.entity,
+            holiday_name='US Holiday',
+            start_date=date(2026, 7, 13),
+            end_date=date(2026, 7, 13),
+            year=2026,
+            status=PublicHoliday.Status.PUBLISHED,
+        )
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/preview/', {
+            'start_date': '2026-07-11',
+            'end_date': '2026-07-14',
+            'shift_type': 'FULL_DAY',
+        }, format='json')
+
+        assert response.status_code == 200, response.data
+        assert response.data['total_hours'] == 8.0
+        assert [row['reason'] for row in response.data['leave_breakdown']] == [
+            'OFF', 'OFF', 'HOLIDAY', 'WORK',
+        ]
+        assert response.data['leave_breakdown'][-1]['start_time'] == '08:00'
+        assert response.data['leave_breakdown'][-1]['end_time'] == '17:00'
+        assert response.data['leave_breakdown'][-1]['break_start_time'] == '12:00'
+        assert response.data['leave_breakdown'][-1]['break_end_time'] == '13:00'
+
+    def test_preview_us_custom_hours_excludes_lunch_break(self, setup_user_with_balance):
+        user = setup_user_with_balance['user']
+        user.location.country = 'USA'
+        user.location.save(update_fields=['country'])
+        user.work_shift = WorkShift.objects.create(
+            department=user.department,
+            name='US Office Custom',
+            start_time='08:00',
+            end_time='17:00',
+            break_start_time='12:00',
+            break_end_time='13:00',
+            includes_weekends=False,
+        )
+        user.save(update_fields=['work_shift'])
+        client = APIClient()
+        client.force_authenticate(user=user)
+
+        response = client.post('/api/v1/leaves/requests/preview/', {
+            'start_date': '2026-07-14',
+            'end_date': '2026-07-14',
+            'shift_type': 'CUSTOM_HOURS',
+            'start_time': '11:00',
+            'end_time': '14:00',
+        }, format='json')
+
+        assert response.status_code == 200, response.data
+        assert response.data['total_hours'] == 2.0
+
+    def test_create_request_rejects_zero_deductible_hours(self, setup_user_with_balance):
         user = setup_user_with_balance['user']
         category = setup_user_with_balance['category']
         client = APIClient()
@@ -288,13 +485,16 @@ class TestLeaveRequests:
             'reason': 'Weekend request',
         })
 
-        assert response.status_code == 201
-        assert response.data['total_hours'] == 16.0
-        assert LeaveRequest.objects.filter(
+        assert response.status_code == 400
+        assert response.data['error'] == (
+            'No deductible working hours were found for the selected date range. '
+            'Choose a scheduled working day that is not a weekend, public holiday, '
+            'or cycle off day.'
+        )
+        assert not LeaveRequest.objects.filter(
             user=user,
             start_date=date(2026, 1, 24),
             end_date=date(2026, 1, 25),
-            total_hours=Decimal('16.00'),
         ).exists()
 
     def test_create_custom_hours_request(self, setup_user_with_balance):

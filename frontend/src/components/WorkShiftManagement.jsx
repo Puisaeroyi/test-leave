@@ -7,6 +7,31 @@ import { getDepartments, getEntities, getLocations, getWorkShifts } from "@api/a
 import "./WorkShiftManagement.css";
 
 const asList = (data) => data?.results || data || [];
+const TIME_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const period = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return {
+    value: `${String(hour).padStart(2, "0")}:00`,
+    label: `${displayHour}:00 ${period}`,
+  };
+});
+
+const formatTimeAmPm = (value) => {
+  if (!value) return "";
+  const [hourText, minute = "00"] = value.split(":");
+  const hour = Number(hourText);
+  return `${hour % 12 || 12}:${minute} ${hour >= 12 ? "PM" : "AM"}`;
+};
+
+const TimeSelect = (props) => (
+  <Select
+    {...props}
+    showSearch
+    optionFilterProp="label"
+    options={TIME_OPTIONS}
+  />
+);
+
 const SOC_ROTATION_DAYS = [
   { name: "Morning", start_time: "06:00", end_time: "14:00", is_working: true },
   { name: "Evening", start_time: "14:00", end_time: "22:00", is_working: true },
@@ -40,9 +65,16 @@ const renderSchedule = (shift) => (
   <div className="work-shift-schedule">
     {getScheduleDays(shift).map((day, index) => (
       <Tag key={day.name + "-" + index} color={day.is_working === false ? "default" : "blue"}>
-        {day.is_working === false ? "Off" : day.name + " " + day.start_time + "-" + day.end_time}
+        {day.is_working === false
+          ? "Off"
+          : `${day.name} ${formatTimeAmPm(day.start_time)}-${formatTimeAmPm(day.end_time)}`}
       </Tag>
     ))}
+    {shift.break_start_time && shift.break_end_time && (
+      <Tag color="default">
+        Break {formatTimeAmPm(shift.break_start_time)}-{formatTimeAmPm(shift.break_end_time)}
+      </Tag>
+    )}
   </div>
 );
 
@@ -105,6 +137,8 @@ export default function WorkShiftManagement() {
       pattern_type: shift.pattern_type || "FIXED_WEEKLY",
       start_time: shift.pattern_type === "ROTATING_CYCLE" ? undefined : shift.start_time,
       end_time: shift.pattern_type === "ROTATING_CYCLE" ? undefined : shift.end_time,
+      break_start_time: shift.break_start_time || undefined,
+      break_end_time: shift.break_end_time || undefined,
       includes_weekends: shift.includes_weekends,
       ...cycleFormValues(shift.cycle_days),
     });
@@ -151,6 +185,8 @@ export default function WorkShiftManagement() {
         pattern_type: values.pattern_type || "FIXED_WEEKLY",
         start_time: values.pattern_type === "ROTATING_CYCLE" ? cycleDays[0].start_time : values.start_time,
         end_time: values.pattern_type === "ROTATING_CYCLE" ? cycleDays[0].end_time : values.end_time,
+        break_start_time: values.pattern_type === "FIXED_WEEKLY" ? values.break_start_time || null : null,
+        break_end_time: values.pattern_type === "FIXED_WEEKLY" ? values.break_end_time || null : null,
         includes_weekends: values.pattern_type === "ROTATING_CYCLE" ? true : values.includes_weekends || false,
         cycle_days: values.pattern_type === "ROTATING_CYCLE" ? cycleDays : [],
       };
@@ -297,21 +333,21 @@ export default function WorkShiftManagement() {
               <div className="work-shift-cycle-editor">
                 <div className="work-shift-cycle-row">
                   <strong>Morning</strong>
-                  <Form.Item name="morning_start_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="morning_start_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                   <span>to</span>
-                  <Form.Item name="morning_end_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="morning_end_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                 </div>
                 <div className="work-shift-cycle-row">
                   <strong>Evening</strong>
-                  <Form.Item name="evening_start_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="evening_start_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                   <span>to</span>
-                  <Form.Item name="evening_end_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="evening_end_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                 </div>
                 <div className="work-shift-cycle-row">
                   <strong>Night</strong>
-                  <Form.Item name="night_start_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="night_start_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                   <span>to</span>
-                  <Form.Item name="night_end_time" rules={[{ required: true, message: "Required" }]}><Input type="time" /></Form.Item>
+                  <Form.Item name="night_end_time" rules={[{ required: true, message: "Required" }]}><TimeSelect /></Form.Item>
                 </div>
                 <div className="work-shift-cycle-row work-shift-cycle-row--off">
                   <strong>Off</strong>
@@ -323,11 +359,47 @@ export default function WorkShiftManagement() {
           {patternType === "FIXED_WEEKLY" && (
             <>
               <Form.Item name="start_time" label="Start time" rules={[{ required: true }]}>
-                <Input type="time" />
+                <TimeSelect />
               </Form.Item>
               <Form.Item name="end_time" label="End time" rules={[{ required: true }]}>
-                <Input type="time" />
+                <TimeSelect />
               </Form.Item>
+              <Space size="middle" style={{ width: "100%" }} align="start">
+                <Form.Item
+                  name="break_start_time"
+                  label="Break start"
+                  dependencies={["break_end_time"]}
+                  rules={[
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        if (!value && getFieldValue("break_end_time")) {
+                          return Promise.reject(new Error("Select break start"));
+                        }
+                        return Promise.resolve();
+                      },
+                    }),
+                  ]}
+                >
+                  <TimeSelect allowClear placeholder="No break" style={{ width: 150 }} />
+                </Form.Item>
+                <Form.Item
+                  name="break_end_time"
+                  label="Break end"
+                  dependencies={["break_start_time"]}
+                  rules={[
+                    ({ getFieldValue }) => ({
+                      validator(_, value) {
+                        if (!value && getFieldValue("break_start_time")) {
+                          return Promise.reject(new Error("Select break end"));
+                        }
+                        return Promise.resolve();
+                      },
+                    }),
+                  ]}
+                >
+                  <TimeSelect allowClear placeholder="No break" style={{ width: 150 }} />
+                </Form.Item>
+              </Space>
               <Form.Item name="includes_weekends" valuePropName="checked">
                 <Checkbox>Treat Saturday and Sunday as working days</Checkbox>
               </Form.Item>

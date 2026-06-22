@@ -27,6 +27,7 @@ import { getPendingRequests, approveLeaveRequest, rejectLeaveRequest } from "../
 import { getMediaUrl } from "../api/http";
 import ApprovalProgress from "../components/ApprovalProgress";
 import ResponsiveRecordCard, { ResponsiveRecordRow } from "../components/ResponsiveRecordCard";
+import { notifyPendingReviewCountChanged } from "../lib/pending-review-notifications";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -185,6 +186,7 @@ export default function ManagerTickets() {
 
       // Refresh the list
       await fetchPendingRequests();
+      notifyPendingReviewCountChanged();
 
       setConfirmType(null);
       setSelectedTicket(null);
@@ -223,6 +225,7 @@ export default function ManagerTickets() {
 
       // Refresh the list
       await fetchPendingRequests();
+      notifyPendingReviewCountChanged();
 
       setConfirmType(null);
       setSelectedTicket(null);

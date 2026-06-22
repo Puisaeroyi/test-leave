@@ -41,9 +41,28 @@
                 </tr>
                 <tr>
                   <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Approved By</td>
-                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ approver_name }}</td>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ approved_by }}</td>
                 </tr>
               </table>
+
+              {% if approval_progress %}
+              <h2 style="margin:24px 0 6px; color:#111827; font-size:16px; font-weight:600;">Approval progress</h2>
+              <p style="margin:0 0 12px; color:#6b7280; font-size:13px; line-height:1.5;">Review decisions and notes from each approver.</p>
+              <table width="100%" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:14px;">
+                <tr>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:32%;">Approver</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb; width:20%;">Status</td>
+                  <td style="background-color:#f9fafb; color:#6b7280; font-weight:600; border:1px solid #e5e7eb;">Note</td>
+                </tr>
+                {% for step in approval_progress %}
+                <tr>
+                  <td style="background-color:#ffffff; color:#111827; border:1px solid #e5e7eb;">{{ step.approver_name }}</td>
+                  <td style="background-color:#ffffff; color:#15803d; font-weight:600; border:1px solid #e5e7eb;">{{ step.status }}</td>
+                  <td style="background-color:#ffffff; color:#374151; border:1px solid #e5e7eb;">{{ step.comment|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+              </table>
+              {% endif %}
 
               <p style="margin:24px 0 0; text-align:center;">
                 <a href="{{ dashboard_url }}" style="display:inline-block; padding:10px 24px; background-color:#16a34a; color:#ffffff; text-decoration:none; border-radius:6px; font-size:14px; font-weight:600;">View Your Requests</a>

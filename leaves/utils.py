@@ -11,6 +11,12 @@ from django.db.models import Q
 
 from .models import PublicHoliday, LeaveRequest
 
+ZERO_DEDUCTIBLE_HOURS_MESSAGE = (
+    'No deductible working hours were found for the selected date range. '
+    'Choose a scheduled working day that is not a weekend, public holiday, '
+    'or cycle off day.'
+)
+
 
 def normalize_country_code(value):
     """Map supported free-text country names to application country codes."""
@@ -38,7 +44,7 @@ def is_working_day(user, day):
         return resolved['is_working']
     shift = getattr(user, 'work_shift', None)
     if not shift:
-        return True
+        return day.weekday() < 5
     return bool(shift and shift.includes_weekends) or day.weekday() < 5
 
 
@@ -57,6 +63,13 @@ def _hours_between(start, end):
     if end_dt <= start_dt:
         end_dt += timedelta(days=1)
     return Decimal(str((end_dt - start_dt).total_seconds() / 3600)).quantize(Decimal('0.01'))
+
+
+def _shift_hours(start, end, break_start=None, break_end=None):
+    hours = _hours_between(start, end)
+    if break_start and break_end:
+        hours -= _hours_between(break_start, break_end)
+    return max(hours, Decimal('0.00'))
 
 
 def resolve_work_shift_day(user, day):
@@ -81,13 +94,23 @@ def resolve_work_shift_day(user, day):
             }
         start = _time_from_cycle_value(item['start_time'])
         end = _time_from_cycle_value(item['end_time'])
+        break_start = (
+            _time_from_cycle_value(item['break_start_time'])
+            if item.get('break_start_time') else None
+        )
+        break_end = (
+            _time_from_cycle_value(item['break_end_time'])
+            if item.get('break_end_time') else None
+        )
         return {
             'date': day,
             'shift_name': item.get('name') or shift.name,
             'is_working': True,
             'start_time': start,
             'end_time': end,
-            'hours': _hours_between(start, end),
+            'break_start_time': break_start,
+            'break_end_time': break_end,
+            'hours': _shift_hours(start, end, break_start, break_end),
         }
     if shift.includes_weekends or day.weekday() < 5:
         return {
@@ -96,7 +119,14 @@ def resolve_work_shift_day(user, day):
             'is_working': True,
             'start_time': shift.start_time,
             'end_time': shift.end_time,
-            'hours': _hours_between(shift.start_time, shift.end_time),
+            'break_start_time': shift.break_start_time,
+            'break_end_time': shift.break_end_time,
+            'hours': _shift_hours(
+                shift.start_time,
+                shift.end_time,
+                shift.break_start_time,
+                shift.break_end_time,
+            ),
         }
     return {
         'date': day,
@@ -128,6 +158,23 @@ def calculate_leave_hours(
         if not start_time or not end_time:
             raise ValueError("start_time and end_time required for CUSTOM_HOURS")
 
+        if not is_working_day(user, start_date):
+            return Decimal('0.00')
+        department = getattr(user, 'department', None)
+        holiday_requires_leave = bool(
+            department and department.holiday_requires_leave
+        )
+        if (
+            not holiday_requires_leave
+            and get_holidays_for_user(
+                user,
+                start_date,
+                start_date,
+                exclude_calendar_id,
+            ).exists()
+        ):
+            return Decimal('0.00')
+
         # For custom hours, calculate time difference on start_date only
         if start_day_offset not in (0, 1) or end_day_offset not in (0, 1, 2):
             raise ValueError("Invalid custom-hour calendar day")
@@ -142,7 +189,27 @@ def calculate_leave_hours(
             raise ValueError("Custom-hour end must be after start")
         if delta > timedelta(hours=8):
             raise ValueError("Custom leave cannot exceed 8 hours")
-        return Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
+        hours = Decimal(str(delta.total_seconds() / 3600)).quantize(Decimal('0.01'))
+        shift = getattr(user, 'work_shift', None)
+        if shift and shift.break_start_time and shift.break_end_time:
+            break_date = start_date
+            if (
+                shift.end_time <= shift.start_time
+                and shift.break_start_time < shift.start_time
+            ):
+                break_date += timedelta(days=1)
+            break_start_dt = datetime.combine(break_date, shift.break_start_time)
+            break_end_dt = datetime.combine(break_date, shift.break_end_time)
+            if break_end_dt <= break_start_dt:
+                break_end_dt += timedelta(days=1)
+            overlap_start = max(start_dt, break_start_dt)
+            overlap_end = min(end_dt, break_end_dt)
+            if overlap_end > overlap_start:
+                overlap = Decimal(
+                    str((overlap_end - overlap_start).total_seconds() / 3600)
+                ).quantize(Decimal('0.01'))
+                hours -= overlap
+        return max(hours, Decimal('0.00'))
 
     total_hours, _ = calculate_full_day_leave_breakdown(user, start_date, end_date, exclude_calendar_id)
     return total_hours
@@ -187,7 +254,7 @@ def calculate_full_day_leave_breakdown(user, start_date, end_date, exclude_calen
 
 
 def _breakdown_row(day, resolved, hours, reason):
-    return {
+    row = {
         'date': day.isoformat(),
         'shift_name': (resolved or {}).get('shift_name', 'Standard day'),
         'start_time': (resolved or {}).get('start_time').strftime('%H:%M') if (resolved or {}).get('start_time') else None,
@@ -195,6 +262,10 @@ def _breakdown_row(day, resolved, hours, reason):
         'hours': float(hours),
         'reason': reason,
     }
+    if (resolved or {}).get('break_start_time'):
+        row['break_start_time'] = resolved['break_start_time'].strftime('%H:%M')
+        row['break_end_time'] = resolved['break_end_time'].strftime('%H:%M')
+    return row
 
 
 def infer_custom_hour_offsets(user, start_time, end_time):

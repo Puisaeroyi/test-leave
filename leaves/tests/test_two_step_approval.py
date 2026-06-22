@@ -3,8 +3,9 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
-from django.test import TestCase
 
 from core.models import Notification
 from leaves.models import BusinessTrip, LeaveBalance, LeaveCategory, LeaveRequest
@@ -22,7 +23,13 @@ class PeerApprovalTests(TestCase):
             email='employee@example.com',
             password='TestPass123!',
             role=User.Role.EMPLOYEE,
+            first_name='Employee',
+            last_name='Sender',
         )
+        self.entity = Entity.objects.create(entity_name='Viet Nam', code='TEAMPL_VN')
+        self.employee.entity = self.entity
+        self.employee.save()
+        Entity.objects.filter(pk=self.entity.pk).update(entity_name='TEAMPL')
         self.approver_1 = User.objects.create_user(
             email='approver-1@example.com',
             password='TestPass123!',
@@ -149,6 +156,11 @@ class PeerApprovalTests(TestCase):
         leave_request.refresh_from_db()
         self.assertEqual(leave_request.status, 'REJECTED')
         self.assertEqual(leave_request.first_approval_status, 'REJECTED')
+        timeline = LeaveRequestSerializer(leave_request).data['approval_timeline']
+        self.assertEqual(
+            [step['status'] for step in timeline],
+            ['REJECTED', 'NOT_REQUIRED'],
+        )
 
     def test_single_approver_completes_alone(self):
         self.employee.approver_2 = None
@@ -254,6 +266,53 @@ class PeerApprovalTests(TestCase):
         data = LeaveRequestSerializer(leave_request).data
         self.assertEqual(data['action_required_user_ids'], [])
 
+    def test_pending_review_count_only_includes_requests_requiring_the_users_action(self):
+        approvable_request = self.make_request()
+        rejectable_request = self.make_request(
+            start_date=date(2027, 1, 23),
+            end_date=date(2027, 1, 23),
+        )
+        already_reviewed_request = self.make_request(
+            start_date=date(2027, 1, 21),
+            end_date=date(2027, 1, 21),
+            first_approval_status=LeaveRequest.ApprovalDecision.APPROVED,
+        )
+        self.make_request(
+            start_date=date(2027, 1, 22),
+            end_date=date(2027, 1, 22),
+            status=LeaveRequest.Status.APPROVED,
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.approver_1)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {'count': 2})
+
+        approval_response = client.post(
+            f'/api/v1/leaves/requests/{approvable_request.id}/approve/',
+            {'comment': 'Reviewed'},
+            format='json',
+            secure=True,
+        )
+        self.assertEqual(approval_response.status_code, 200)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.data, {'count': 1})
+
+        rejection_response = client.post(
+            f'/api/v1/leaves/requests/{rejectable_request.id}/reject/',
+            {'reason': 'Insufficient staffing coverage'},
+            format='json',
+            secure=True,
+        )
+        self.assertEqual(rejection_response.status_code, 200)
+        response = client.get('/api/v1/leaves/requests/pending-review-count/', secure=True)
+
+        self.assertEqual(response.data, {'count': 0})
+        self.assertEqual(already_reviewed_request.status, LeaveRequest.Status.PENDING)
+
     def test_single_approver_timeline_shows_only_approver_label(self):
         self.employee.approver_2 = None
         self.employee.save()
@@ -266,14 +325,14 @@ class PeerApprovalTests(TestCase):
         self.assertEqual(data['approval_timeline'][0]['label'], 'Approver')
         self.assertEqual(data['approval_timeline'][0]['approver_id'], str(self.approver_1.id))
 
-    def test_two_approver_timeline_shows_first_and_second_labels(self):
+    def test_two_approver_timeline_uses_equal_approver_labels(self):
         leave_request = self.make_request()
 
         data = LeaveRequestSerializer(leave_request).data
 
         self.assertEqual(
             [step['label'] for step in data['approval_timeline']],
-            ['First Approver', 'Second Approver'],
+            ['Approver', 'Approver'],
         )
 
     def test_user_has_approver_1_and_2_fields(self):
@@ -311,6 +370,112 @@ class PeerApprovalTests(TestCase):
             ).values_list('user_id', flat=True)
         )
         self.assertEqual(recipients, {self.approver_1.id, self.approver_2.id})
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_HOST_USER='noreply@example.com',
+    )
+    def test_requester_receives_submission_email_with_branch_title_and_sender_subject(self):
+        client = APIClient()
+        client.force_authenticate(user=self.employee)
+
+        response = client.post('/api/v1/leaves/requests/', {
+            'start_date': '2027-01-20',
+            'end_date': '2027-01-20',
+            'shift_type': 'FULL_DAY',
+            'leave_category': str(self.category.id),
+            'reason': 'Family plans',
+        })
+
+        self.assertEqual(response.status_code, 201)
+        requester_emails = [
+            message for message in mail.outbox if message.to == [self.employee.email]
+        ]
+        self.assertEqual(len(requester_emails), 1)
+        self.assertEqual(
+            requester_emails[0].subject,
+            '[TEAMPL] Leave request submitted successfully - Employee Sender',
+        )
+        self.assertIn('Your leave request has been submitted successfully', requester_emails[0].body)
+        self.assertIn('Type: Vacation', requester_emails[0].body)
+        html_body = requester_emails[0].alternatives[0][0]
+        self.assertIn('Request received', html_body)
+        self.assertIn('Your request has been sent to your approver', html_body)
+        self.assertIn('Family plans', html_body)
+        approver_email = next(
+            message for message in mail.outbox if message.to == [self.approver_1.email]
+        )
+        self.assertEqual(
+            approver_email.subject,
+            '[TEAMPL] Review required: Leave request from Employee Sender',
+        )
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_HOST_USER='noreply@example.com',
+    )
+    def test_requester_receives_approval_email_with_branch_title_sender_and_details(self):
+        leave_request = self.make_request()
+
+        self.assertEqual(self.post_approve(self.approver_1, leave_request, 'ok-A').status_code, 200)
+        self.assertEqual(self.post_approve(self.approver_2, leave_request, 'ok-B').status_code, 200)
+
+        requester_emails = [
+            message for message in mail.outbox if message.to == [self.employee.email]
+        ]
+        self.assertEqual(len(requester_emails), 1)
+        self.assertEqual(
+            requester_emails[0].subject,
+            '[TEAMPL] Leave request approved by Approver One and Approver Two',
+        )
+        self.assertIn('Approved by: Approver One and Approver Two', requester_emails[0].body)
+        self.assertIn('Approver One - Approved - Note: ok-A', requester_emails[0].body)
+        self.assertIn('Approver Two - Approved - Note: ok-B', requester_emails[0].body)
+        self.assertIn('Type: Vacation', requester_emails[0].body)
+        html_body = requester_emails[0].alternatives[0][0]
+        self.assertIn('Approval progress', html_body)
+        self.assertIn('Approver One', html_body)
+        self.assertIn('Approved', html_body)
+        self.assertIn('Approver Two', html_body)
+        self.assertIn('ok-A', html_body)
+        self.assertIn('ok-B', html_body)
+        self.assertNotIn('First approver', html_body)
+        self.assertNotIn('Second approver', html_body)
+
+    @override_settings(
+        EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+        EMAIL_HOST_USER='noreply@example.com',
+    )
+    def test_requester_receives_rejection_email_with_branch_title_sender_and_reason(self):
+        leave_request = self.make_request()
+
+        response = self.post_reject(self.approver_1, leave_request, 'Coverage changed')
+
+        self.assertEqual(response.status_code, 200)
+        requester_emails = [
+            message for message in mail.outbox if message.to == [self.employee.email]
+        ]
+        self.assertEqual(len(requester_emails), 1)
+        self.assertEqual(
+            requester_emails[0].subject,
+            '[TEAMPL] Leave request denied by Approver One',
+        )
+        self.assertIn('Rejected by: Approver One', requester_emails[0].body)
+        self.assertIn('Reason: Coverage changed', requester_emails[0].body)
+        self.assertIn(
+            'Approver One - Declined - Note: Coverage changed',
+            requester_emails[0].body,
+        )
+        html_body = requester_emails[0].alternatives[0][0]
+        self.assertIn('Approval progress', html_body)
+        self.assertIn('Approver One', html_body)
+        self.assertIn('Declined', html_body)
+        self.assertIn('Coverage changed', html_body)
+        self.assertIn('Approver Two', html_body)
+        self.assertIn('Not required', html_body)
+        self.assertNotIn('Pending', html_body)
+        self.assertNotIn('First approver', html_body)
+        self.assertNotIn('Second approver', html_body)
 
     def test_no_email_or_notification_on_first_peer_action(self):
         leave_request = self.make_request()
