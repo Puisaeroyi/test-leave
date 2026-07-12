@@ -1,8 +1,11 @@
 """
 Organizations API Views
 """
+import uuid
+
 from django.db import transaction
 from datetime import time
+from django.core.exceptions import ValidationError
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -49,8 +52,10 @@ def _parse_optional_time(value):
 def _serialize_shift(shift):
     return {
         'id': str(shift.id),
+        'management_group_id': str(shift.management_group_id),
         'department_id': str(shift.department_id),
         'department_name': shift.department.department_name,
+        'entity_id': str(shift.department.entity_id),
         'entity_name': shift.department.entity.entity_name,
         'location_name': shift.department.location.location_name if shift.department.location else 'Entity-wide',
         'name': shift.name,
@@ -75,6 +80,39 @@ def _department_queryset(user):
     if user.role == User.Role.HR:
         departments = departments.filter(entity_id=user.entity_id)
     return departments
+
+
+def _assign_shift_to_unassigned_users(shift):
+    users = User.objects.filter(
+        department=shift.department,
+        work_shift__isnull=True,
+    )
+    if shift.pattern_type == WorkShift.PatternType.ROTATING_CYCLE:
+        users = users.filter(shift_cycle_start_date__isnull=False)
+    return users.update(work_shift=shift)
+
+
+def _create_shifts_for_departments(departments, shift_values):
+    created = 0
+    assigned_users = 0
+    skipped = []
+    management_group_id = uuid.uuid4()
+    with transaction.atomic():
+        for department in departments:
+            if WorkShift.objects.filter(
+                department=department,
+                name=shift_values['name'],
+            ).exists():
+                skipped.append(department.department_name)
+                continue
+            shift = WorkShift.objects.create(
+                department=department,
+                management_group_id=management_group_id,
+                **shift_values,
+            )
+            assigned_users += _assign_shift_to_unassigned_users(shift)
+            created += 1
+    return created, assigned_users, skipped
 
 
 class EntityListView(generics.ListAPIView):
@@ -186,6 +224,60 @@ class WorkShiftListCreateView(APIView):
             return Response({'pattern_type': ['Invalid pattern type.']}, status=status.HTTP_400_BAD_REQUEST)
         cycle_days = _parse_cycle_days(request.data.get('cycle_days'))
 
+        shift_values = {
+            'name': name,
+            'start_time': start_time_value,
+            'end_time': end_time_value,
+            'break_start_time': break_start_time,
+            'break_end_time': break_end_time,
+            'pattern_type': pattern_type,
+            'cycle_days': cycle_days,
+            'includes_weekends': includes_weekends,
+        }
+
+        entity_ids = request.data.get('entity_ids')
+        if entity_ids is not None:
+            if not isinstance(entity_ids, list) or not entity_ids:
+                return Response(
+                    {'entity_ids': ['Select at least one entity.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            requested_ids = {str(entity_id) for entity_id in entity_ids}
+            try:
+                entities = Entity.objects.filter(id__in=requested_ids, is_active=True)
+                if request.user.role == User.Role.HR:
+                    entities = entities.filter(id=request.user.entity_id)
+                selected_ids = {str(entity.id) for entity in entities}
+            except (ValidationError, ValueError):
+                selected_ids = set()
+            if selected_ids != requested_ids:
+                return Response({'error': 'Entity not found'}, status=status.HTTP_404_NOT_FOUND)
+            departments = list(
+                _department_queryset(request.user).filter(entity_id__in=selected_ids)
+            )
+            if not departments:
+                return Response(
+                    {'error': 'Selected entities have no active departments'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            created, assigned_users, skipped = _create_shifts_for_departments(
+                departments,
+                shift_values,
+            )
+            if not created:
+                return Response(
+                    {'name': ['A work shift with this name already exists in every department of the selected entities.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(
+                {
+                    'created': created,
+                    'assigned_users': assigned_users,
+                    'skipped': skipped,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
         if _parse_bool(request.data.get('apply_to_all_departments')):
             entity = Entity.objects.filter(id=request.data.get('entity_id'), is_active=True).first()
             if request.user.role == User.Role.HR and entity and entity.id != request.user.entity_id:
@@ -195,30 +287,23 @@ class WorkShiftListCreateView(APIView):
             departments = list(entity.departments.filter(is_active=True))
             if not departments:
                 return Response({'error': 'Entity has no active departments'}, status=status.HTTP_400_BAD_REQUEST)
-            created, skipped = 0, []
-            with transaction.atomic():
-                for department in departments:
-                    if WorkShift.objects.filter(department=department, name=name).exists():
-                        skipped.append(department.department_name)
-                        continue
-                    WorkShift.objects.create(
-                        department=department,
-                        name=name,
-                        start_time=start_time_value,
-                        end_time=end_time_value,
-                        break_start_time=break_start_time,
-                        break_end_time=break_end_time,
-                        pattern_type=pattern_type,
-                        cycle_days=cycle_days,
-                        includes_weekends=includes_weekends,
-                    )
-                    created += 1
+            created, assigned_users, skipped = _create_shifts_for_departments(
+                departments,
+                shift_values,
+            )
             if not created:
                 return Response(
                     {'name': ['A work shift with this name already exists in every department of this entity.']},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            return Response({'created': created, 'skipped': skipped}, status=status.HTTP_201_CREATED)
+            return Response(
+                {
+                    'created': created,
+                    'assigned_users': assigned_users,
+                    'skipped': skipped,
+                },
+                status=status.HTTP_201_CREATED,
+            )
 
         department = _department_queryset(request.user).filter(id=request.data.get('department_id')).first()
         if not department:
@@ -228,18 +313,12 @@ class WorkShiftListCreateView(APIView):
                 {'name': ['A work shift with this name already exists in the department.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        shift = WorkShift.objects.create(
-            department=department,
-            name=name,
-            start_time=start_time_value,
-            end_time=end_time_value,
-            break_start_time=break_start_time,
-            break_end_time=break_end_time,
-            pattern_type=pattern_type,
-            cycle_days=cycle_days,
-            includes_weekends=includes_weekends,
-        )
-        return Response(_serialize_shift(shift), status=status.HTTP_201_CREATED)
+        with transaction.atomic():
+            shift = WorkShift.objects.create(department=department, **shift_values)
+            assigned_users = _assign_shift_to_unassigned_users(shift)
+        response_data = _serialize_shift(shift)
+        response_data['assigned_users'] = assigned_users
+        return Response(response_data, status=status.HTTP_201_CREATED)
 
 
 class WorkShiftDetailView(APIView):
@@ -251,6 +330,13 @@ class WorkShiftDetailView(APIView):
             is_active=True,
             department__in=_department_queryset(request.user),
         ).select_related('department__entity', 'department__location').first()
+
+    def get_group(self, request, shift):
+        return WorkShift.objects.filter(
+            management_group_id=shift.management_group_id,
+            is_active=True,
+            department__in=_department_queryset(request.user),
+        )
 
     def patch(self, request, pk):
         shift = self.get_shift(request, pk)
@@ -288,25 +374,125 @@ class WorkShiftDetailView(APIView):
         if 'includes_weekends' in request.data:
             shift.includes_weekends = _parse_bool(request.data.get('includes_weekends'))
 
+        group = self.get_group(request, shift)
+        group_ids = list(group.values_list('id', flat=True))
+        desired_departments = list(
+            _department_queryset(request.user).filter(
+                id__in=group.values_list('department_id', flat=True),
+            )
+        )
+        entity_ids = request.data.get('entity_ids')
+        if entity_ids is not None:
+            if not isinstance(entity_ids, list) or not entity_ids:
+                return Response(
+                    {'entity_ids': ['Select at least one entity.']},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            requested_ids = {str(entity_id) for entity_id in entity_ids}
+            try:
+                entities = Entity.objects.filter(id__in=requested_ids, is_active=True)
+                if request.user.role == User.Role.HR:
+                    entities = entities.filter(id=request.user.entity_id)
+                selected_ids = {str(entity.id) for entity in entities}
+            except (ValidationError, ValueError):
+                selected_ids = set()
+            if selected_ids != requested_ids:
+                return Response({'error': 'Entity not found'}, status=status.HTTP_404_NOT_FOUND)
+            desired_departments = list(
+                _department_queryset(request.user).filter(entity_id__in=selected_ids)
+            )
+            if not desired_departments:
+                return Response(
+                    {'error': 'Selected entities have no active departments'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        desired_department_ids = {department.id for department in desired_departments}
         duplicate = WorkShift.objects.filter(
-            department=shift.department,
+            department_id__in=desired_department_ids,
             name=shift.name,
             is_active=True,
-        ).exclude(id=shift.id).exists()
+        ).exclude(id__in=group_ids).exists()
         if duplicate:
             return Response(
                 {'name': ['A work shift with this name already exists in the department.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        shift.save()
-        return Response(_serialize_shift(shift))
+
+        next_group_id = shift.management_group_id
+        if WorkShift.objects.filter(
+            management_group_id=shift.management_group_id,
+            is_active=True,
+        ).exclude(id__in=group_ids).exists():
+            next_group_id = uuid.uuid4()
+
+        shift_values = {
+            'name': shift.name,
+            'start_time': shift.start_time,
+            'end_time': shift.end_time,
+            'break_start_time': shift.break_start_time,
+            'break_end_time': shift.break_end_time,
+            'pattern_type': shift.pattern_type,
+            'cycle_days': shift.cycle_days,
+            'includes_weekends': shift.includes_weekends,
+        }
+        with transaction.atomic():
+            members = list(group.select_for_update())
+            retained_members = [
+                member for member in members
+                if member.department_id in desired_department_ids
+            ]
+            removed_members = [
+                member for member in members
+                if member.department_id not in desired_department_ids
+            ]
+            removed_ids = [member.id for member in removed_members]
+            unassigned_users = User.objects.filter(
+                work_shift_id__in=removed_ids,
+            ).update(work_shift=None) if removed_ids else 0
+            if removed_ids:
+                WorkShift.objects.filter(id__in=removed_ids).update(is_active=False)
+
+            assigned_users = 0
+            for member in retained_members:
+                member.management_group_id = next_group_id
+                for field, value in shift_values.items():
+                    setattr(member, field, value)
+                member.save()
+                assigned_users += _assign_shift_to_unassigned_users(member)
+
+            existing_department_ids = {member.department_id for member in members}
+            missing_departments = [
+                department for department in desired_departments
+                if department.id not in existing_department_ids
+            ]
+            created_members = []
+            for department in missing_departments:
+                member = WorkShift.objects.create(
+                    department=department,
+                    management_group_id=next_group_id,
+                    **shift_values,
+                )
+                assigned_users += _assign_shift_to_unassigned_users(member)
+                created_members.append(member)
+
+        active_members = retained_members + created_members
+        response_data = _serialize_shift(active_members[0])
+        response_data.update({
+            'updated': len(active_members),
+            'added_departments': len(created_members),
+            'removed_departments': len(removed_members),
+            'assigned_users': assigned_users,
+            'unassigned_users': unassigned_users,
+        })
+        return Response(response_data)
 
     def delete(self, request, pk):
         shift = self.get_shift(request, pk)
         if not shift:
             return Response({'error': 'Work shift not found'}, status=status.HTTP_404_NOT_FOUND)
-        shift.is_active = False
-        shift.save(update_fields=['is_active'])
+        with transaction.atomic():
+            self.get_group(request, shift).select_for_update().update(is_active=False)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

@@ -29,7 +29,7 @@ import {
   PlusOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "@auth/authContext";
-import { getAllUsers, getApproverOptions, updateUser, deleteUser, createUser } from "@api/userApi";
+import { getAllUsers, getApproverOptions, getUserById, updateUser, deleteUser, createUser } from "@api/userApi";
 import { getEntities, getLocations, getDepartments, getWorkShifts } from "@api/authApi";
 import { exportApprovedLeaves } from "@api/dashboardApi";
 import AnnouncementManagement from "@components/AnnouncementManagement";
@@ -92,6 +92,11 @@ const Settings = () => {
   const userRows = Array.isArray(users) ? users : users?.results || [];
   const selectedEditShift = workShifts.find((shift) => shift.id === editWorkShiftId);
   const selectedAddShift = workShifts.find((shift) => shift.id === addWorkShiftId);
+  const renderEditWorkShiftLabel = ({ value, label }) => {
+    const shift = workShifts.find((item) => item.id === value)
+      || (selectedUser?.work_shift?.id === value ? selectedUser.work_shift : null);
+    return shift ? getWorkShiftOptionLabel(shift) : label;
+  };
 
   const fetchUsers = useCallback(async () => {
     if (!hasSettingsAccess) return;
@@ -132,19 +137,27 @@ const Settings = () => {
   }
 
   const handleEdit = async (userData) => {
-    setSelectedUser(userData);
-    setWorkShifts(userData.department?.id ? await getWorkShifts(userData.department.id) : []);
-    form.setFieldsValue({
-      first_name: userData.first_name,
-      last_name: userData.last_name,
-      email: userData.email,
-      employee_code: userData.employee_code,
-      approver: userData.approver?.id || null,
-      final_approver: userData.final_approver?.id || null,
-      work_shift: userData.work_shift?.id || null,
-      shift_cycle_start_date: userData.shift_cycle_start_date ? dayjs(userData.shift_cycle_start_date) : null,
-    });
-    setEditModalVisible(true);
+    try {
+      const currentUser = await getUserById(userData.id);
+      const availableShifts = currentUser.department?.id
+        ? await getWorkShifts(currentUser.department.id)
+        : [];
+      setSelectedUser(currentUser);
+      setWorkShifts(availableShifts);
+      form.setFieldsValue({
+        first_name: currentUser.first_name,
+        last_name: currentUser.last_name,
+        email: currentUser.email,
+        employee_code: currentUser.employee_code,
+        approver: currentUser.approver?.id || null,
+        final_approver: currentUser.final_approver?.id || null,
+        work_shift: currentUser.work_shift?.id || null,
+        shift_cycle_start_date: currentUser.shift_cycle_start_date ? dayjs(currentUser.shift_cycle_start_date) : null,
+      });
+      setEditModalVisible(true);
+    } catch (error) {
+      message.error("Failed to load current user data: " + (error.response?.data?.error || error.message));
+    }
   };
 
   const handleSave = async () => {
@@ -768,6 +781,7 @@ const Settings = () => {
             <Select
               allowClear
               className="work-shift-select"
+              labelRender={renderEditWorkShiftLabel}
               placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
               options={workShifts.map((shift) => ({
                 value: shift.id,
@@ -1009,6 +1023,10 @@ const Settings = () => {
             <Select
               allowClear
               className="work-shift-select"
+              labelRender={({ value, label }) => {
+                const shift = workShifts.find((item) => item.id === value);
+                return shift ? getWorkShiftOptionLabel(shift) : label;
+              }}
               placeholder={workShifts.length ? "Select work shift" : "No shifts configured"}
               disabled={workShifts.length === 0}
               options={workShifts.map((shift) => ({

@@ -70,13 +70,29 @@ const renderSchedule = (shift) => (
           : `${day.name} ${formatTimeAmPm(day.start_time)}-${formatTimeAmPm(day.end_time)}`}
       </Tag>
     ))}
-    {shift.break_start_time && shift.break_end_time && (
-      <Tag color="default">
-        Break {formatTimeAmPm(shift.break_start_time)}-{formatTimeAmPm(shift.break_end_time)}
-      </Tag>
-    )}
   </div>
 );
+
+const groupWorkShifts = (shifts) => {
+  const groups = new Map();
+  shifts.forEach((shift) => {
+    const groupId = shift.management_group_id || shift.id;
+    const group = groups.get(groupId) || {
+      id: groupId,
+      representative: shift,
+      entityIds: new Set(),
+      entityNames: new Set(),
+      locationKeys: new Set(),
+      memberCount: 0,
+    };
+    group.entityIds.add(shift.entity_id);
+    group.entityNames.add(shift.entity_name);
+    group.locationKeys.add(`${shift.entity_name}:${shift.location_name || "Entity-wide"}`);
+    group.memberCount += 1;
+    groups.set(groupId, group);
+  });
+  return Array.from(groups.values());
+};
 
 export default function WorkShiftManagement() {
   const { user } = useAuth();
@@ -88,9 +104,14 @@ export default function WorkShiftManagement() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingShift, setEditingShift] = useState(null);
+  const [editingGroup, setEditingGroup] = useState(null);
   const [form] = Form.useForm();
   const applyToAll = Form.useWatch("apply_to_all", form) || false;
+  const selectedEntityIds = Form.useWatch("entities", form) || [];
+  const isMultiEntity = selectedEntityIds.length > 1;
   const patternType = Form.useWatch("pattern_type", form) || "FIXED_WEEKLY";
+  const shiftGroups = groupWorkShifts(shifts);
+  const canEditGroupEntities = user?.role === "ADMIN" && editingGroup?.entityIds.size > 1;
 
   const loadShifts = async () => {
     setLoading(true);
@@ -111,6 +132,7 @@ export default function WorkShiftManagement() {
     form.resetFields();
     form.setFieldsValue({ pattern_type: "FIXED_WEEKLY", ...cycleFormValues() });
     setEditingShift(null);
+    setEditingGroup(null);
     setLocations([]);
     setDepartments([]);
     setOpen(true);
@@ -121,28 +143,37 @@ export default function WorkShiftManagement() {
         : data;
       setEntities(availableEntities);
       if (user?.role === "HR" && user.entity?.id) {
-        form.setFieldValue("entity", user.entity.id);
-        await changeEntity(user.entity.id);
+        form.setFieldValue("entities", [user.entity.id]);
+        await changeEntities([user.entity.id]);
       }
     } catch {
       message.error("Failed to load entities");
     }
   };
 
-  const openEditModal = (shift) => {
+  const openEditModal = async (group) => {
+    const shift = group.representative;
     setEditingShift(shift);
+    setEditingGroup(group);
     form.resetFields();
     form.setFieldsValue({
+      entities: Array.from(group.entityIds),
       name: shift.name,
       pattern_type: shift.pattern_type || "FIXED_WEEKLY",
       start_time: shift.pattern_type === "ROTATING_CYCLE" ? undefined : shift.start_time,
       end_time: shift.pattern_type === "ROTATING_CYCLE" ? undefined : shift.end_time,
-      break_start_time: shift.break_start_time || undefined,
-      break_end_time: shift.break_end_time || undefined,
       includes_weekends: shift.includes_weekends,
       ...cycleFormValues(shift.cycle_days),
     });
     setOpen(true);
+    try {
+      const data = entities.length ? entities : asList(await getEntities());
+      setEntities(user?.role === "HR"
+        ? data.filter((item) => item.id === user.entity?.id)
+        : data);
+    } catch {
+      message.error("Failed to load entities");
+    }
   };
 
   const deleteShift = async (shift) => {
@@ -156,11 +187,19 @@ export default function WorkShiftManagement() {
     }
   };
 
-  const changeEntity = async (id) => {
-    form.setFieldsValue({ location: undefined, department: undefined });
+  const changeEntities = async (ids) => {
+    form.setFieldsValue({
+      apply_to_all: ids.length > 1 ? false : form.getFieldValue("apply_to_all"),
+      location: undefined,
+      department: undefined,
+    });
     setDepartments([]);
+    if (ids.length !== 1) {
+      setLocations([]);
+      return;
+    }
     try {
-      setLocations(id ? asList(await getLocations(id)) : []);
+      setLocations(asList(await getLocations(ids[0])));
     } catch {
       message.error("Failed to load locations");
     }
@@ -185,30 +224,47 @@ export default function WorkShiftManagement() {
         pattern_type: values.pattern_type || "FIXED_WEEKLY",
         start_time: values.pattern_type === "ROTATING_CYCLE" ? cycleDays[0].start_time : values.start_time,
         end_time: values.pattern_type === "ROTATING_CYCLE" ? cycleDays[0].end_time : values.end_time,
-        break_start_time: values.pattern_type === "FIXED_WEEKLY" ? values.break_start_time || null : null,
-        break_end_time: values.pattern_type === "FIXED_WEEKLY" ? values.break_end_time || null : null,
+        break_start_time: null,
+        break_end_time: null,
         includes_weekends: values.pattern_type === "ROTATING_CYCLE" ? true : values.includes_weekends || false,
         cycle_days: values.pattern_type === "ROTATING_CYCLE" ? cycleDays : [],
       };
+      const entityIds = values.entities || [];
+      const isMultiEntitySubmission = entityIds.length > 1;
+      const appliesToMultipleDepartments = isMultiEntitySubmission || values.apply_to_all;
       const { data } = editingShift
-        ? await http.patch("/organizations/work-shifts/" + editingShift.id + "/", payload)
+        ? await http.patch("/organizations/work-shifts/" + editingShift.id + "/", {
+          ...payload,
+          ...(canEditGroupEntities ? { entity_ids: entityIds } : {}),
+        })
         : await http.post("/organizations/work-shifts/", {
           ...payload,
-          ...(values.apply_to_all
-            ? { entity_id: values.entity, apply_to_all_departments: true }
+          ...(isMultiEntitySubmission
+            ? { entity_ids: entityIds }
+            : values.apply_to_all
+              ? { entity_id: entityIds[0], apply_to_all_departments: true }
             : { department_id: values.department }),
         });
 
-      if (!editingShift && values.apply_to_all) {
+      if (!editingShift && appliesToMultipleDepartments) {
         message.success("Work shift created in " + data.created + " department" + (data.created === 1 ? "" : "s"));
+        if (data.assigned_users) {
+          message.info("Automatically assigned to " + data.assigned_users + " user" + (data.assigned_users === 1 ? "" : "s") + " without a work shift");
+        }
         if (data.skipped?.length) {
           message.info("Skipped (name already exists): " + data.skipped.join(", "));
         }
       } else {
         message.success(editingShift ? "Work shift updated" : "Work shift created");
+        if (editingShift && canEditGroupEntities) {
+          message.info(
+            `Added ${data.added_departments} and removed ${data.removed_departments} department shift${data.removed_departments === 1 ? "" : "s"}`
+          );
+        }
       }
       setOpen(false);
       setEditingShift(null);
+      setEditingGroup(null);
       form.resetFields();
       await loadShifts();
     } catch (error) {
@@ -232,10 +288,12 @@ export default function WorkShiftManagement() {
           <Button icon={<ReloadOutlined />} onClick={loadShifts} loading={loading}>Refresh</Button>
         </Space>}
       >
-        {shifts.length ? (
+        {shiftGroups.length ? (
           <div className="work-shift-list" aria-busy={loading}>
-            {shifts.map((shift) => (
-              <article className="work-shift-item" key={shift.id}>
+            {shiftGroups.map((group) => {
+              const shift = group.representative;
+              return (
+              <article className="work-shift-item" key={group.id}>
                 <div className="work-shift-main">
                   <div className="work-shift-title-row">
                     <strong className="work-shift-title">{shift.name}</strong>
@@ -244,20 +302,21 @@ export default function WorkShiftManagement() {
                     </Tag>
                   </div>
                   <div className="work-shift-meta">
-                    <span>{shift.entity_name}</span>
-                    <span>{shift.location_name || "Entity-wide"}</span>
-                    <span>{shift.department_name}</span>
+                    <span>{Array.from(group.entityNames).join(", ")}</span>
+                    <span>{group.locationKeys.size} location{group.locationKeys.size === 1 ? "" : "s"}</span>
+                    <span>{group.memberCount} department{group.memberCount === 1 ? "" : "s"}</span>
                   </div>
                   {renderSchedule(shift)}
                 </div>
                 <div className="work-shift-actions">
-                  <Button size="small" icon={<EditOutlined />} onClick={() => openEditModal(shift)}>Edit</Button>
+                  <Button size="small" icon={<EditOutlined />} onClick={() => openEditModal(group)}>Edit</Button>
                   <Popconfirm title="Delete this work shift?" okText="Delete" okButtonProps={{ danger: true }} onConfirm={() => deleteShift(shift)}>
                     <Button size="small" danger icon={<DeleteOutlined />}>Delete</Button>
                   </Popconfirm>
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <Empty description={loading ? "Loading work shifts..." : "No work shifts configured"} />
@@ -269,25 +328,26 @@ export default function WorkShiftManagement() {
         open={open}
         onOk={create}
         confirmLoading={saving}
-        onCancel={() => { setOpen(false); setEditingShift(null); }}
+        onCancel={() => { setOpen(false); setEditingShift(null); setEditingGroup(null); }}
       >
         <Form form={form} layout="vertical">
-          {!editingShift && (
-            <Form.Item name="entity" label="Entity" rules={[{ required: true, message: "Please select entity" }]}>
+          {(!editingShift || canEditGroupEntities) && (
+            <Form.Item name="entities" label="Entity" rules={[{ required: true, message: "Please select at least one entity" }]}>
               <Select
-                placeholder="Select entity"
+                mode="multiple"
+                placeholder="Select one or more entities"
                 disabled={user?.role === "HR"}
-                onChange={changeEntity}
+                onChange={editingShift ? undefined : changeEntities}
                 options={entities.map((item) => ({ value: item.id, label: item.entity_name }))}
               />
             </Form.Item>
           )}
-          {!editingShift && (
+          {!editingShift && !isMultiEntity && (
             <Form.Item name="apply_to_all" valuePropName="checked">
               <Checkbox>Apply to all departments in this entity</Checkbox>
             </Form.Item>
           )}
-          {!editingShift && !applyToAll && (
+          {!editingShift && !isMultiEntity && !applyToAll && (
             <>
               <Form.Item name="location" label="Location" rules={[{ required: true, message: "Please select location" }]}>
                 <Select
@@ -364,42 +424,6 @@ export default function WorkShiftManagement() {
               <Form.Item name="end_time" label="End time" rules={[{ required: true }]}>
                 <TimeSelect />
               </Form.Item>
-              <Space size="middle" style={{ width: "100%" }} align="start">
-                <Form.Item
-                  name="break_start_time"
-                  label="Break start"
-                  dependencies={["break_end_time"]}
-                  rules={[
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        if (!value && getFieldValue("break_end_time")) {
-                          return Promise.reject(new Error("Select break start"));
-                        }
-                        return Promise.resolve();
-                      },
-                    }),
-                  ]}
-                >
-                  <TimeSelect allowClear placeholder="No break" style={{ width: 150 }} />
-                </Form.Item>
-                <Form.Item
-                  name="break_end_time"
-                  label="Break end"
-                  dependencies={["break_start_time"]}
-                  rules={[
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        if (!value && getFieldValue("break_start_time")) {
-                          return Promise.reject(new Error("Select break end"));
-                        }
-                        return Promise.resolve();
-                      },
-                    }),
-                  ]}
-                >
-                  <TimeSelect allowClear placeholder="No break" style={{ width: 150 }} />
-                </Form.Item>
-              </Space>
               <Form.Item name="includes_weekends" valuePropName="checked">
                 <Checkbox>Treat Saturday and Sunday as working days</Checkbox>
               </Form.Item>

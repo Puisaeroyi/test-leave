@@ -81,6 +81,7 @@ class WorkShift(models.Model):
         ROTATING_CYCLE = 'ROTATING_CYCLE', 'Rotating cycle'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    management_group_id = models.UUIDField(default=uuid.uuid4, db_index=True, editable=False)
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='work_shifts')
     name = models.CharField(max_length=100)
     pattern_type = models.CharField(
