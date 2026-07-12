@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+import json
 from pathlib import Path
 from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
@@ -388,6 +389,42 @@ SPECTACULAR_SETTINGS = {
 
 # Google OAuth Configuration
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+
+# Internal backend authentication. Disabled unless explicitly enabled.
+INTERNAL_AUTH_ENABLED = os.environ.get(
+    'INTERNAL_AUTH_ENABLED', 'False'
+).lower() in ('true', '1', 't')
+INTERNAL_AUTH_SERVICE_SECRETS = json.loads(
+    os.environ.get('INTERNAL_AUTH_SERVICE_SECRETS', '{}')
+)
+if INTERNAL_AUTH_ENABLED:
+    if not isinstance(INTERNAL_AUTH_SERVICE_SECRETS, dict) or not INTERNAL_AUTH_SERVICE_SECRETS:
+        raise ImproperlyConfigured(
+            "INTERNAL_AUTH_SERVICE_SECRETS must be a non-empty JSON object."
+        )
+    for service_id, secret_config in INTERNAL_AUTH_SERVICE_SECRETS.items():
+        secrets = secret_config if isinstance(secret_config, list) else [secret_config]
+        if not isinstance(service_id, str) or not service_id.strip():
+            raise ImproperlyConfigured(
+                "INTERNAL_AUTH_SERVICE_SECRETS contains an invalid service id."
+            )
+        if not secrets or any(not isinstance(secret, str) or len(secret) < 32 for secret in secrets):
+            raise ImproperlyConfigured(
+                f"INTERNAL_AUTH_SERVICE_SECRETS for {service_id} must contain secrets "
+                "with at least 32 characters."
+            )
+INTERNAL_AUTH_TIMESTAMP_SKEW_SECONDS = int(
+    os.environ.get('INTERNAL_AUTH_TIMESTAMP_SKEW_SECONDS', '300')
+)
+INTERNAL_AUTH_MAX_BODY_BYTES = int(
+    os.environ.get('INTERNAL_AUTH_MAX_BODY_BYTES', '4096')
+)
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['internal_auth'] = os.environ.get(
+    'INTERNAL_AUTH_RATE', '30/minute'
+)
+REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['internal_status'] = os.environ.get(
+    'INTERNAL_STATUS_RATE', '300/minute'
+)
 
 
 # Logging

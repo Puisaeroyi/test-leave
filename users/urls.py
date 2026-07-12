@@ -15,6 +15,11 @@ from .views import (
     AvatarUpdateView,
 )
 from .viewsets import UserViewSet
+from .views.internal_auth import (
+    InternalAccountLookupView,
+    InternalAccountStatusView,
+    InternalCredentialVerifyView,
+)
 
 # ViewSet router for user management
 router = DefaultRouter()
@@ -26,6 +31,21 @@ urlpatterns = [
 
     # Authentication
     path('login/', LoginView.as_view(), name='login'),
+    path(
+        'internal/verify/',
+        InternalCredentialVerifyView.as_view(),
+        name='internal_credential_verify',
+    ),
+    path(
+        'internal/status/',
+        InternalAccountStatusView.as_view(),
+        name='internal_account_status',
+    ),
+    path(
+        'internal/lookup/',
+        InternalAccountLookupView.as_view(),
+        name='internal_account_lookup',
+    ),
     path('google/', GoogleOAuthView.as_view(), name='google_oauth'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('change-password/', ChangePasswordView.as_view(), name='change_password'),

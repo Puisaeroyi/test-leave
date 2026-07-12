@@ -5,6 +5,29 @@ import { changePassword as changePasswordApi } from "@api/authApi";
 
 const { Title, Text } = Typography;
 
+const getPasswordErrorMessage = (error) => {
+  const data = error.response?.data;
+  if (!data) return error.message || "Failed to change password";
+
+  if (typeof data === "string") return data;
+  if (Array.isArray(data)) return data.join(" ");
+
+  const messages = [
+    data.error,
+    data.detail,
+    ...(Array.isArray(data.password) ? data.password : []),
+    ...(Array.isArray(data.password_confirm) ? data.password_confirm : []),
+    ...(Array.isArray(data.non_field_errors) ? data.non_field_errors : []),
+  ].filter(Boolean);
+
+  if (messages.length) return messages.join(" ");
+
+  return Object.values(data)
+    .flat()
+    .filter(Boolean)
+    .join(" ") || "Failed to change password";
+};
+
 export default function ChangePassword() {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -22,12 +45,7 @@ export default function ChangePassword() {
       message.success("Password updated successfully");
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      const errorMsg =
-        err.response?.data?.password?.[0] ||
-        err.response?.data?.password_confirm?.[0] ||
-        err.response?.data?.detail ||
-        "Failed to change password";
-      message.error(errorMsg);
+      message.error(getPasswordErrorMessage(err));
     }
   };
 
@@ -55,6 +73,7 @@ export default function ChangePassword() {
           <Form.Item
             name="password"
             label="New Password"
+            extra="Use a strong password that is not common and not entirely numeric."
             rules={[
               { required: true, message: "Please enter new password" },
               { min: 8, message: "Password must be at least 8 characters" },

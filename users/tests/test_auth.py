@@ -39,6 +39,25 @@ class TestAuthentication:
 
         assert response.status_code == 400
 
+    def test_login_rejects_business_inactive_user(self):
+        User.objects.create_user(
+            email='inactive-status@example.com',
+            password='TestPass123!',
+            first_login=False,
+            status=User.Status.INACTIVE,
+        )
+
+        client = APIClient()
+        response = client.post('/api/v1/auth/login/', {
+            'email': 'inactive-status@example.com',
+            'password': 'TestPass123!',
+        }, secure=True)
+
+        assert response.status_code == 400
+        assert response.data == {
+            'non_field_errors': ['Account is inactive.']
+        }
+
     def test_logout_success(self):
         """Test successful logout (token blacklist)"""
         user = User.objects.create_user(email='test@example.com', password='TestPass123!')

@@ -304,6 +304,9 @@ export default function AppHeader({ isMobile, onMenuClick }) {
 
   if (!user) return null;
 
+  const departmentLabel = user.department?.name || "No department";
+  const locationLabel = user.location?.name || "No location";
+
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
@@ -389,7 +392,7 @@ export default function AppHeader({ isMobile, onMenuClick }) {
               Hello, {user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim()}
             </div>
             <div className="header-user__meta">
-              {user.department?.name || user.department} – {user.location?.name || user.location}
+              {departmentLabel} - {locationLabel}
             </div>
           </div>
         )}
