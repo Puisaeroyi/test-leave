@@ -95,7 +95,9 @@ class LeaveRequestListView(generics.ListCreateAPIView):
         total = queryset.count()
         items = queryset[start:end]
 
-        serializer = LeaveRequestSerializer(items, many=True)
+        serializer = LeaveRequestSerializer(
+            items, many=True, context={'request': request, 'actor': user}
+        )
         return Response({
             'count': total,
             'next': f"?page={page+1}&page_size={page_size}" if end < total else None,
@@ -285,5 +287,7 @@ class LeaveRequestListView(generics.ListCreateAPIView):
                 send_leave_pending_email(peer, leave_request)
         send_leave_submitted_email(leave_request)
 
-        serializer = LeaveRequestSerializer(leave_request)
+        serializer = LeaveRequestSerializer(
+            leave_request, context={'request': request, 'actor': user}
+        )
         return Response(serializer.data, status=status.HTTP_201_CREATED)

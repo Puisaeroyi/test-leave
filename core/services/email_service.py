@@ -268,3 +268,68 @@ def send_leave_rejected_email(leave_request):
         "dashboard_url": dashboard_url,
     })
     _send(subject, text_body, html_body, user.email)
+
+
+def send_leave_updated_email(approver, request_snapshot, change_rows):
+    """
+    Email an approver after a material leave update.
+
+    request_snapshot: immutable dict with employee_name, category, start_date,
+    end_date, recipient_email (not ORM).
+    change_rows: list of {field, before, after} display strings.
+    """
+    if not approver and not (request_snapshot or {}).get('recipient_email'):
+        return
+    recipient = (
+        getattr(approver, 'email', None)
+        if approver is not None
+        else None
+    ) or (request_snapshot or {}).get('recipient_email')
+    if not recipient:
+        logger.warning("Leave updated email skipped: empty recipient")
+        return
+
+    snapshot = request_snapshot or {}
+    employee_name = snapshot.get('employee_name', 'Employee')
+    category = snapshot.get('category', 'Leave')
+    start_date = snapshot.get('start_date', '')
+    end_date = snapshot.get('end_date', '')
+    pending_url = f"{settings.FRONTEND_BASE_URL}{PENDING_PATH}"
+    rows = change_rows or []
+
+    subject = f"Leave Request Updated — {employee_name}"
+    lines = [
+        f"{employee_name} updated a leave request awaiting your approval.",
+        f"Type: {category}",
+        f"From: {start_date}",
+        f"To: {end_date}",
+        "",
+        "Changed fields:",
+    ]
+    for row in rows:
+        lines.append(f"- {row.get('field')}: {row.get('before')} → {row.get('after')}")
+    lines.extend(["", f"View pending requests: {pending_url}"])
+    text_body = "\n".join(lines)
+
+    try:
+        html_body = render_to_string("email/leave_updated.html", {
+            "employee_name": employee_name,
+            "category": category,
+            "start_date": start_date,
+            "end_date": end_date,
+            "change_rows": rows,
+            "pending_url": pending_url,
+        })
+    except Exception as e:
+        logger.warning("Leave updated email template failed: %s", e)
+        return
+
+    _send(subject, text_body, html_body, recipient)
+
+
+def send_leave_updated_email_safe(approver, request_snapshot, change_rows):
+    """Callback-safe wrapper: never raise from post-commit email delivery."""
+    try:
+        send_leave_updated_email(approver, request_snapshot, change_rows)
+    except Exception as e:
+        logger.warning("Leave updated email callback failed: %s", e)

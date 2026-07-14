@@ -58,6 +58,8 @@ export const getLeaveHistory = async (sort = "new") => {
   const mapped = data.map((item) => ({
     id: item.id,
     type: item.category?.name || item.leave_category || "Leave",
+    leaveCategoryId: item.leave_category || item.category?.id || null,
+    shiftType: item.shift_type || "FULL_DAY",
     from: item.start_date,
     to: item.end_date,
     hours: item.total_hours,
@@ -75,6 +77,8 @@ export const getLeaveHistory = async (sort = "new") => {
     currentApproverName: item.current_approver_name || null,
     actionRequiredUserIds: item.action_required_user_ids || [],
     attachment: item.attachment_url || null,
+    canEdit: Boolean(item.can_edit),
+    updatedAt: item.updated_at || null,
   }));
 
   // Sort by date
@@ -108,6 +112,37 @@ export const createLeaveRequest = async (formData) => {
   return res.data;
 };
 
+/**
+ * PATCH an existing leave request (owner-only, fully pending).
+ * @param {string} id
+ * @param {object} formData - same shape as createLeaveRequest form values
+ * @param {string} expectedUpdatedAt - ISO timestamp version token
+ */
+export const updateLeaveRequest = async (id, formData, expectedUpdatedAt) => {
+  const payload = {
+    leave_category: formData.leaveCategory,
+    start_date: formData.date[0].format("YYYY-MM-DD"),
+    end_date: formData.date[1].format("YYYY-MM-DD"),
+    shift_type: formData.dayType === "custom" ? "CUSTOM_HOURS" : "FULL_DAY",
+    start_time: formData.startTime ? formData.startTime.format("HH:mm") : null,
+    end_time: formData.endTime ? formData.endTime.format("HH:mm") : null,
+    start_day_offset: formData.startDayOffset ?? 0,
+    end_day_offset: formData.endDayOffset ?? 0,
+    reason: formData.reason,
+    expected_updated_at: expectedUpdatedAt,
+  };
+
+  // Attachment tri-state: undefined = preserve (omit), string = set/replace, "" = remove
+  if (Object.prototype.hasOwnProperty.call(formData, "attachment_url")) {
+    payload.attachment_url = formData.attachment_url ?? "";
+  }
+
+  const res = await http.patch(`${API_URL}/requests/${id}/`, payload);
+  return res.data;
+};
+
+/* ================= PREVIEW HOURS ================= */
+// Ask the backend for the real deductible hours + per-day breakdown.
 export const previewLeaveRequest = async (formData) => {
   const payload = {
     start_date: formData.date[0].format("YYYY-MM-DD"),
@@ -263,6 +298,7 @@ export const getPendingRequests = async () => {
             (step) => String(step.approver_id) === String(currentUserId)
           )
         ),
+        updatedAt: item.updated_at || null,
       };
     })
     .sort((a, b) => {
@@ -279,9 +315,10 @@ export const getPendingReviewCount = async () => {
 };
 
 /* ================= MANAGER: APPROVE REQUEST ================= */
-export const approveLeaveRequest = async (id, comment = "") => {
+export const approveLeaveRequest = async (id, comment = "", expectedUpdatedAt) => {
   const res = await http.post(`${API_URL}/requests/${id}/approve/`, {
     comment,
+    expected_updated_at: expectedUpdatedAt,
   });
   return res.data;
 };
@@ -296,9 +333,10 @@ export const exportApprovedLeaves = async (startDate, endDate) => {
 };
 
 /* ================= MANAGER: REJECT REQUEST ================= */
-export const rejectLeaveRequest = async (id, reason) => {
+export const rejectLeaveRequest = async (id, reason, expectedUpdatedAt) => {
   const res = await http.post(`${API_URL}/requests/${id}/reject/`, {
     reason,
+    expected_updated_at: expectedUpdatedAt,
   });
   return res.data;
 };

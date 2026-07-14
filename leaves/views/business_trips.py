@@ -22,7 +22,7 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
         user = request.user
         queryset = BusinessTrip.objects.filter(
             user=user
-        ).order_by('-created_at')
+        ).select_related('user', 'user__location').order_by('-created_at')
 
         # Pagination with DoS protection
         try:
@@ -37,7 +37,9 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
         total = queryset.count()
         items = queryset[start:end]
 
-        serializer = BusinessTripSerializer(items, many=True)
+        serializer = BusinessTripSerializer(
+            items, many=True, context={'request': request, 'actor': user}
+        )
         return Response({
             'count': total,
             'results': serializer.data
@@ -86,16 +88,34 @@ class BusinessTripListCreateView(generics.ListCreateAPIView):
             attachment_url=attachment_url
         )
 
-        return Response(BusinessTripSerializer(trip).data, status=status.HTTP_201_CREATED)
+        return Response(
+            BusinessTripSerializer(trip, context={'request': request, 'actor': user}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class BusinessTripDetailView(generics.RetrieveAPIView):
-    """Get business trip detail"""
+    """Get or PATCH business trip detail (owner-scoped)."""
     permission_classes = [IsAuthenticated]
     serializer_class = BusinessTripSerializer
 
     def get_queryset(self):
         return BusinessTrip.objects.filter(user=self.request.user)
+
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx['actor'] = self.request.user
+        return ctx
+
+    def patch(self, request, *args, **kwargs):
+        """PATCH /api/v1/leaves/business-trips/{id}/"""
+        from ..business_trip_updates import TripUpdateError, update_business_trip
+        trip_id = kwargs.get('pk')
+        try:
+            data, http_status = update_business_trip(request.user, trip_id, request.data)
+            return Response(data, status=http_status)
+        except TripUpdateError as exc:
+            return Response(exc.payload, status=exc.http_status)
 
 
 class BusinessTripCancelView(generics.GenericAPIView):
@@ -143,5 +163,7 @@ class BusinessTripTeamListView(generics.ListAPIView):
         total = queryset.count()
         items = queryset[start:end]
 
-        serializer = BusinessTripSerializer(items, many=True)
+        serializer = BusinessTripSerializer(
+            items, many=True, context={'request': request, 'actor': request.user}
+        )
         return Response({'count': total, 'results': serializer.data})

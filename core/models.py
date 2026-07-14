@@ -12,6 +12,7 @@ class NotificationType(models.TextChoices):
     LEAVE_PENDING = 'LEAVE_PENDING', 'Leave Pending'
     LEAVE_REJECTED = 'LEAVE_REJECTED', 'Leave Rejected'
     LEAVE_CANCELLED = 'LEAVE_CANCELLED', 'Leave Cancelled'
+    LEAVE_UPDATED = 'LEAVE_UPDATED', 'Leave Updated'
     BALANCE_LOW = 'BALANCE_LOW', 'Balance Low'
     LEAVE_HOURS_RECALCULATED = 'LEAVE_HOURS_RECALCULATED', 'Leave Hours Recalculated'
     HOLIDAY_CALENDAR_UPDATED = 'HOLIDAY_CALENDAR_UPDATED', 'Holiday Calendar Updated'
@@ -87,6 +88,7 @@ class AuditAction(models.TextChoices):
 class AuditEntityType(models.TextChoices):
     """Audit log entity type choices"""
     LEAVE_REQUEST = 'LeaveRequest', 'Leave Request'
+    BUSINESS_TRIP = 'BusinessTrip', 'Business Trip'
     USER = 'User', 'User'
     LEAVE_BALANCE = 'LeaveBalance', 'Leave Balance'
     ENTITY = 'Entity', 'Entity'

@@ -72,7 +72,10 @@ export default function NewLeaveRequestModal({
   onSubmit,
   balances = [],
   initialDate = null, // Pre-selected date from calendar click
+  mode = "create", // "create" | "edit"
+  initialRecord = null, // edit prefill from leave history row
 }) {
+  const isEdit = mode === "edit" && !!initialRecord;
   const [step, setStep] = useState(0);
   const [form] = Form.useForm();
   const [confirmData, setConfirmData] = useState(null);
@@ -81,13 +84,39 @@ export default function NewLeaveRequestModal({
   const [success, setSuccess] = useState(false);
   const [fileList, setFileList] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [removeAttachment, setRemoveAttachment] = useState(false);
+  const [existingAttachment, setExistingAttachment] = useState(null);
 
-  // Pre-fill date from calendar click
+  // Pre-fill date from calendar click (create only)
   useEffect(() => {
-    if (open && initialDate) {
+    if (open && initialDate && !isEdit) {
       form.setFieldsValue({ date: [initialDate, initialDate] });
     }
-  }, [open, initialDate, form]);
+  }, [open, initialDate, form, isEdit]);
+
+  // Prefill edit form from history record
+  useEffect(() => {
+    if (!open || !isEdit || !initialRecord) return;
+    const isCustom = initialRecord.shiftType === "CUSTOM_HOURS";
+    const parseTime = (t) => {
+      if (!t) return undefined;
+      const text = String(t).slice(0, 5);
+      return dayjs(text, "HH:mm");
+    };
+    form.setFieldsValue({
+      leaveCategory: initialRecord.leaveCategoryId,
+      date: [dayjs(initialRecord.from), dayjs(initialRecord.to)],
+      dayType: isCustom ? "custom" : "full",
+      startTime: parseTime(initialRecord.startTime),
+      endTime: parseTime(initialRecord.endTime),
+      reason: initialRecord.reason || "",
+    });
+    setExistingAttachment(initialRecord.attachment || null);
+    setRemoveAttachment(false);
+    setFileList([]);
+    setStep(0);
+    setSuccess(false);
+  }, [open, isEdit, initialRecord, form]);
 
   const values = Form.useWatch([], form);
   const leaveCategory = Form.useWatch("leaveCategory", form);
@@ -224,15 +253,28 @@ export default function NewLeaveRequestModal({
     setLoading(true);
 
     try {
-      // Upload file if present
-      let attachmentUrl = null;
-      if (fileList.length > 0) {
-        const uploadResult = await uploadFile(fileList[0].originFileObj);
-        attachmentUrl = uploadResult.url;
+      const payload = { ...confirmData };
+
+      if (isEdit) {
+        if (fileList.length > 0) {
+          const uploadResult = await uploadFile(fileList[0].originFileObj);
+          payload.attachment_url = uploadResult.url;
+        } else if (removeAttachment) {
+          payload.attachment_url = "";
+        }
+        // else omit attachment_url → preserve server attachment
+        payload.expectedUpdatedAt = initialRecord.updatedAt;
+        payload.id = initialRecord.id;
+      } else {
+        let attachmentUrl = null;
+        if (fileList.length > 0) {
+          const uploadResult = await uploadFile(fileList[0].originFileObj);
+          attachmentUrl = uploadResult.url;
+        }
+        payload.attachment_url = attachmentUrl;
       }
 
-      // Create leave request with attachment URL
-      await onSubmit({ ...confirmData, attachment_url: attachmentUrl });
+      await onSubmit(payload);
 
       setLoading(false);
       setSuccess(true);
@@ -242,12 +284,23 @@ export default function NewLeaveRequestModal({
         setStep(0);
         setConfirmData(null);
         setFileList([]);
+        setRemoveAttachment(false);
+        setExistingAttachment(null);
         form.resetFields();
         onCancel();
-      }, 3000);
+      }, isEdit ? 1500 : 3000);
     } catch (error) {
       setLoading(false);
-      let errorMsg = "Failed to submit leave request";
+      if (error.response?.status === 409) {
+        message.warning(
+          error.response?.data?.error
+          || "This request was updated elsewhere. Please close and try again.",
+        );
+        return;
+      }
+      let errorMsg = isEdit
+        ? "Failed to update leave request"
+        : "Failed to submit leave request";
       if (error.response?.data?.error) {
         errorMsg = error.response.data.error;
       } else if (error.response?.data?.detail) {
@@ -269,7 +322,7 @@ export default function NewLeaveRequestModal({
     >
       {!success && (
         <>
-          <Title level={4}>New Leave Request</Title>
+          <Title level={4}>{isEdit ? "Edit Leave Request" : "New Leave Request"}</Title>
           <Steps
             current={step}
             items={[{ title: "Fill" }, { title: "Confirm" }]}
@@ -286,10 +339,25 @@ export default function NewLeaveRequestModal({
                 <Select
                   size="large"
                   placeholder="Select leave category"
-                  options={categories.map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  }))}
+                  options={(() => {
+                    const opts = categories.map((category) => ({
+                      value: category.id,
+                      label: category.name,
+                    }));
+                    // Preserve inactive current category as disabled current-only option
+                    if (
+                      isEdit
+                      && initialRecord?.leaveCategoryId
+                      && !opts.some((o) => o.value === initialRecord.leaveCategoryId)
+                    ) {
+                      opts.unshift({
+                        value: initialRecord.leaveCategoryId,
+                        label: `${initialRecord.type} (current)`,
+                        disabled: false,
+                      });
+                    }
+                    return opts;
+                  })()}
                 />
               </Form.Item>
 
@@ -365,16 +433,44 @@ export default function NewLeaveRequestModal({
               </Form.Item>
 
               <Form.Item label="Attachment">
+                {isEdit && existingAttachment && !removeAttachment && fileList.length === 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="secondary">Current attachment kept unless you replace or remove it. </Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      danger
+                      onClick={() => setRemoveAttachment(true)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
+                {isEdit && removeAttachment && fileList.length === 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <Text type="warning">Attachment will be removed. </Text>
+                    <Button
+                      type="link"
+                      size="small"
+                      onClick={() => setRemoveAttachment(false)}
+                    >
+                      Undo
+                    </Button>
+                  </div>
+                )}
                 <Upload
                   beforeUpload={() => false}
                   fileList={fileList}
-                  onChange={({ fileList }) => setFileList(fileList)}
+                  onChange={({ fileList: next }) => {
+                    setFileList(next);
+                    if (next.length > 0) setRemoveAttachment(false);
+                  }}
                   accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
                   maxCount={1}
                   disabled={!dateChosen}
                 >
                   <Button icon={<UploadOutlined />} disabled={!dateChosen}>
-                    Upload
+                    {isEdit ? "Replace file" : "Upload"}
                   </Button>
                 </Upload>
                 <Text type="secondary" style={{ fontSize: 12 }}>

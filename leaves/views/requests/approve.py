@@ -4,12 +4,12 @@ import logging
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from ...models import LeaveRequest
 from ...serializers import LeaveRequestApproveSerializer
 from ...services import LeaveApprovalService
+from ...leave_request_updates import LeaveUpdateError, check_action_version
 from core.services.notification_service import (
     create_leave_approved_notification,
 )
@@ -27,26 +27,41 @@ class LeaveRequestApproveView(generics.GenericAPIView):
         """POST /api/v1/leaves/requests/{id}/approve/"""
         request_id = kwargs.get('pk')
 
-        # Validate request body first (comment is optional)
+        if 'expected_updated_at' not in request.data:
+            return Response(
+                {'error': 'expected_updated_at is required', 'code': 'version_required'},
+                status=status.HTTP_428_PRECONDITION_REQUIRED,
+            )
+
         serializer = LeaveRequestApproveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
             with transaction.atomic():
-                # Lock the leave request row to prevent double-approve race
                 try:
                     leave_request = LeaveRequest.objects.select_for_update().get(id=request_id)
                 except LeaveRequest.DoesNotExist:
-                    return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
+                    return Response(
+                        {'error': 'Leave request not found'},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
 
-                # Check if user can approve this request
+                # Authz before version so 409 never leaks leave detail to non-approvers
                 if not LeaveApprovalService.can_manager_approve_request(request.user, leave_request):
                     return Response(
                         {'error': 'You do not have permission to approve this request'},
                         status=status.HTTP_403_FORBIDDEN
                     )
 
-                # Approve the request with comment
+                try:
+                    check_action_version(
+                        leave_request,
+                        serializer.validated_data.get('expected_updated_at'),
+                        request.user,
+                    )
+                except LeaveUpdateError as exc:
+                    return Response(exc.payload, status=exc.http_status)
+
                 comment = serializer.validated_data.get('comment', '')
                 approved_request = LeaveApprovalService.approve_leave_request(
                     leave_request,
@@ -54,7 +69,6 @@ class LeaveRequestApproveView(generics.GenericAPIView):
                     comment=comment
                 )
 
-            # Create notifications outside transaction for performance.
             if approved_request.status == LeaveRequest.Status.APPROVED:
                 create_leave_approved_notification(approved_request)
                 send_leave_approved_email(approved_request)

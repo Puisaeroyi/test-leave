@@ -35,5 +35,7 @@ class LeaveRequestMyView(generics.ListAPIView):
 
         queryset = queryset.select_related(*LEAVE_REQUEST_RELATED_FIELDS).order_by('-created_at')
 
-        serializer = LeaveRequestSerializer(queryset, many=True)
+        serializer = LeaveRequestSerializer(
+            queryset, many=True, context={'request': request, 'actor': user}
+        )
         return Response(serializer.data)

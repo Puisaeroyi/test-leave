@@ -11,6 +11,7 @@ LEAVE_PENDING = "LEAVE_PENDING"
 LEAVE_APPROVED = "LEAVE_APPROVED"
 LEAVE_REJECTED = "LEAVE_REJECTED"
 LEAVE_CANCELLED = "LEAVE_CANCELLED"
+LEAVE_UPDATED = "LEAVE_UPDATED"
 BALANCE_ADJUSTED = "BALANCE_ADJUSTED"
 
 
@@ -140,4 +141,49 @@ def create_balance_adjusted_notification(user, adjustment_amount, year):
         title="Leave Balance Adjusted",
         message=message,
         link=f"/balance?year={year}",
+    )
+
+
+FRIENDLY_LEAVE_FIELD_LABELS = {
+    'leave_category': 'Leave type',
+    'start_date': 'Start date',
+    'end_date': 'End date',
+    'shift_type': 'Shift type',
+    'start_time': 'Start time',
+    'end_time': 'End time',
+    'start_day_offset': 'Start day offset',
+    'end_day_offset': 'End day offset',
+    'total_hours': 'Total hours',
+    'reason': 'Reason',
+    'attachment_url': 'Attachment',
+}
+
+
+def create_leave_updated_notification(approver, leave_request, changed_fields):
+    """Notify a snapshotted approver that a pending leave request was updated."""
+    if not approver or not leave_request:
+        return None
+    user_name = leave_request.user.get_full_name() or leave_request.user.email
+    category_name = (
+        leave_request.leave_category.category_name
+        if leave_request.leave_category
+        else "Leave"
+    )
+    field_labels = [
+        FRIENDLY_LEAVE_FIELD_LABELS.get(f, f.replace('_', ' ').title())
+        for f in changed_fields
+        if f != 'total_hours'
+    ]
+    changed_text = ', '.join(field_labels) if field_labels else 'details'
+    message = (
+        f"{user_name} updated their {category_name} request "
+        f"({leave_request.start_date} to {leave_request.end_date}): {changed_text}"
+    )
+    return create_notification(
+        user=approver,
+        notification_type=LEAVE_UPDATED,
+        title="Leave Request Updated",
+        message=message,
+        link="/manager",
+        related_object_id=leave_request.id,
     )

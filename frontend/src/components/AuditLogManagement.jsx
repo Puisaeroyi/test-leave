@@ -23,6 +23,7 @@ const actions = Object.keys(actionColors);
 const entityTypes = [
   "APIRequest",
   "LeaveRequest",
+  "BusinessTrip",
   "User",
   "LeaveBalance",
   "Entity",

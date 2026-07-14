@@ -314,7 +314,7 @@ export default function AppHeader({ isMobile, onMenuClick }) {
       await markAsRead(notification.id);
     }
 
-    if (notification.type === "LEAVE_PENDING") {
+    if (notification.type === "LEAVE_PENDING" || notification.type === "LEAVE_UPDATED") {
       navigate("/manager");
     } else if (
       (notification.type === "LEAVE_APPROVED" || notification.type === "LEAVE_REJECTED") &&

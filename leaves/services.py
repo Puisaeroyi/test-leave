@@ -545,7 +545,7 @@ class LeaveApprovalService:
         """
         from .serializers import LeaveRequestSerializer
 
-        # Get serialized data
+        # Get serialized data (caller may pass actor via request context later)
         serializer = LeaveRequestSerializer(leave_request)
         data = serializer.data
 

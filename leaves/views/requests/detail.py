@@ -1,4 +1,4 @@
-"""Leave request detail view."""
+"""Leave request detail view with owner PATCH."""
 
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
@@ -6,10 +6,12 @@ from rest_framework.response import Response
 
 from ...models import LeaveRequest
 from ...services import LeaveApprovalService
+from ...leave_request_updates import LeaveUpdateError, update_leave_request
+from ...serializers import LeaveRequestSerializer
 
 
 class LeaveRequestDetailView(generics.RetrieveAPIView):
-    """Leave request detail view (read-only)."""
+    """Leave request detail (GET) and owner edit (PATCH)."""
 
     permission_classes = [IsAuthenticated]
 
@@ -23,7 +25,6 @@ class LeaveRequestDetailView(generics.RetrieveAPIView):
         except LeaveRequest.DoesNotExist:
             return Response({'error': 'Leave request not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        # Permission check: owner, assigned approver, or HR/ADMIN
         user = request.user
         is_owner = leave_request.user == user
         is_approver = user in {
@@ -45,4 +46,21 @@ class LeaveRequestDetailView(generics.RetrieveAPIView):
             )
 
         data = LeaveApprovalService.get_request_detail_with_conflicts(leave_request)
+        # Overlay can_edit for the actor
+        ser = LeaveRequestSerializer(
+            leave_request, context={'request': request, 'actor': user}
+        )
+        data['can_edit'] = ser.data.get('can_edit', False)
+        data['updated_at'] = ser.data.get('updated_at')
         return Response(data)
+
+    def patch(self, request, *args, **kwargs):
+        """PATCH /api/v1/leaves/requests/{id}/ — owner-only edit while fully pending."""
+        request_id = kwargs.get('pk')
+        try:
+            data, http_status = update_leave_request(
+                request.user, request_id, request.data
+            )
+            return Response(data, status=http_status)
+        except LeaveUpdateError as exc:
+            return Response(exc.payload, status=exc.http_status)

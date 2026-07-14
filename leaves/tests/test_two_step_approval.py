@@ -87,18 +87,26 @@ class PeerApprovalTests(TestCase):
     def post_approve(self, actor, leave_request, comment='Approved'):
         client = APIClient()
         client.force_authenticate(user=actor)
+        leave_request.refresh_from_db()
         return client.post(
             f'/api/v1/leaves/requests/{leave_request.id}/approve/',
-            {'comment': comment},
+            {
+                'comment': comment,
+                'expected_updated_at': leave_request.updated_at.isoformat(),
+            },
             format='json',
         )
 
     def post_reject(self, actor, leave_request, reason='Insufficient staffing coverage'):
         client = APIClient()
         client.force_authenticate(user=actor)
+        leave_request.refresh_from_db()
         return client.post(
             f'/api/v1/leaves/requests/{leave_request.id}/reject/',
-            {'reason': reason},
+            {
+                'reason': reason,
+                'expected_updated_at': leave_request.updated_at.isoformat(),
+            },
             format='json',
         )
 

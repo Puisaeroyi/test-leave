@@ -177,7 +177,11 @@ export default function ManagerTickets() {
   const handleApprove = async () => {
     try {
       setActionLoading(true);
-      const result = await approveLeaveRequest(selectedTicket.id, approveReason);
+      const result = await approveLeaveRequest(
+        selectedTicket.id,
+        approveReason,
+        selectedTicket.updatedAt,
+      );
       message.success(
         result.status === "PENDING"
           ? "First approval recorded. Waiting for final approval."
@@ -193,6 +197,16 @@ export default function ManagerTickets() {
       setApproveReason("");
     } catch (error) {
       console.error("Failed to approve:", error);
+      if (error.response?.status === 409) {
+        message.warning(
+          error.response?.data?.error
+          || "This request was updated. Refreshing the list…",
+        );
+        await fetchPendingRequests();
+        setConfirmType(null);
+        setSelectedTicket(null);
+        return;
+      }
       let errorMsg = "Failed to approve request";
       if (error.response?.data?.error) {
         errorMsg = error.response.data.error;
@@ -220,7 +234,11 @@ export default function ManagerTickets() {
 
     try {
       setActionLoading(true);
-      await rejectLeaveRequest(selectedTicket.id, denyReason);
+      await rejectLeaveRequest(
+        selectedTicket.id,
+        denyReason,
+        selectedTicket.updatedAt,
+      );
       message.success("Ticket denied");
 
       // Refresh the list
@@ -232,6 +250,16 @@ export default function ManagerTickets() {
       setDenyReason("");
     } catch (error) {
       console.error("Failed to deny:", error);
+      if (error.response?.status === 409) {
+        message.warning(
+          error.response?.data?.error
+          || "This request was updated. Refreshing the list…",
+        );
+        await fetchPendingRequests();
+        setConfirmType(null);
+        setSelectedTicket(null);
+        return;
+      }
       let errorMsg = "Failed to deny request";
       if (error.response?.data?.error) {
         errorMsg = error.response.data.error;

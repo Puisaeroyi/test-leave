@@ -767,7 +767,8 @@ class TestLeaveApprovals:
         client.force_authenticate(user=manager)
 
         response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/', {
-            'comment': 'Approved'
+            'comment': 'Approved',
+            'expected_updated_at': leave_request.updated_at.isoformat(),
         })
 
         assert response.status_code == 200
@@ -803,7 +804,9 @@ class TestLeaveApprovals:
         client = APIClient()
         client.force_authenticate(user=manager)
 
-        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/')
+        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/', {
+            'expected_updated_at': leave_request.updated_at.isoformat(),
+        }, format='json')
 
         assert response.status_code == 400
         assert 'Insufficient balance' in response.data['error']
@@ -838,7 +841,9 @@ class TestLeaveApprovals:
         client = APIClient()
         client.force_authenticate(user=hr)
 
-        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/')
+        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/', {
+            'expected_updated_at': leave_request.updated_at.isoformat(),
+        }, format='json')
 
         assert response.status_code == 200
         leave_request.refresh_from_db()
@@ -870,7 +875,9 @@ class TestLeaveApprovals:
         client = APIClient()
         client.force_authenticate(user=other_user)
 
-        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/')
+        response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/approve/', {
+            'expected_updated_at': leave_request.updated_at.isoformat(),
+        }, format='json')
 
         # Should return forbidden (403) due to permission class
         assert response.status_code == 403
@@ -904,8 +911,9 @@ class TestLeaveApprovals:
         client.force_authenticate(user=manager)
 
         response = client.post(f'/api/v1/leaves/requests/{leave_request.id}/reject/', {
-            'reason': 'Insufficient staff coverage'
-        })
+            'reason': 'Insufficient staff coverage',
+            'expected_updated_at': leave_request.updated_at.isoformat(),
+        }, format='json')
 
         assert response.status_code == 200
         leave_request.refresh_from_db()
@@ -918,35 +926,41 @@ class TestLeaveBalance:
     """Test leave balance endpoints"""
 
     def test_get_my_balance(self, setup_user_with_balance):
-        """Test getting current user's leave balance"""
+        """Test getting current user's leave balance via balances/me/"""
         user = setup_user_with_balance['user']
+        balance = setup_user_with_balance['balance']
 
         client = APIClient()
         client.force_authenticate(user=user)
 
-        response = client.get('/api/v1/leaves/balance/my/')
+        response = client.get('/api/v1/leaves/balances/me/')
 
         assert response.status_code == 200
-        assert response.data['allocated_hours'] == 96.0
+        assert 'balances' in response.data
+        vacation = next(b for b in response.data['balances'] if b['type'] == 'VACATION')
+        assert vacation['allocated_hours'] == float(balance.allocated_hours)
 
     def test_hr_adjust_balance(self, setup_user_with_balance):
-        """Test HR adjusting user balance"""
+        """Test HR adjusting user balance via PUT auth balance/adjust"""
         user = setup_user_with_balance['user']
 
-        # Create HR user
+        # Create HR user in same entity as employee when possible
         hr = User.objects.create_user(
             email='hr@example.com',
             password='Hr123!',
-            role=User.Role.HR
+            role=User.Role.HR,
+            entity=user.entity,
         )
 
         client = APIClient()
         client.force_authenticate(user=hr)
 
-        response = client.post(f'/api/v1/auth/{user.id}/balance/adjust/', {
+        response = client.put(f'/api/v1/auth/{user.id}/balance/adjust/', {
+            'year': 2026,
+            'balance_type': 'VACATION',
             'allocated_hours': 120,
-            'reason': 'Additional leave granted'
-        })
+            'reason': 'Additional leave granted',
+        }, format='json')
 
         assert response.status_code == 200
         assert response.data['allocated_hours'] == 120.0
@@ -958,9 +972,11 @@ class TestLeaveBalance:
         client = APIClient()
         client.force_authenticate(user=user)
 
-        response = client.post(f'/api/v1/auth/{user.id}/balance/adjust/', {
+        response = client.put(f'/api/v1/auth/{user.id}/balance/adjust/', {
+            'year': 2026,
+            'balance_type': 'VACATION',
             'allocated_hours': 200,
-            'reason': 'I want more leave'
-        })
+            'reason': 'I want more leave',
+        }, format='json')
 
         assert response.status_code == 403

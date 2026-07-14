@@ -403,7 +403,8 @@ def custom_hour_datetimes(work_date, start_time, end_time, start_day_offset=0, e
 
 
 def check_overlapping_custom_hours(
-    user, work_date, start_time, end_time, start_day_offset=0, end_day_offset=0
+    user, work_date, start_time, end_time, start_day_offset=0, end_day_offset=0,
+    exclude_request_id=None,
 ):
     """Find active custom-hour requests overlapping the actual calendar time range."""
     start_dt, end_dt = custom_hour_datetimes(
@@ -415,6 +416,8 @@ def check_overlapping_custom_hours(
         status__in=[LeaveRequest.Status.PENDING, LeaveRequest.Status.APPROVED],
         start_date__range=(work_date - timedelta(days=2), work_date + timedelta(days=2)),
     )
+    if exclude_request_id:
+        candidates = candidates.exclude(id=exclude_request_id)
     for leave in candidates:
         existing_start, existing_end = custom_hour_datetimes(
             leave.start_date,

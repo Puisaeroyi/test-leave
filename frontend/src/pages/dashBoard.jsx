@@ -21,7 +21,13 @@ import isSameOrAfter from "dayjs/plugin/isSameOrAfter";
 import isSameOrBefore from "dayjs/plugin/isSameOrBefore";
 import NewLeaveRequestModal from "@components/NewLeaveRequestModal";
 import { BalanceMeter, EventCard, MetricCard, StatusPill } from "@components/dashboard/dashboard-widgets";
-import { getLeaveHistory, getLeaveBalance, getUpcomingEvents, createLeaveRequest } from "../api/dashboardApi";
+import {
+  getLeaveHistory,
+  getLeaveBalance,
+  getUpcomingEvents,
+  createLeaveRequest,
+  updateLeaveRequest,
+} from "../api/dashboardApi";
 import { getMediaUrl } from "../api/http";
 import ApprovalProgress from "../components/ApprovalProgress";
 import ResponsiveRecordCard, { ResponsiveRecordRow } from "../components/ResponsiveRecordCard";
@@ -65,6 +71,7 @@ export default function Dashboard() {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [sort, setSort] = useState("new");
   const [openModal, setOpenModal] = useState(false);
+  const [editRecord, setEditRecord] = useState(null);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [openDetail, setOpenDetail] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -218,38 +225,51 @@ export default function Dashboard() {
     fetchAndOpen();
   }, [location.pathname, location.state, navigate, sort]);
 
+  const refreshHistory = async () => {
+    const [historyData, balanceData] = await Promise.all([
+      getLeaveHistory(sort),
+      getLeaveBalance(),
+    ]);
+    setHistory(historyData);
+    setBalance(balanceData);
+    eventCacheRef.current = {};
+    return historyData;
+  };
+
   const handleCreateRequest = async (data) => {
-    try {
-      await createLeaveRequest(data);
-      message.success("Request submitted");
-
-      // Refresh data and clear event cache
-      const [historyData, balanceData] = await Promise.all([
-        getLeaveHistory(sort),
-        getLeaveBalance(),
-      ]);
-      setHistory(historyData);
-      setBalance(balanceData);
-      eventCacheRef.current = {}; // Clear cache to refetch events
-    } catch (error) {
-      // Extract detailed error message
-      let errorMsg = "Failed to submit request";
-      if (error.response?.data) {
-        if (typeof error.response.data === 'string') {
-          errorMsg = error.response.data;
-        } else if (error.response.data.error) {
-          errorMsg = error.response.data.error;
-        } else if (error.response.data.detail) {
-          errorMsg = error.response.data.detail;
-        } else if (error.response.data.message) {
-          errorMsg = error.response.data.message;
-        }
-      } else if (error.message) {
-        errorMsg = error.message;
+    if (editRecord) {
+      const updated = await updateLeaveRequest(
+        editRecord.id,
+        data,
+        data.expectedUpdatedAt || editRecord.updatedAt,
+      );
+      message.success("Request updated");
+      const historyData = await refreshHistory();
+      const refreshed = historyData.find((h) => h.id === editRecord.id);
+      if (refreshed) setSelectedRequest(refreshed);
+      else if (updated) {
+        setSelectedRequest((prev) => (prev ? {
+          ...prev,
+          reason: data.reason,
+          from: data.date[0].format("YYYY-MM-DD"),
+          to: data.date[1].format("YYYY-MM-DD"),
+          canEdit: updated.can_edit,
+          updatedAt: updated.updated_at,
+        } : prev));
       }
-
-      message.error(errorMsg);
+      setEditRecord(null);
+      return;
     }
+
+    await createLeaveRequest(data);
+    message.success("Request submitted");
+    await refreshHistory();
+  };
+
+  const openEdit = (record) => {
+    setOpenDetail(false);
+    setEditRecord(record);
+    setOpenModal(true);
   };
 
   const handlePrevWeek = () => {
@@ -463,15 +483,28 @@ export default function Dashboard() {
 
       <NewLeaveRequestModal
         open={openModal}
-        onCancel={() => setOpenModal(false)}
+        onCancel={() => {
+          setOpenModal(false);
+          setEditRecord(null);
+        }}
         onSubmit={handleCreateRequest}
         balances={balance}
+        mode={editRecord ? "edit" : "create"}
+        initialRecord={editRecord}
       />
 
       <Modal
         open={openDetail}
         onCancel={() => setOpenDetail(false)}
-        footer={null}
+        footer={
+          selectedRequest?.canEdit
+            ? [
+                <Button key="edit" type="primary" onClick={() => openEdit(selectedRequest)}>
+                  Edit request
+                </Button>,
+              ]
+            : null
+        }
         title="Leave Request Detail"
         width={820}
       >

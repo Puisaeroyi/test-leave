@@ -32,6 +32,11 @@ def _today_for_user_location(user: User) -> date:
         return dj_timezone.localdate()
 
 
+def get_user_local_date(user: User) -> date:
+    """Public wrapper for owner-local calendar date (trip cutoff / can_edit)."""
+    return _today_for_user_location(user)
+
+
 def _build_work_shift_today(user: User) -> Dict[str, Any] | None:
     """Resolve and serialize the assigned shift for today."""
     if not getattr(user, 'work_shift', None):

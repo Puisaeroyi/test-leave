@@ -72,17 +72,18 @@ npm run dev  # http://localhost:5173
 - Profile management with approver relationships
 
 ### Leave Management
-- Submit requests with category, dates, partial days (0.5-1.5h)
-- Automatic working day calculation (Mon-Fri, 8h/day)
+- Submit requests with category, dates, partial days / custom hours
+- Automatic working day calculation with work-shift support
 - Holiday exclusion from calculations
-- Four leave types: EXEMPT_VACATION, NON_EXEMPT_VACATION, EXEMPT_SICK, NON_EXEMPT_SICK
-- Dynamic EXEMPT_VACATION by years of service (Y1: 8h/mo, Y2-5: 80h, Y6-10: 120h, Y11-15: 160h, Y16+: 200h)
+- Balance buckets: VACATION, SICK, NONE with YoS-based vacation allocation
+- Owner post-submission editing while both peer decisions remain pending
 
 ### Approval Workflow
-- Manager approval/rejection with atomic balance updates
+- Unordered peer approval with atomic balance updates on final approval
 - Approver-based permissions (not role-based)
 - 24-hour rejection rule for approved leaves
-- Automatic notifications and audit trail
+- Version tokens protect approve/reject against stale screens
+- Automatic notifications, selective update alerts, and audit trail
 
 ### Team Collaboration
 - Team calendar with color-coded leaves
@@ -112,12 +113,17 @@ Auth:
 Leaves:
   GET    /api/v1/leaves/requests/         List requests
   POST   /api/v1/leaves/requests/         Create request
-  PUT    /api/v1/leaves/requests/{id}/approve/    Approve
-  PUT    /api/v1/leaves/requests/{id}/reject/     Reject
-  PUT    /api/v1/leaves/requests/{id}/cancel/     Cancel
-  GET    /api/v1/leaves/balance/my/       My balance
+  GET    /api/v1/leaves/requests/{id}/    Request detail
+  PATCH  /api/v1/leaves/requests/{id}/    Owner edit (pending only; requires expected_updated_at)
+  POST   /api/v1/leaves/requests/{id}/approve/    Approve (requires expected_updated_at)
+  POST   /api/v1/leaves/requests/{id}/reject/     Reject (requires expected_updated_at)
+  POST   /api/v1/leaves/requests/{id}/cancel/     Cancel
+  GET    /api/v1/leaves/balances/me/      My balances
   GET    /api/v1/leaves/calendar/         Team calendar
-  POST   /api/v1/leaves/export/           Export to CSV
+  GET    /api/v1/leaves/export/approved/  Export approved leaves CSV
+  GET    /api/v1/leaves/business-trips/   List my trips
+  POST   /api/v1/leaves/business-trips/   Create trip
+  PATCH  /api/v1/leaves/business-trips/{id}/  Owner edit (before start; requires expected_updated_at)
 
 Organizations:
   GET    /api/v1/organizations/entities/              List entities

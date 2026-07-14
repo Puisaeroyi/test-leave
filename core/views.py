@@ -152,6 +152,7 @@ AUDIT_ACTION_LABELS = {
 AUDIT_ENTITY_LABELS = {
     'APIRequest': 'request',
     'LeaveRequest': 'leave request',
+    'BusinessTrip': 'business trip',
     'User': 'user',
     'LeaveBalance': 'leave balance',
     'Entity': 'entity',
@@ -173,6 +174,21 @@ AUDIT_FIELD_LABELS = {
     'method': 'HTTP method',
     'path': 'Endpoint',
     'status_code': 'HTTP status',
+    'leave_category': 'Leave type',
+    'start_date': 'Start date',
+    'end_date': 'End date',
+    'shift_type': 'Shift type',
+    'start_time': 'Start time',
+    'end_time': 'End time',
+    'start_day_offset': 'Start day offset',
+    'end_day_offset': 'End day offset',
+    'total_hours': 'Total hours',
+    'reason': 'Reason',
+    'attachment_url': 'Attachment',
+    'city': 'City',
+    'country': 'Country',
+    'note': 'Note',
+    'balance_type_snapshot': 'Balance type',
 }
 
 
@@ -235,6 +251,15 @@ def _audit_target_label(log):
         if leave:
             return f'{leave.user.email} leave, {leave.start_date} to {leave.end_date}'
 
+    if log.entity_type == 'BusinessTrip':
+        from leaves.models import BusinessTrip
+        trip = BusinessTrip.objects.select_related('user').filter(id=log.entity_id).first()
+        if trip:
+            return (
+                f'{trip.user.email} trip to {trip.city}, {trip.country} '
+                f'({trip.start_date} to {trip.end_date})'
+            )
+
     model_lookups = {
         'User': ('users', 'User'),
         'LeaveBalance': ('leaves', 'LeaveBalance'),
@@ -243,6 +268,7 @@ def _audit_target_label(log):
         'Department': ('organizations', 'Department'),
         'HolidayCalendar': ('leaves', 'HolidayCalendar'),
         'PublicHoliday': ('leaves', 'PublicHoliday'),
+        'BusinessTrip': ('leaves', 'BusinessTrip'),
     }
     if log.entity_type in model_lookups:
         from django.apps import apps
@@ -258,6 +284,8 @@ def _serialize_audit_log(log):
     entity_label = AUDIT_ENTITY_LABELS.get(log.entity_type, log.entity_type)
     if log.entity_type == 'LeaveRequest':
         summary = f'{action_label} leave request for {target_label.split(" leave,")[0]}'
+    elif log.entity_type == 'BusinessTrip':
+        summary = f'{action_label} business trip: {target_label}'
     elif log.entity_type == 'APIRequest':
         summary = f'{action_label} {target_label.lower()}'
     else:

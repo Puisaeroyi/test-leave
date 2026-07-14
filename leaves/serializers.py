@@ -56,6 +56,7 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     current_approver_id = serializers.SerializerMethodField()
     current_approver_name = serializers.SerializerMethodField()
     action_required_user_ids = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
 
     class Meta:
         model = LeaveRequest
@@ -69,9 +70,20 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'approved_at', 'rejection_reason', 'approver_comment',
             'current_approval_step', 'current_approver_id', 'current_approver_name',
             'action_required_user_ids', 'approval_timeline',
-            'created_at', 'updated_at'
+            'can_edit', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'total_hours', 'leave_breakdown', 'approved_by', 'approved_at', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'total_hours', 'leave_breakdown', 'approved_by', 'approved_at',
+            'can_edit', 'created_at', 'updated_at',
+        ]
+
+    def get_can_edit(self, obj):
+        from .request_editing import can_edit_leave_request
+        actor = self.context.get('actor')
+        if actor is None:
+            request = self.context.get('request')
+            actor = getattr(request, 'user', None) if request else None
+        return can_edit_leave_request(actor, obj)
 
     def get_total_hours(self, obj):
         """Return total hours as float"""
@@ -257,16 +269,27 @@ class LeaveRequestCreateSerializer(serializers.ModelSerializer):
         return None
 
 
-class LeaveRequestUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating LeaveRequest"""
+class LeaveRequestUpdateSerializer(serializers.Serializer):
+    """Strict partial serializer for leave request PATCH (user-editable fields only)."""
+    leave_category = serializers.UUIDField(required=False, allow_null=True)
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    shift_type = serializers.ChoiceField(
+        choices=LeaveRequest.ShiftType.choices, required=False
+    )
+    start_time = serializers.TimeField(required=False, allow_null=True)
+    end_time = serializers.TimeField(required=False, allow_null=True)
+    start_day_offset = serializers.IntegerField(required=False, min_value=0, max_value=1)
+    end_day_offset = serializers.IntegerField(required=False, min_value=0, max_value=2)
+    reason = serializers.CharField(required=False, allow_blank=True)
+    attachment_url = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=500
+    )
+    expected_updated_at = serializers.DateTimeField(required=True)
 
-    class Meta:
-        model = LeaveRequest
-        fields = [
-            'leave_category', 'start_date', 'end_date', 'shift_type',
-            'start_time', 'end_time', 'reason', 'attachment_url'
-            , 'start_day_offset', 'end_day_offset'
-        ]
+    def validate(self, attrs):
+        # At least the version token is always present; empty body still valid for no-op
+        return attrs
 
 
 class PublicHolidaySerializer(serializers.ModelSerializer):
@@ -295,6 +318,7 @@ class PublicHolidaySerializer(serializers.ModelSerializer):
 class LeaveRequestApproveSerializer(serializers.Serializer):
     """Serializer for approve action"""
     comment = serializers.CharField(required=False, allow_blank=True, max_length=1000)
+    expected_updated_at = serializers.DateTimeField(required=True)
 
 
 class LeaveRequestRejectSerializer(serializers.Serializer):
@@ -305,21 +329,23 @@ class LeaveRequestRejectSerializer(serializers.Serializer):
         max_length=1000,
         error_messages={'min_length': 'Rejection reason must be at least 10 characters'}
     )
+    expected_updated_at = serializers.DateTimeField(required=True)
 
 
 class BusinessTripSerializer(serializers.ModelSerializer):
     """Serializer for BusinessTrip (read)"""
     user_name = serializers.SerializerMethodField()
     user_email = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
 
     class Meta:
         model = BusinessTrip
         fields = [
             'id', 'user', 'user_name', 'user_email', 'city', 'country',
             'start_date', 'end_date', 'note', 'attachment_url',
-            'created_at', 'updated_at'
+            'can_edit', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'can_edit', 'created_at', 'updated_at']
 
     def get_user_name(self, obj):
         """Get user full name"""
@@ -328,6 +354,20 @@ class BusinessTripSerializer(serializers.ModelSerializer):
     def get_user_email(self, obj):
         """Get user email"""
         return obj.user.email
+
+    def get_can_edit(self, obj):
+        from users.utils import get_user_local_date
+        from .request_editing import can_edit_business_trip
+        actor = self.context.get('actor')
+        if actor is None:
+            request = self.context.get('request')
+            actor = getattr(request, 'user', None) if request else None
+        if not actor:
+            return False
+        owner_today = self.context.get('owner_today')
+        if owner_today is None:
+            owner_today = get_user_local_date(obj.user)
+        return can_edit_business_trip(actor, obj, owner_today)
 
 
 class BusinessTripCreateSerializer(serializers.Serializer):
@@ -346,3 +386,16 @@ class BusinessTripCreateSerializer(serializers.Serializer):
     )
     note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
     attachment_url = serializers.CharField(required=False, allow_blank=True, max_length=500)
+
+
+class BusinessTripUpdateSerializer(serializers.Serializer):
+    """Strict partial serializer for business trip PATCH."""
+    city = serializers.CharField(required=False, max_length=100)
+    country = serializers.CharField(required=False, max_length=100)
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    note = serializers.CharField(required=False, allow_blank=True, max_length=2000)
+    attachment_url = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=500
+    )
+    expected_updated_at = serializers.DateTimeField(required=True)

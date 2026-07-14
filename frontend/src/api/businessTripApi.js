@@ -50,6 +50,27 @@ export async function createBusinessTrip(data) {
 }
 
 /**
+ * PATCH existing business trip (owner-only, before start).
+ * @param {string} id
+ * @param {object} data - city, country, date[], note, attachment_url?, expectedUpdatedAt
+ */
+export async function updateBusinessTrip(id, data) {
+  const payload = {
+    city: data.city,
+    country: data.country,
+    start_date: data.date[0].format("YYYY-MM-DD"),
+    end_date: data.date[1].format("YYYY-MM-DD"),
+    note: data.note || "",
+    expected_updated_at: data.expectedUpdatedAt,
+  };
+  if (Object.prototype.hasOwnProperty.call(data, "attachment_url")) {
+    payload.attachment_url = data.attachment_url ?? "";
+  }
+  const res = await http.patch(`${API_URL}/${id}/`, payload);
+  return res.data;
+}
+
+/**
  * Cancel/delete a business trip
  * @param {string} id - Trip UUID
  * @returns {Promise<{message: string}>}

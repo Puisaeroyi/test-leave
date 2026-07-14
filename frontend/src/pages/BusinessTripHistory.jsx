@@ -8,19 +8,23 @@ import {
   Descriptions,
   Space,
   message,
+  Typography,
 } from "antd";
-import { EyeOutlined, PlusOutlined } from "@ant-design/icons";
+import { EyeOutlined, PlusOutlined, EditOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import { getBusinessTrips } from "@api/businessTripApi";
 import { getMediaUrl } from "@api/http";
 import NewBusinessTripModal from "@components/NewBusinessTripModal";
 import ResponsiveRecordCard, { ResponsiveRecordRow } from "@components/ResponsiveRecordCard";
 
+const { Text } = Typography;
+
 export default function BusinessTripHistory() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [openNew, setOpenNew] = useState(false);
+  const [editRecord, setEditRecord] = useState(null);
 
   const fetchTrips = useCallback(async () => {
     try {
@@ -35,20 +39,28 @@ export default function BusinessTripHistory() {
     }
   }, []);
 
-  // Fetch business trips on mount
   useEffect(() => {
     fetchTrips();
   }, [fetchTrips]);
 
   const handleCreate = async () => {
-    // Modal handles API call, just refresh list
     await fetchTrips();
+  };
+
+  const openEdit = (trip) => {
+    setSelected(null);
+    setEditRecord(trip);
+    setOpenNew(true);
   };
 
   const columns = [
     {
       title: "Destination",
-      render: (_, r) => <Tag style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>{r.city}, {r.country}</Tag>,
+      render: (_, r) => (
+        <Tag style={{ color: "var(--color-info)", background: "var(--color-info-soft)", border: "1px solid var(--color-info)" }}>
+          {r.city}, {r.country}
+        </Tag>
+      ),
     },
     {
       title: "Date",
@@ -60,9 +72,16 @@ export default function BusinessTripHistory() {
     {
       title: "Action",
       render: (_, r) => (
-        <Button icon={<EyeOutlined />} onClick={() => setSelected(r)}>
-          View Detail
-        </Button>
+        <Space>
+          <Button icon={<EyeOutlined />} onClick={() => setSelected(r)}>
+            View Detail
+          </Button>
+          {r.can_edit && (
+            <Button icon={<EditOutlined />} onClick={() => openEdit(r)}>
+              Edit
+            </Button>
+          )}
+        </Space>
       ),
     },
   ];
@@ -82,7 +101,10 @@ export default function BusinessTripHistory() {
           type="primary"
           className="app-button-primary"
           icon={<PlusOutlined />}
-          onClick={() => setOpenNew(true)}
+          onClick={() => {
+            setEditRecord(null);
+            setOpenNew(true);
+          }}
         >
           New Business Trip
         </Button>
@@ -108,9 +130,16 @@ export default function BusinessTripHistory() {
                 onClick={() => setSelected(trip)}
                 ariaLabel={`View business trip to ${trip.city}, ${trip.country}`}
                 footer={
-                  <Button icon={<EyeOutlined />} onClick={() => setSelected(trip)}>
-                    View Detail
-                  </Button>
+                  <Space>
+                    <Button icon={<EyeOutlined />} onClick={() => setSelected(trip)}>
+                      View Detail
+                    </Button>
+                    {trip.can_edit && (
+                      <Button icon={<EditOutlined />} onClick={() => openEdit(trip)}>
+                        Edit
+                      </Button>
+                    )}
+                  </Space>
                 }
               >
                 <ResponsiveRecordRow label="Start">
@@ -131,32 +160,36 @@ export default function BusinessTripHistory() {
         </div>
       </Card>
 
-      {/* DETAIL MODAL */}
       <Modal
         open={!!selected}
         onCancel={() => setSelected(null)}
-        footer={null}
+        footer={
+          selected?.can_edit
+            ? [
+                <Button key="edit" type="primary" icon={<EditOutlined />} onClick={() => openEdit(selected)}>
+                  Edit trip
+                </Button>,
+              ]
+            : null
+        }
         title="Business Trip Detail"
       >
         {selected && (
           <Descriptions bordered column={1}>
-            <Descriptions.Item label="City">
-              {selected.city}
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Country">
-              {selected.country}
-            </Descriptions.Item>
-
+            <Descriptions.Item label="City">{selected.city}</Descriptions.Item>
+            <Descriptions.Item label="Country">{selected.country}</Descriptions.Item>
             <Descriptions.Item label="Date">
               {dayjs(selected.start_date).format("DD/MM/YYYY")} →{" "}
               {dayjs(selected.end_date).format("DD/MM/YYYY")}
             </Descriptions.Item>
-
-            <Descriptions.Item label="Note">
-              {selected.note || "-"}
-            </Descriptions.Item>
-
+            <Descriptions.Item label="Note">{selected.note || "-"}</Descriptions.Item>
+            {!selected.can_edit && (
+              <Descriptions.Item label="Editing">
+                <Text type="secondary">
+                  Editing is locked once the trip start date has been reached in your location timezone.
+                </Text>
+              </Descriptions.Item>
+            )}
             {selected.attachment_url && (
               <Descriptions.Item label="Attachment">
                 <a href={getMediaUrl(selected.attachment_url)} target="_blank" rel="noopener noreferrer">
@@ -168,11 +201,15 @@ export default function BusinessTripHistory() {
         )}
       </Modal>
 
-      {/* NEW BUSINESS TRIP */}
       <NewBusinessTripModal
         open={openNew}
-        onCancel={() => setOpenNew(false)}
+        onCancel={() => {
+          setOpenNew(false);
+          setEditRecord(null);
+        }}
         onSubmit={handleCreate}
+        mode={editRecord ? "edit" : "create"}
+        initialRecord={editRecord}
       />
     </div>
   );
