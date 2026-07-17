@@ -105,6 +105,17 @@ def create_initial_leave_balance(user):
         )
 
 
+def blacklist_all_refresh_tokens(user: User) -> None:
+    """Blacklist every outstanding refresh token for the user (logout everywhere)."""
+    from rest_framework_simplejwt.token_blacklist.models import (
+        OutstandingToken,
+        BlacklistedToken,
+    )
+
+    for token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=token)
+
+
 def build_user_response(user: User, include_tokens: bool = False) -> Dict[str, Any]:
     """Build standardized user response dict.
 

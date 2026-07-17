@@ -3,6 +3,9 @@
 from .serializers import (
     LoginSerializer,
     ChangePasswordSerializer,
+    PasswordResetRequestSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordChangeSerializer,
     UserSerializer,
     UserUpdateSerializer,
     UserCreateSerializer,
@@ -11,6 +14,9 @@ from .serializers import (
 __all__ = [
     'LoginSerializer',
     'ChangePasswordSerializer',
+    'PasswordResetRequestSerializer',
+    'PasswordResetConfirmSerializer',
+    'PasswordChangeSerializer',
     'UserSerializer',
     'UserUpdateSerializer',
     'UserCreateSerializer',

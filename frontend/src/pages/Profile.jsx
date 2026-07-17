@@ -4,6 +4,7 @@ import { UserOutlined, CameraOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUser, updateAvatar } from "../api/authApi";
 import { useAuth } from "@auth/authContext";
+import ProfileChangePasswordForm from "../components/profile-change-password-form";
 
 const { Title, Text } = Typography;
 
@@ -234,8 +235,17 @@ export default function Profile() {
           </Descriptions.Item>
         </Descriptions>
 
-        {/* ACTION */}
-        <div style={{ marginTop: 24, textAlign: "right" }}>
+        {/* ACTION — profile is primary; change password is a secondary modal action */}
+        <div
+          style={{
+            marginTop: 24,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            flexWrap: "wrap",
+          }}
+        >
+          <ProfileChangePasswordForm />
           <Button onClick={() => navigate(-1)}>Back</Button>
         </div>
       </Card>

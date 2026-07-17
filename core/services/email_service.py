@@ -333,3 +333,29 @@ def send_leave_updated_email_safe(approver, request_snapshot, change_rows):
         send_leave_updated_email(approver, request_snapshot, change_rows)
     except Exception as e:
         logger.warning("Leave updated email callback failed: %s", e)
+
+
+def send_password_reset_email(user, reset_url):
+    """Send a password-reset link email to the user."""
+    if not user or not reset_url:
+        return
+
+    recipient = user.email
+    display_name = _display_name(user)
+    subject = "Password Reset Request"
+    text_body = (
+        f"Hello {display_name},\n\n"
+        f"We received a request to reset your password. "
+        f"Use the link below to choose a new password:\n\n"
+        f"{reset_url}\n\n"
+        f"This link expires in 1 hour. If you did not request a password reset, "
+        f"you can ignore this email.\n"
+    )
+    html_body = render_to_string(
+        "email/password_reset.html",
+        {
+            "employee_name": display_name,
+            "reset_url": reset_url,
+        },
+    )
+    _send(subject, text_body, html_body, recipient)

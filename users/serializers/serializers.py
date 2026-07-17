@@ -97,6 +97,76 @@ class ChangePasswordSerializer(serializers.Serializer):
         return attrs
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Request a password-reset email. Never validates account existence."""
+
+    email = serializers.EmailField(required=True)
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Confirm password reset with uid + token + new password pair."""
+
+    uid = serializers.CharField(required=True)
+    token = serializers.CharField(required=True)
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+    )
+
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError({
+                "password_confirm": "Password fields didn't match."
+            })
+        validate_password(attrs['password'])
+        return attrs
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    """Authenticated user changes password (requires current password)."""
+
+    current_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+    )
+    new_password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={'input_type': 'password'},
+    )
+
+    def validate_current_password(self, value):
+        user = self.context.get('user')
+        if not user or not user.check_password(value):
+            raise serializers.ValidationError("Current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        user = self.context.get('user')
+        if attrs['new_password'] != attrs['new_password_confirm']:
+            raise serializers.ValidationError({
+                "new_password_confirm": "Password fields didn't match."
+            })
+        if attrs['new_password'] == attrs['current_password']:
+            raise serializers.ValidationError({
+                "new_password": "New password must be different from the current password."
+            })
+        validate_password(attrs['new_password'], user=user)
+        return attrs
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model"""
 

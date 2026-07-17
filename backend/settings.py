@@ -220,6 +220,9 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Password reset token lifetime (Django default_token_generator), seconds
+PASSWORD_RESET_TIMEOUT = 3600
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/

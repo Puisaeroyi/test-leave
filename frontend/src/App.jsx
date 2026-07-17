@@ -5,6 +5,8 @@ import MainLayout from "@layouts/mainLayout";
 
 import Login from "@pages/login";
 import ChangePassword from "@pages/change-password";
+import ForgotPassword from "@pages/forgot-password";
+import ResetPassword from "@pages/reset-password";
 import Profile from "@pages/Profile";
 import Settings from "@pages/Settings";
 import Dashboard from "@pages/dashBoard";
@@ -22,6 +24,8 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/change-password" element={<ChangePassword />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route
             element={

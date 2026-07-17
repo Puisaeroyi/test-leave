@@ -7,7 +7,7 @@ import {
   Typography,
 } from "antd";
 import { login as loginApi } from "@api/authApi";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@auth/authContext";
 import { useState } from "react";
 import logo from "@/assets/logo.png";
@@ -88,6 +88,10 @@ export default function Login() {
             >
               <Input.Password placeholder="Enter your password" />
             </Form.Item>
+
+            <div style={{ marginTop: -8, marginBottom: 16, textAlign: "right" }}>
+              <Link to="/forgot-password">Forgot password?</Link>
+            </div>
 
             <Button
               type="primary"

@@ -46,6 +46,46 @@ export async function changePassword({ password, passwordConfirm }) {
   return res.data.user;
 }
 
+/** Request a password-reset email (enumeration-safe; always succeeds if valid email). */
+export async function requestPasswordReset(email) {
+  const res = await http.post(`${API_URL}/password-reset/request/`, { email });
+  return res.data;
+}
+
+/** Confirm password reset with uid + token + new password. */
+export async function confirmPasswordReset({ uid, token, password, passwordConfirm }) {
+  const res = await http.post(`${API_URL}/password-reset/confirm/`, {
+    uid,
+    token,
+    password,
+    password_confirm: passwordConfirm,
+  });
+  return res.data;
+}
+
+/**
+ * Authenticated change password (Profile). Swaps tokens synchronously so the
+ * current session continues after logout-everywhere on the server.
+ */
+export async function changeMyPassword({
+  currentPassword,
+  newPassword,
+  newPasswordConfirm,
+}) {
+  const res = await http.post(`${API_URL}/password-change/`, {
+    current_password: currentPassword,
+    new_password: newPassword,
+    new_password_confirm: newPasswordConfirm,
+  });
+
+  if (res.data.user?.tokens) {
+    localStorage.setItem("access", res.data.user.tokens.access);
+    localStorage.setItem("refresh", res.data.user.tokens.refresh);
+  }
+
+  return res.data.user;
+}
+
 export async function getCurrentUser() {
   const res = await http.get(`${API_URL}/me/`);
   return res.data;
