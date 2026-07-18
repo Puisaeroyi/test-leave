@@ -4,18 +4,17 @@ Serializers for User Authentication and Management
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import URLValidator
 from organizations.models import Entity, Location, Department, WorkShift
 
 from .utils import validate_active_relationship
+from users.services.credential_verification import (
+    CredentialOutcome,
+    verify_credentials,
+)
 
 User = get_user_model()
-
-# Account lockout settings
-MAX_LOGIN_ATTEMPTS = 5
-LOCKOUT_DURATION = 3600  # 1 hour in seconds
 
 GENERIC_LOGIN_ERROR = "Invalid credentials."
 
@@ -50,28 +49,18 @@ class LoginSerializer(serializers.Serializer):
         if not (email and password):
             raise serializers.ValidationError(GENERIC_LOGIN_ERROR)
 
-        # Check if account is locked out
-        cache_key = f"login_fail_{email.lower()}"
-        fail_count = cache.get(cache_key, 0)
+        verification = verify_credentials(email, password)
 
-        if fail_count >= MAX_LOGIN_ATTEMPTS:
+        if verification.outcome == CredentialOutcome.ACCOUNT_LOCKED:
             raise serializers.ValidationError(
                 "Account temporarily locked due to too many failed attempts. Try again later."
             )
-
-        # Try to authenticate user
-        from django.contrib.auth import authenticate
-        user = authenticate(username=email, password=password)
-
-        if not user or not user.is_active:
-            # Increment failed attempts
-            cache.set(cache_key, fail_count + 1, LOCKOUT_DURATION)
+        if verification.outcome == CredentialOutcome.INVALID_CREDENTIALS:
             raise serializers.ValidationError(GENERIC_LOGIN_ERROR)
+        if verification.outcome == CredentialOutcome.ACCOUNT_INACTIVE:
+            raise serializers.ValidationError("Account is inactive.")
 
-        # Reset failed attempts on success
-        cache.delete(cache_key)
-
-        attrs['user'] = user
+        attrs['user'] = verification.user
         return attrs
 
 
